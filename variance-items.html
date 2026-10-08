@@ -90,6 +90,12 @@
         <input type="text" id="n-unit" placeholder="e.g. glass, bottle, slice, pc">
       </div>
     </div>
+    <div class="row2 field">
+      <div>
+        <label>Current Price (PKR, optional)</label>
+        <input type="number" id="n-price" step="any" placeholder="e.g. 275">
+      </div>
+    </div>
     <button class="btn-primary" id="btn-add-item" type="button">Add Item</button>
     <div class="hint">Store issuance (OP/ADD/END/Discard) and the POS-sold comparison are both tracked per item you add here.</div>
   </div>
@@ -190,6 +196,8 @@ function setAddDept(dept) {
 async function addItem() {
   const name = document.getElementById("n-name").value.trim();
   const unit = document.getElementById("n-unit").value.trim() || "unit";
+  const priceRaw = document.getElementById("n-price").value;
+  const current_price = priceRaw === "" ? null : parseFloat(priceRaw);
   if (!name) return alert("Enter the item's name.");
   const btn = document.getElementById("btn-add-item");
   btn.disabled = true;
@@ -198,11 +206,12 @@ async function addItem() {
       method: "POST",
       headers: { "Prefer": "return=minimal" },
       body: JSON.stringify({
-        location_id: LOCATION_ID, department: state.addDept, name, unit, active: true, created_by: state.userId
+        location_id: LOCATION_ID, department: state.addDept, name, unit, current_price, active: true, created_by: state.userId
       })
     });
     document.getElementById("n-name").value = "";
     document.getElementById("n-unit").value = "";
+    document.getElementById("n-price").value = "";
     await loadItems();
   } catch (e) {
     alert("Couldn't add item: " + e.message);
@@ -216,7 +225,7 @@ async function loadItems() {
   const showRetired = document.getElementById("show-retired").checked;
   const filter = showRetired ? "" : "&active=eq.true";
   try {
-    state.items = await sb(`variance_items?location_id=eq.${LOCATION_ID}&select=id,department,name,unit,active&order=department,name${filter}`);
+    state.items = await sb(`variance_items?location_id=eq.${LOCATION_ID}&select=id,department,name,unit,current_price,active&order=department,name${filter}`);
   } catch (e) { state.items = []; }
   renderItemList();
 }
@@ -249,7 +258,7 @@ function renderItemList() {
       <div class="item-top">
         <div>
           <span class="item-title">${i.name}</span>${!i.active ? '<span class="badge">Retired</span>' : ""}
-          <div class="item-sub">unit: ${i.unit}</div>
+          <div class="item-sub">unit: ${i.unit}${i.current_price != null ? " · PKR " + Number(i.current_price).toLocaleString() : ""}</div>
         </div>
       </div>
       <div class="item-detail" hidden>
@@ -261,6 +270,12 @@ function renderItemList() {
           <div>
             <label>Unit</label>
             <input type="text" class="e-unit" value="${i.unit}">
+          </div>
+        </div>
+        <div class="row2 field">
+          <div>
+            <label>Current Price (PKR)</label>
+            <input type="number" step="any" class="e-price" value="${i.current_price != null ? i.current_price : ""}" placeholder="optional">
           </div>
         </div>
         <div style="display:flex; gap:8px;">
@@ -287,12 +302,14 @@ function renderItemList() {
 async function saveItemEdit(i, rowEl) {
   const name = rowEl.querySelector(".e-name").value.trim();
   const unit = rowEl.querySelector(".e-unit").value.trim() || "unit";
+  const priceRaw = rowEl.querySelector(".e-price").value;
+  const current_price = priceRaw === "" ? null : parseFloat(priceRaw);
   if (!name) return alert("Name can't be blank.");
   try {
     await sb(`variance_items?id=eq.${i.id}`, {
       method: "PATCH",
       headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify({ name, unit })
+      body: JSON.stringify({ name, unit, current_price })
     });
     await loadItems();
   } catch (e2) {
