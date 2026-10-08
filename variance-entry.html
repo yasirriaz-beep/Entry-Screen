@@ -63,7 +63,7 @@
 <body>
 
 <h1>Drinks &amp; Bakery — Daily Usage</h1>
-<div class="sub">Store issuance side — Director &amp; Shift Manager only. The POS-sold side is uploaded separately by the Director, to keep the two checks independent.</div>
+<div class="sub">Store Man logs Added when stock goes out to the section. Shift Manager logs Closing &amp; Discard at day's end and can't touch Added. The POS-sold side is uploaded separately by Cash Custodian, to keep every side independent.</div>
 
 <div id="step-name" class="card">
   <div class="step-label">Who are you?</div>
@@ -100,13 +100,13 @@
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
-const ENTRY_ROLES = ["director", "shift_manager"];
-const ROLE_LABELS = { director: "Director", shift_manager: "Shift Manager" };
+const ENTRY_ROLES = ["director", "store_man", "shift_manager"];
+const ROLE_LABELS = { director: "Director", store_man: "Store Man", shift_manager: "Shift Manager" };
 
 let state = {
-  userId: null, userName: null, dept: "drinks",
+  userId: null, userName: null, userRole: null, dept: "drinks",
   items: [], entries: {}, // variance_item_id -> entry row for the chosen date
-  dirty: {} // variance_item_id -> {opening_qty, added_qty, closing_qty, discard_qty}
+  dirty: {} // variance_item_id -> {added_qty} or {closing_qty, discard_qty} depending on role
 };
 
 async function sb(path, opts = {}) {
@@ -145,7 +145,7 @@ async function loadNames() {
       pill.type = "button";
       pill.className = "name-pill";
       pill.textContent = label;
-      pill.onclick = () => selectUser(u.id, label, pill);
+      pill.onclick = () => selectUser(u.id, label, u.role, pill);
       grid.appendChild(pill);
     });
     if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with usage-entry access found.</div>';
@@ -154,11 +154,12 @@ async function loadNames() {
   }
 }
 
-function selectUser(id, name, pillEl) {
+function selectUser(id, name, role, pillEl) {
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
   pillEl.classList.add("selected");
   state.userId = id;
   state.userName = name;
+  state.userRole = role;
   setTimeout(() => {
     document.getElementById("step-name").hidden = true;
     document.getElementById("panel-main").hidden = false;
@@ -201,6 +202,11 @@ async function loadAll() {
   renderItemList();
 }
 
+function fieldHtml(label, cls, value, editable, extraNote) {
+  const inputAttrs = editable ? "" : "disabled";
+  return `<div><label>${label}</label><input type="number" step="any" class="${cls}" value="${value}" ${inputAttrs}>${extraNote ? `<div class="hint" style="margin-top:2px;">${extraNote}</div>` : ""}</div>`;
+}
+
 function renderItemList() {
   const list = document.getElementById("item-list");
   const emptyHint = document.getElementById("item-list-empty");
@@ -208,46 +214,57 @@ function renderItemList() {
   if (!state.items.length) { emptyHint.hidden = false; return; }
   emptyHint.hidden = true;
 
+  const role = state.userRole;
+  const isStoreStage = role === "store_man";          // only logs Added, once
+  const isClosingStage = role === "shift_manager";    // only logs Closing/Discard, once existing
+  const isDirector = role === "director";             // full access, both stages
+
   state.items.forEach(it => {
     const existing = state.entries[it.id];
     const d = state.dirty[it.id] || {};
     const val = (field, fallback) => d[field] != null ? d[field] : (existing ? existing[field] : fallback);
-    const opening = val("opening_qty", 0), added = val("added_qty", 0), closing = val("closing_qty", 0), discard = val("discard_qty", 0);
-    const usage = (Number(opening) || 0) + (Number(added) || 0) - (Number(closing) || 0) - (Number(discard) || 0);
+    const opening = val("opening_qty", existing ? existing.opening_qty : "auto"), added = val("added_qty", existing ? existing.added_qty : 0),
+          closing = val("closing_qty", existing ? existing.closing_qty : 0), discard = val("discard_qty", existing ? existing.discard_qty : 0);
+    const usage = existing ? (Number(opening)||0) + (Number(added)||0) - (Number(closing)||0) - (Number(discard)||0) : null;
+
+    const addedLocked = !isDirector && (isClosingStage || (isStoreStage && !!existing)); // store_man can edit only when no entry yet
+    const closingLocked = !isDirector && (isStoreStage || (isClosingStage && !existing)); // shift_manager can edit only once an entry (Added) exists
 
     const block = document.createElement("div");
     block.className = "item-block";
     block.innerHTML = `
       <div class="item-title">
         <span>${it.name} <span class="hint" style="margin:0;">(${it.unit})</span></span>
-        <span class="usage-tag">Usage: ${fmtQty(usage)}</span>
+        <span class="usage-tag">${usage != null ? "Usage: " + fmtQty(usage) : "No entry yet"}</span>
       </div>
       <div class="grid4">
-        <div><label>Opening</label><input type="number" step="any" class="f-opening" value="${opening}"></div>
-        <div><label>Added</label><input type="number" step="any" class="f-added" value="${added}"></div>
-        <div><label>Closing</label><input type="number" step="any" class="f-closing" value="${closing}"></div>
-        <div><label>Discard</label><input type="number" step="any" class="f-discard" value="${discard}"></div>
+        ${fieldHtml("Opening", "f-opening", existing ? opening : "auto", false, "computed from yesterday's Closing")}
+        ${fieldHtml("Added", "f-added", added, !addedLocked, isStoreStage && existing ? "already logged — locked" : (isClosingStage ? "Store Man's entry — locked" : ""))}
+        ${fieldHtml("Closing", "f-closing", closing, !closingLocked, isStoreStage ? "Shift Manager's entry — locked" : (isClosingStage && !existing ? "waiting for Store Man to log Added" : ""))}
+        ${fieldHtml("Discard", "f-discard", discard, !closingLocked, isStoreStage ? "Shift Manager's entry — locked" : (isClosingStage && !existing ? "waiting for Store Man to log Added" : ""))}
       </div>
     `;
     const inputs = {
-      opening_qty: block.querySelector(".f-opening"),
       added_qty: block.querySelector(".f-added"),
       closing_qty: block.querySelector(".f-closing"),
       discard_qty: block.querySelector(".f-discard")
     };
     const usageTag = block.querySelector(".usage-tag");
     Object.entries(inputs).forEach(([field, el]) => {
+      if (el.disabled) return;
       if (state.dirty[it.id] && state.dirty[it.id][field] != null) el.classList.add("dirty");
       el.addEventListener("input", () => {
         const v = parseFloat(el.value);
         if (!state.dirty[it.id]) state.dirty[it.id] = {};
         state.dirty[it.id][field] = isNaN(v) ? 0 : v;
         el.classList.add("dirty");
-        const o = parseFloat(inputs.opening_qty.value) || 0;
-        const a = parseFloat(inputs.added_qty.value) || 0;
-        const c = parseFloat(inputs.closing_qty.value) || 0;
-        const dq = parseFloat(inputs.discard_qty.value) || 0;
-        usageTag.textContent = `Usage: ${fmtQty(o + a - c - dq)}`;
+        if (existing || isDirector) {
+          const o = Number(existing ? existing.opening_qty : 0) || 0;
+          const a = parseFloat(inputs.added_qty.value) || 0;
+          const c = parseFloat(inputs.closing_qty.value) || 0;
+          const dq = parseFloat(inputs.discard_qty.value) || 0;
+          usageTag.textContent = `Usage: ${fmtQty(o + a - c - dq)}`;
+        }
         updateSaveBar();
       });
     });
@@ -271,22 +288,41 @@ async function saveAllEntries() {
   for (const id of ids) {
     const existing = state.entries[id];
     const d = state.dirty[id];
-    const payload = {
-      location_id: LOCATION_ID, variance_item_id: id, entry_date: date,
-      opening_qty: d.opening_qty != null ? d.opening_qty : (existing ? existing.opening_qty : 0),
-      added_qty: d.added_qty != null ? d.added_qty : (existing ? existing.added_qty : 0),
-      closing_qty: d.closing_qty != null ? d.closing_qty : (existing ? existing.closing_qty : 0),
-      discard_qty: d.discard_qty != null ? d.discard_qty : (existing ? existing.discard_qty : 0),
-      entered_by_user_id: state.userId
-    };
     try {
-      if (existing) {
-        await sb(`variance_daily_entries?id=eq.${existing.id}`, {
-          method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
-        });
-      } else {
+      if (!existing) {
+        // First entry for this item/date — Added gets logged (Store Man or Director); closing/discard start at 0 per the insert policy.
         await sb("variance_daily_entries", {
-          method: "POST", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+          method: "POST", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({
+            location_id: LOCATION_ID, variance_item_id: id, entry_date: date,
+            added_qty: d.added_qty != null ? d.added_qty : 0,
+            closing_qty: 0, discard_qty: 0,
+            entered_by_user_id: state.userId, added_by_user_id: state.userId
+          })
+        });
+        // Director doing a one-shot full entry also supplies Closing/Discard in the same save — apply as a follow-up patch.
+        if (state.userRole === "director" && (d.closing_qty != null || d.discard_qty != null)) {
+          const created = await sb(`variance_daily_entries?location_id=eq.${LOCATION_ID}&variance_item_id=eq.${id}&entry_date=eq.${date}&select=id`);
+          if (created && created[0]) {
+            await sb(`variance_daily_entries?id=eq.${created[0].id}`, {
+              method: "PATCH", headers: { "Prefer": "return=minimal" },
+              body: JSON.stringify({
+                closing_qty: d.closing_qty != null ? d.closing_qty : 0,
+                discard_qty: d.discard_qty != null ? d.discard_qty : 0,
+                last_updated_by_user_id: state.userId
+              })
+            });
+          }
+        }
+      } else {
+        // Entry already exists — this is the Closing/Discard stage (Shift Manager or Director). Added is never resent.
+        await sb(`variance_daily_entries?id=eq.${existing.id}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({
+            closing_qty: d.closing_qty != null ? d.closing_qty : existing.closing_qty,
+            discard_qty: d.discard_qty != null ? d.discard_qty : existing.discard_qty,
+            last_updated_by_user_id: state.userId
+          })
         });
       }
       done++;
