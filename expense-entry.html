@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Expense Entry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --border: #e4ddd1;
+    --ink: #2a2420;
+    --ink-soft: #6f655a;
+    --accent: #9c3b2e;
+    --accent-ink: #ffffff;
+    --field-bg: #fcfaf6;
+    --ok: #3d7a4f;
+    --ok-bg: #eaf4ec;
+    --warn: #a3650a;
+    --warn-bg: #fdf1dd;
+    --err: #b3261e;
+    --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815;
+      --surface: #262220;
+      --border: #3a342f;
+      --ink: #f1ece4;
+      --ink-soft: #ad9f90;
+      --accent: #e0775f;
+      --accent-ink: #1c1815;
+      --field-bg: #201c19;
+      --ok: #7cc492;
+      --ok-bg: #1f2c21;
+      --warn: #e4a94a;
+      --warn-bg: #2e2514;
+      --err: #e4867d;
+      --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815;
+    --surface: #262220;
+    --border: #3a342f;
+    --ink: #f1ece4;
+    --ink-soft: #ad9f90;
+    --accent: #e0775f;
+    --accent-ink: #1c1815;
+    --field-bg: #201c19;
+    --ok: #7cc492;
+    --ok-bg: #1f2c21;
+    --warn: #e4a94a;
+    --warn-bg: #2e2514;
+    --err: #e4867d;
+    --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Libre Franklin', system-ui, sans-serif;
+    padding: 20px 16px 48px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-family: 'Zilla Slab', Georgia, serif;
+    font-size: 1.5rem;
+    margin: 4px 0 2px;
+  }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+  .field { margin-bottom: 14px; }
+  select, input, textarea {
+    width: 100%;
+    min-width: 0;
+    background: var(--field-bg);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    border-radius: 9px;
+    padding: 11px 12px;
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button {
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: none;
+    border-radius: 10px;
+    padding: 13px 18px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill {
+    border: 1px solid var(--border);
+    background: var(--field-bg);
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 9px 16px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .banner {
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.88rem;
+    margin-bottom: 14px;
+    line-height: 1.4;
+  }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .banner ul { margin: 6px 0 0 18px; padding: 0; }
+  .ack-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; font-size: 0.85rem; }
+  .ack-row input { width: auto; margin-top: 2px; }
+  .amount-display {
+    font-family: 'Zilla Slab', Georgia, serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+  }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Expense Entry</h1>
+<div class="sub">Forks N Knives — daily expense log</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who's entering this?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="step-form" hidden>
+  <div class="card">
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="field">
+      <label>Category</label>
+      <select id="f-category"></select>
+    </div>
+
+    <div id="block-item" class="field" hidden>
+      <label>Item Code / Name</label>
+      <input type="text" id="f-item-search" placeholder="Start typing an item name...">
+      <select id="f-item-select" style="margin-top:6px;"></select>
+      <div class="hint" id="item-hint"></div>
+    </div>
+
+    <div class="row2 field">
+      <div>
+        <label>Qty</label>
+        <input type="number" id="f-qty" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Rate (PKR)</label>
+        <input type="number" id="f-rate" step="any" placeholder="0">
+      </div>
+    </div>
+
+    <div class="field" id="block-amount-direct">
+      <label>Amount (PKR)</label>
+      <input type="number" id="f-amount" step="any" placeholder="0">
+    </div>
+
+    <div class="field">
+      <label>Vendor / Payee</label>
+      <select id="f-vendor"><option value="">— None / N/A —</option></select>
+    </div>
+
+    <div id="block-charged-to" class="field" hidden>
+      <label>Charged To</label>
+      <input type="text" id="f-charged-to" placeholder="e.g. Yasir Sb, or employee name">
+    </div>
+
+    <div class="field">
+      <label>Description / Notes</label>
+      <textarea id="f-detail" rows="2" placeholder="Short description"></textarea>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:4px;">
+      <span class="hint">Total</span>
+      <span class="amount-display" id="total-display">PKR 0</span>
+    </div>
+  </div>
+
+  <div id="ai-banner-wrap"></div>
+
+  <button class="btn-primary" id="btn-check" type="button">Check &amp; Save</button>
+  <button class="btn-ghost" id="btn-back" type="button">Back</button>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;">Expense saved</div>
+  <div class="hint" style="margin-top:4px;">Entry cleared. Ready for the next one.</div>
+  <button class="btn-primary" id="btn-another" type="button" style="margin-top:18px;">Enter Another</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const ROLE = "cash_expense";
+
+const CATEGORIES = [
+  "Inventory Purchase","Director Draw","Payroll/Employee Charge","Payable Payment",
+  "Food","Packaging","Cleaning & Sanitation","Party & Decor","Stationery & Office Supplies",
+  "Marketing","Uniform & Apparel","Equipment & Smallwares","Vehicle & Delivery Maintenance",
+  "Fuel & Gas","Payroll","Utilities (Electricity/Water)","Distribution Cost","Delivery Charges",
+  "Interstore Transfers","Employee Meals & Medical","Charge to Restaurant","Repairs & Maintenance",
+  "Government Charges & Taxes","Food Panda Commission","Miscellaneous","Donation"
+];
+const ITEM_CODE_CATEGORY = "Inventory Purchase";
+const CHARGED_TO_CATEGORIES = ["Director Draw","Payroll/Employee Charge"];
+
+let state = { userId: null, userName: null, products: [], pendingFlags: [], acknowledged: false };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=eq.${ROLE}&active=eq.true&select=id,name&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = u.name;
+      pill.onclick = () => selectUser(u.id, u.name, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) {
+      grid.innerHTML = '<div class="hint">No authorized expense-entry users found for Gulberg.</div>';
+    }
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("step-form").hidden = false;
+    document.getElementById("f-date").value = todayStr();
+  }, 150);
+}
+
+function populateCategories() {
+  const sel = document.getElementById("f-category");
+  sel.innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
+}
+
+async function loadVendors() {
+  try {
+    const rows = await sb(`vendors?active=eq.true&select=id,name&order=name`);
+    const sel = document.getElementById("f-vendor");
+    rows.forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v.id;
+      opt.textContent = v.name;
+      sel.appendChild(opt);
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
+async function loadProducts() {
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
+  } catch (e) { state.products = []; }
+}
+
+function populateItemSelect(filterText) {
+  const sel = document.getElementById("f-item-select");
+  const ft = (filterText || "").trim().toUpperCase();
+  const matches = ft
+    ? state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft))
+    : state.products.slice(0, 40);
+  sel.innerHTML = '<option value="">— pick an item —</option>' +
+    matches.slice(0, 60).map(p => `<option value="${p.id}">${p.code || "?"} — ${p.name}</option>`).join("");
+}
+
+function onItemSelected() {
+  const sel = document.getElementById("f-item-select");
+  const p = state.products.find(x => x.id === sel.value);
+  if (p) {
+    document.getElementById("f-rate").value = p.current_rate || "";
+    document.getElementById("item-hint").textContent = `Unit: ${p.unit || "—"} · Last rate on file: PKR ${p.current_rate || 0}`;
+  } else {
+    document.getElementById("item-hint").textContent = "";
+  }
+  recalcAmount();
+}
+
+function recalcAmount() {
+  const cat = document.getElementById("f-category").value;
+  let amount = 0;
+  if (cat === ITEM_CODE_CATEGORY) {
+    const qty = parseFloat(document.getElementById("f-qty").value) || 0;
+    const rate = parseFloat(document.getElementById("f-rate").value) || 0;
+    amount = qty * rate;
+    document.getElementById("f-amount").value = amount ? amount.toFixed(2) : "";
+  } else {
+    amount = parseFloat(document.getElementById("f-amount").value) || 0;
+  }
+  document.getElementById("total-display").textContent =
+    "PKR " + amount.toLocaleString("en-PK", { maximumFractionDigits: 2 });
+  return amount;
+}
+
+function onCategoryChange() {
+  const cat = document.getElementById("f-category").value;
+  const isItem = cat === ITEM_CODE_CATEGORY;
+  document.getElementById("block-item").hidden = !isItem;
+  document.getElementById("block-amount-direct").hidden = isItem;
+  document.getElementById("block-charged-to").hidden = !CHARGED_TO_CATEGORIES.includes(cat);
+  if (isItem) populateItemSelect("");
+  resetAiBanner();
+  recalcAmount();
+}
+
+function resetAiBanner() {
+  document.getElementById("ai-banner-wrap").innerHTML = "";
+  state.pendingFlags = [];
+  state.acknowledged = false;
+  setSaveLabel("Check & Save");
+}
+
+function setSaveLabel(label) {
+  document.getElementById("btn-check").textContent = label;
+}
+
+function renderFlags(reasons) {
+  const wrap = document.getElementById("ai-banner-wrap");
+  if (!reasons.length) {
+    wrap.innerHTML = `<div class="banner banner-ok">No issues found with this entry.</div>`;
+    state.pendingFlags = [];
+    setSaveLabel("Save Expense");
+    return;
+  }
+  state.pendingFlags = reasons;
+  wrap.innerHTML = `
+    <div class="banner banner-warn">
+      <strong>This entry looks unusual:</strong>
+      <ul>${reasons.map(r => `<li>${r}</li>`).join("")}</ul>
+      <label class="ack-row">
+        <input type="checkbox" id="ack-box">
+        <span>I've checked this and the entry is correct — save it anyway.</span>
+      </label>
+    </div>`;
+  document.getElementById("ack-box").addEventListener("change", (e) => {
+    state.acknowledged = e.target.checked;
+    setSaveLabel(state.acknowledged ? "Save Anyway" : "Fix & Re-check");
+  });
+  setSaveLabel("Fix & Re-check");
+}
+
+async function runCheckAndMaybeSave() {
+  const cat = document.getElementById("f-category").value;
+  const amount = recalcAmount();
+  const date = document.getElementById("f-date").value;
+  const vendorId = document.getElementById("f-vendor").value || null;
+
+  if (!date) return alert("Pick a date.");
+  if (!amount || amount <= 0) return alert("Enter an amount greater than zero.");
+  if (cat === ITEM_CODE_CATEGORY && !document.getElementById("f-item-select").value) {
+    return alert("Pick an item for an Inventory Purchase.");
+  }
+
+  // Already flagged and not yet acknowledged -> don't re-check, just block.
+  if (state.pendingFlags.length > 0 && !state.acknowledged) {
+    alert("Please review the warning above, then tick the acknowledgement box or adjust the entry.");
+    return;
+  }
+
+  // If there were flags and the user acknowledged, save directly as "overridden".
+  if (state.pendingFlags.length > 0 && state.acknowledged) {
+    await saveExpense({ status: "overridden", reason: state.pendingFlags.join(" | ") });
+    return;
+  }
+
+  // First pass: run the AI/pattern check.
+  document.getElementById("btn-check").disabled = true;
+  try {
+    const result = await sb(`rpc/check_expense_entry_v2`, {
+      method: "POST",
+      body: JSON.stringify({
+        p_location_id: LOCATION_ID,
+        p_category: cat,
+        p_amount: amount,
+        p_vendor_id: vendorId,
+        p_expense_date: date
+      })
+    });
+    const reasons = (result || []).map(r => r.reason);
+    if (reasons.length === 0) {
+      await saveExpense({ status: "ok", reason: null });
+    } else {
+      renderFlags(reasons);
+    }
+  } catch (e) {
+    document.getElementById("ai-banner-wrap").innerHTML =
+      `<div class="banner banner-err">Check failed (${e.message}). You can still save, but it hasn't been pattern-checked.</div>`;
+  } finally {
+    document.getElementById("btn-check").disabled = false;
+  }
+}
+
+async function saveExpense({ status, reason }) {
+  const cat = document.getElementById("f-category").value;
+  const amount = recalcAmount();
+  const date = document.getElementById("f-date").value;
+  const vendorId = document.getElementById("f-vendor").value || null;
+  const detail = document.getElementById("f-detail").value || null;
+  const chargedTo = document.getElementById("f-charged-to").value || null;
+
+  const payload = {
+    location_id: LOCATION_ID,
+    expense_date: date,
+    category: cat,
+    amount: amount,
+    vendor_id: vendorId,
+    detail: detail,
+    entered_by_user_id: state.userId,
+    ai_check_status: status,
+    ai_check_reason: reason
+  };
+
+  if (cat === ITEM_CODE_CATEGORY) {
+    const itemSel = document.getElementById("f-item-select");
+    const p = state.products.find(x => x.id === itemSel.value);
+    payload.product_id = itemSel.value || null;
+    payload.qty = parseFloat(document.getElementById("f-qty").value) || null;
+    payload.rate = parseFloat(document.getElementById("f-rate").value) || null;
+    payload.unit = p ? p.unit : null;
+  }
+  if (CHARGED_TO_CATEGORIES.includes(cat)) {
+    payload.charged_to = chargedTo;
+  }
+
+  try {
+    document.getElementById("btn-check").disabled = true;
+    await sb("expenses", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify(payload)
+    });
+    showSuccess();
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  } finally {
+    document.getElementById("btn-check").disabled = false;
+  }
+}
+
+function showSuccess() {
+  document.getElementById("step-form").hidden = true;
+  document.getElementById("step-success").hidden = false;
+}
+
+function resetForm() {
+  document.getElementById("f-date").value = todayStr();
+  document.getElementById("f-category").selectedIndex = 0;
+  document.getElementById("f-qty").value = "";
+  document.getElementById("f-rate").value = "";
+  document.getElementById("f-amount").value = "";
+  document.getElementById("f-vendor").selectedIndex = 0;
+  document.getElementById("f-charged-to").value = "";
+  document.getElementById("f-detail").value = "";
+  document.getElementById("f-item-search").value = "";
+  onCategoryChange();
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-form").hidden = false;
+}
+
+document.getElementById("f-category").addEventListener("change", onCategoryChange);
+document.getElementById("f-qty").addEventListener("input", recalcAmount);
+document.getElementById("f-rate").addEventListener("input", recalcAmount);
+document.getElementById("f-amount").addEventListener("input", recalcAmount);
+document.getElementById("f-item-search").addEventListener("input", (e) => populateItemSelect(e.target.value));
+document.getElementById("f-item-select").addEventListener("change", onItemSelected);
+document.getElementById("btn-check").addEventListener("click", runCheckAndMaybeSave);
+document.getElementById("btn-back").addEventListener("click", () => {
+  document.getElementById("step-form").hidden = true;
+  document.getElementById("step-name").hidden = false;
+});
+document.getElementById("btn-another").addEventListener("click", resetForm);
+
+// Any field edit after a flag invalidates the previous check result.
+["f-category","f-qty","f-rate","f-amount","f-vendor","f-date"].forEach(id => {
+  document.getElementById(id).addEventListener("input", () => {
+    if (state.pendingFlags.length) resetAiBanner();
+  });
+});
+
+populateCategories();
+onCategoryChange();
+loadNames();
+loadVendors();
+loadProducts();
+</script>
+
+</body>
+</html>

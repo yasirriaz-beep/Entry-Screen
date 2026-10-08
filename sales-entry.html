@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Sales Entry</title>
+<style>
+/* Layout: single-column form, two gated steps (who / what), sticky summary bar pinned above submit */
+:root{
+  --bg:#17211c; --surface:#1f2b24; --surface-2:#263429; --border:#35473b;
+  --fg:#eef3ee; --fg-muted:#9db3a4; --accent:#d88a3f; --accent-fg:#241505;
+  --success:#5fae6e; --success-bg:#1d3324; --danger:#d9705f; --danger-bg:#3a2320;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f6f4ee; --surface:#ffffff; --surface-2:#efece2; --border:#ddd6c4;
+    --fg:#1d2420; --fg-muted:#5c6a60; --accent:#b5652a; --accent-fg:#fff8ef;
+    --success:#2f7a42; --success-bg:#e4f2e6; --danger:#b4402f; --danger-bg:#fbe8e4;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f6f4ee; --surface:#ffffff; --surface-2:#efece2; --border:#ddd6c4;
+  --fg:#1d2420; --fg-muted:#5c6a60; --accent:#b5652a; --accent-fg:#fff8ef;
+  --success:#2f7a42; --success-bg:#e4f2e6; --danger:#b4402f; --danger-bg:#fbe8e4;
+  color-scheme: light;
+}
+:root[data-theme="dark"]{
+  --bg:#17211c; --surface:#1f2b24; --surface-2:#263429; --border:#35473b;
+  --fg:#eef3ee; --fg-muted:#9db3a4; --accent:#d88a3f; --accent-fg:#241505;
+  --success:#5fae6e; --success-bg:#1d3324; --danger:#d9705f; --danger-bg:#3a2320;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:'Libre Franklin',system-ui,sans-serif;padding-inline:16px;padding-block:20px 100px;max-width:560px;margin:0 auto}
+h1,h2,.display{font-family:'Zilla Slab',Georgia,serif}
+h1{font-size:1.5rem;margin:0 0 2px;text-wrap:balance}
+.eyebrow{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-muted);margin:0 0 6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+label{font-size:.8rem;color:var(--fg-muted)}
+select,input[type=number],input[type=date]{
+  background:var(--surface-2);border:1px solid var(--border);color:var(--fg);
+  border-radius:9px;padding:11px 12px;font-size:1rem;font-family:inherit;width:100%;
+}
+select:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.channel{border-top:1px solid var(--border);padding-top:14px;margin-top:14px}
+.channel:first-of-type{border-top:none;padding-top:0;margin-top:0}
+.channel h3{font-size:.95rem;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+button.primary{
+  width:100%;background:var(--accent);color:var(--accent-fg);border:none;border-radius:10px;
+  padding:14px;font-size:1rem;font-weight:600;font-family:inherit;cursor:pointer;
+}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{background:none;border:1px solid var(--border);color:var(--fg);border-radius:9px;padding:9px 14px;font-family:inherit;cursor:pointer;font-size:.85rem}
+.summary{position:sticky;bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;box-shadow:0 8px 24px -8px rgba(0,0,0,.4)}
+.summary .num{font-family:'Zilla Slab',Georgia,serif;font-size:1.4rem;font-variant-numeric:tabular-nums}
+.summary .lbl{font-size:.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.06em}
+.banner{border-radius:10px;padding:12px 14px;font-size:.88rem;margin-bottom:14px;display:none}
+.banner.show{display:block}
+.banner.success{background:var(--success-bg);color:var(--success)}
+.banner.danger{background:var(--danger-bg);color:var(--danger)}
+[hidden]{display:none!important}
+.who-row{display:flex;gap:10px;align-items:flex-end}
+.who-row .field{flex:1}
+.muted{color:var(--fg-muted);font-size:.82rem}
+</style>
+</head>
+<body>
+
+<div class="eyebrow">Forks N Knives &middot; Gulberg</div>
+<h1>Daily Sales Entry</h1>
+<p class="muted" style="margin:4px 0 18px">Enter the day's sales by channel. Nothing you've entered before shows here &mdash; each visit starts blank.</p>
+
+<div id="banner" class="banner"></div>
+
+<div class="card" id="whoCard">
+  <div class="who-row">
+    <div class="field">
+      <label for="whoSelect">Entered by</label>
+      <select id="whoSelect"><option value="">Loading names&hellip;</option></select>
+    </div>
+    <div class="field" style="flex:0 0 150px">
+      <label for="dateInput">Date</label>
+      <input type="date" id="dateInput">
+    </div>
+  </div>
+  <button class="primary" id="continueBtn" style="margin-top:14px" disabled>Continue</button>
+</div>
+
+<form id="salesForm" hidden>
+  <div class="card">
+    <div class="channel">
+      <h3><span class="dot"></span>Dine-in</h3>
+      <div class="row2">
+        <div class="field"><label for="diCovers">Covers</label><input type="number" id="diCovers" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="diAmount">Amount (PKR)</label><input type="number" id="diAmount" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Takeaway</h3>
+      <div class="row2">
+        <div class="field"><label for="taCovers">Covers</label><input type="number" id="taCovers" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="taAmount">Amount (PKR)</label><input type="number" id="taAmount" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Delivery (own riders)</h3>
+      <div class="row2">
+        <div class="field"><label for="dlCovers">Covers</label><input type="number" id="dlCovers" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="dlAmount">Amount (PKR)</label><input type="number" id="dlAmount" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Third Party (Food Panda / Careem)</h3>
+      <div class="row2">
+        <div class="field"><label for="tpCovers">Covers</label><input type="number" id="tpCovers" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="tpAmount">Amount (PKR)</label><input type="number" id="tpAmount" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Bakery</h3>
+      <div class="field"><label for="bakeryAmount">Sale (PKR)</label><input type="number" id="bakeryAmount" min="0" inputmode="decimal" placeholder="0"></div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div>
+      <div class="lbl">Total covers</div>
+      <div class="num" id="sumCovers">0</div>
+    </div>
+    <div>
+      <div class="lbl">Total sale</div>
+      <div class="num" id="sumAmount">PKR 0</div>
+    </div>
+    <button class="primary" id="submitBtn" style="width:auto;padding:12px 22px">Save entry</button>
+  </div>
+</form>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap">
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_NAME_HINT = "Gulberg";
+
+const headers = {
+  "apikey": ANON_KEY,
+  "Authorization": "Bearer " + ANON_KEY,
+  "Content-Type": "application/json",
+};
+
+let locationId = null;
+
+function showBanner(msg, kind){
+  const b = document.getElementById("banner");
+  b.textContent = msg;
+  b.className = "banner show " + kind;
+}
+function hideBanner(){
+  document.getElementById("banner").className = "banner";
+}
+
+function n(id){
+  const v = document.getElementById(id).value;
+  return v === "" ? 0 : parseFloat(v);
+}
+
+function recalcSummary(){
+  const covers = Math.round(n("diCovers") + n("taCovers") + n("dlCovers") + n("tpCovers"));
+  const amount = n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("bakeryAmount");
+  document.getElementById("sumCovers").textContent = covers.toLocaleString();
+  document.getElementById("sumAmount").textContent = "PKR " + Math.round(amount).toLocaleString();
+}
+
+function resetForm(){
+  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","bakeryAmount"]
+    .forEach(id => document.getElementById(id).value = "");
+  recalcSummary();
+}
+
+async function init(){
+  const dateInput = document.getElementById("dateInput");
+  dateInput.value = new Date().toISOString().slice(0,10);
+
+  try {
+    const locRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/locations?name=ilike.*${LOCATION_NAME_HINT}*&select=id,name&limit=1`,
+      { headers }
+    );
+    if (!locRes.ok) throw new Error("locations " + locRes.status);
+    const locs = await locRes.json();
+    if (!locs.length) throw new Error("No location matching '" + LOCATION_NAME_HINT + "' found");
+    locationId = locs[0].id;
+
+    const userRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/app_users?location_id=eq.${locationId}&active=eq.true&select=id,name&order=name.asc`,
+      { headers }
+    );
+    if (!userRes.ok) throw new Error("app_users " + userRes.status);
+    const users = await userRes.json();
+
+    const sel = document.getElementById("whoSelect");
+    sel.innerHTML = "";
+    if (!users.length){
+      sel.innerHTML = '<option value="">No active users found for this location</option>';
+    } else {
+      sel.innerHTML = '<option value="">Select your name&hellip;</option>' +
+        users.map(u => `<option value="${u.id}">${u.name}</option>`).join("");
+    }
+    document.getElementById("continueBtn").disabled = false;
+  } catch (err) {
+    showBanner("Could not load the name list (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations'/'app_users' allows anon SELECT if this persists.", "danger");
+    document.getElementById("continueBtn").disabled = false;
+    const sel = document.getElementById("whoSelect");
+    sel.innerHTML = '<option value="">Name list unavailable</option>';
+  }
+}
+
+document.getElementById("continueBtn").addEventListener("click", () => {
+  document.getElementById("whoCard").hidden = true;
+  document.getElementById("salesForm").hidden = false;
+  hideBanner();
+});
+
+["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","bakeryAmount"]
+  .forEach(id => document.getElementById(id).addEventListener("input", recalcSummary));
+
+document.getElementById("salesForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+
+  const whoId = document.getElementById("whoSelect").value || null;
+  const saleDate = document.getElementById("dateInput").value;
+  const dow = new Date(saleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" });
+
+  const payload = {
+    location_id: locationId,
+    sale_date: saleDate,
+    day_of_week: dow,
+    dine_in_covers: Math.round(n("diCovers")),
+    dine_in_amount: n("diAmount"),
+    takeaway_covers: Math.round(n("taCovers")),
+    takeaway_amount: n("taAmount"),
+    delivery_covers: Math.round(n("dlCovers")),
+    delivery_amount: n("dlAmount"),
+    third_party_covers: Math.round(n("tpCovers")),
+    third_party_amount: n("tpAmount"),
+    bakery_sale: n("bakeryAmount"),
+    entered_by_user_id: whoId,
+  };
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_sales`, {
+      method: "POST",
+      headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(res.status + ": " + errText.slice(0, 200));
+    }
+    showBanner("Saved — " + saleDate + ". The form is clear for the next entry.", "success");
+    resetForm();
+    document.getElementById("salesForm").hidden = true;
+    document.getElementById("whoCard").hidden = false;
+    document.getElementById("whoSelect").value = "";
+  } catch (err) {
+    showBanner("Could not save: " + err.message, "danger");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save entry";
+  }
+});
+
+init();
+</script>
+
+</body>
+</html>
