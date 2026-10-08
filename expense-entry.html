@@ -239,6 +239,14 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const ROLE = "cash_expense";
 
+const ROLE_LABELS = {
+  cash_expense: "Cashier",
+  inventory: "Auditor",
+  owner: "Director",
+  shift_manager: "Shift Manager",
+  purchasing: "Purchasing"
+};
+
 const CATEGORIES = [
   "Inventory Purchase","Director Draw","Payroll/Employee Charge","Payable Payment",
   "Food","Packaging","Cleaning & Sanitation","Party & Decor","Stationery & Office Supplies",
@@ -278,15 +286,16 @@ function todayStr() {
 
 async function loadNames() {
   try {
-    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=eq.${ROLE}&active=eq.true&select=id,name&order=name`);
+    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=eq.${ROLE}&active=eq.true&select=id,name,role&order=name`);
     const grid = document.getElementById("name-grid");
     grid.innerHTML = "";
     rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
       const pill = document.createElement("button");
       pill.type = "button";
       pill.className = "name-pill";
-      pill.textContent = u.name;
-      pill.onclick = () => selectUser(u.id, u.name, pill);
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
       grid.appendChild(pill);
     });
     if (rows.length === 0) {
