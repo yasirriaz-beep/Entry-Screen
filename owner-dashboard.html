@@ -109,8 +109,13 @@
 </head>
 <body>
 
-<h1>FNK Owner Dashboard</h1>
-<div class="sub">Cross-location snapshot — owner access only</div>
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+  <div>
+    <h1>FNK Owner Dashboard</h1>
+    <div class="sub">Cross-location snapshot — owner access only</div>
+  </div>
+  <button type="button" class="btn-ghost" id="btn-master-file" style="width:auto; white-space:nowrap; margin-top:4px;">☰ Master File</button>
+</div>
 
 <div id="step-name" class="card">
   <div class="step-label">Who are you?</div>
@@ -139,10 +144,10 @@
     <div class="kpi-grid" id="kpi-grid">
       <div class="kpi kpi-clickable" data-detail="sales"><div class="kpi-label">Sales</div><div class="kpi-value" id="kpi-sales">—</div></div>
       <div class="kpi kpi-clickable" data-detail="expenses"><div class="kpi-label">Expenses</div><div class="kpi-value" id="kpi-expenses">—</div></div>
-      <div class="kpi kpi-clickable" data-detail="purchases"><div class="kpi-label">Purchases</div><div class="kpi-value" id="kpi-purchases">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="cogs"><div class="kpi-label">Issued (COGS)</div><div class="kpi-value" id="kpi-cogs">—</div></div>
       <div class="kpi kpi-clickable" id="kpi-net-card" data-detail="net"><div class="kpi-label">Net</div><div class="kpi-value" id="kpi-net">—</div></div>
     </div>
-    <div class="hint" style="margin-top:10px;">Net = Sales − Expenses − Purchases, for the selected location &amp; range.</div>
+    <div class="hint" style="margin-top:10px;">Net = Sales − Expenses − Cost of goods issued to kitchen/floor. Purchases don't hit Net the day they arrive — they become inventory + a payable; see Cash Position below.</div>
   </div>
 
   <div class="card">
@@ -155,10 +160,19 @@
     <div class="kpi-grid">
       <div class="kpi kpi-clickable" data-detail="cash-in"><div class="kpi-label">Cash Collected</div><div class="kpi-value" id="cash-in">—</div></div>
       <div class="kpi kpi-clickable" data-detail="cash-out"><div class="kpi-label">Cash Paid Out</div><div class="kpi-value" id="cash-out">—</div></div>
-      <div class="kpi kpi-clickable" data-detail="cash-credit"><div class="kpi-label">Credit Purchases</div><div class="kpi-value" id="cash-credit">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="payables"><div class="kpi-label">Payables Added</div><div class="kpi-value" id="cash-credit">—</div></div>
       <div class="kpi kpi-clickable" id="cash-net-card" data-detail="cash-net"><div class="kpi-label">Net Cash Movement</div><div class="kpi-value" id="cash-net">—</div></div>
     </div>
-    <div class="hint" style="margin-top:10px;">Estimate: Cash Collected = dine-in + takeaway sales. Cash Paid Out = all expenses (Zeeshan pays these in cash) + any purchase not marked "credit". Credit Purchases are vendor-financed, not yet paid. Delivery/third-party sales are assumed non-cash and excluded.</div>
+    <div class="hint" style="margin-top:10px;">Cash Collected = dine-in + takeaway + own-delivery + bakery, minus any card-paid portion. Food Panda and card payments settle later (see Receivables) — they're not cash in Zeeshan's hand today. Cash Paid Out = expenses + any purchase actually paid in cash (rare — most purchases go to Payables instead, see below).</div>
+  </div>
+
+  <div class="card">
+    <h2>Receivables</h2>
+    <div class="kpi-grid" style="grid-template-columns: repeat(2, 1fr) !important;">
+      <div class="kpi kpi-clickable" data-detail="receivable-fp"><div class="kpi-label">Food Panda / 3rd-Party</div><div class="kpi-value" id="rec-fp">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="receivable-card"><div class="kpi-label">Card Payments</div><div class="kpi-value" id="rec-card">—</div></div>
+    </div>
+    <div class="hint" style="margin-top:10px;">Money the business has earned but hasn't physically received yet — settles to the bank later rather than into Zeeshan's cash box.</div>
   </div>
 
   <div class="card">
@@ -202,17 +216,19 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const DASHBOARD_ROLES = ["owner"];
 const ROLE_LABELS = { owner: "Director" };
 
-let state = { userId: null, userName: null, locationId: null, range: "today", locations: [], salesRows: [], expenseRows: [], purchaseRows: [] };
+let state = { userId: null, userName: null, locationId: null, range: "today", locations: [], salesRows: [], expenseRows: [], purchaseRows: [], issueRows: [] };
 
 const RELATED_LINKS = {
   sales:       [{ href: "sales-entry.html", label: "Open Sales Entry" }],
   expenses:    [{ href: "expense-entry.html", label: "Open Expense Entry" }],
-  purchases:   [{ href: "goods-receipt.html", label: "Open Goods Receipt" }, { href: "purchase-order.html", label: "Open Purchase Orders" }],
-  net:         [{ href: "sales-entry.html", label: "Open Sales Entry" }, { href: "expense-entry.html", label: "Open Expense Entry" }, { href: "goods-receipt.html", label: "Open Goods Receipt" }],
+  cogs:        [{ href: "issue-entry.html", label: "Open Issue to Kitchen/Floor" }],
+  net:         [{ href: "sales-entry.html", label: "Open Sales Entry" }, { href: "expense-entry.html", label: "Open Expense Entry" }, { href: "issue-entry.html", label: "Open Issue to Kitchen/Floor" }],
   "cash-in":   [{ href: "sales-entry.html", label: "Open Sales Entry" }],
-  "cash-out":  [{ href: "expense-entry.html", label: "Open Expense Entry" }, { href: "goods-receipt.html", label: "Open Goods Receipt" }],
-  "cash-credit": [{ href: "purchase-order.html", label: "Open Purchase Orders" }],
-  "cash-net":  [{ href: "sales-entry.html", label: "Open Sales Entry" }, { href: "goods-receipt.html", label: "Open Goods Receipt" }]
+  "cash-out":  [{ href: "expense-entry.html", label: "Open Expense Entry" }],
+  payables:    [{ href: "goods-receipt.html", label: "Open Goods Receipt" }, { href: "purchase-order.html", label: "Open Purchase Orders" }],
+  "cash-net":  [{ href: "sales-entry.html", label: "Open Sales Entry" }, { href: "expense-entry.html", label: "Open Expense Entry" }],
+  "receivable-fp":   [{ href: "sales-entry.html", label: "Open Sales Entry" }],
+  "receivable-card": [{ href: "sales-entry.html", label: "Open Sales Entry" }]
 };
 // As more modules ship (Payroll, Inventory/Issuance, the variance-audit layer), add their
 // pages here per detail key so this same side panel becomes the jump-off point to them.
@@ -339,9 +355,9 @@ async function loadKpis() {
   const { from, to, label } = rangeDates();
   document.getElementById("kpi-heading").textContent = label + " — Snapshot";
 
-  let sales = [], expenses = [], purchases = [];
+  let sales = [], expenses = [], purchases = [], issues = [];
   try {
-    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale&order=sale_date.desc`);
+    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale,card_amount&order=sale_date.desc`);
   } catch (e) {}
   try {
     expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date&order=expense_date.desc`);
@@ -349,38 +365,54 @@ async function loadKpis() {
   try {
     purchases = await sb(`purchases?location_id=eq.${state.locationId}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=id,purchase_date,qty,unit,rate,amount,payment_status,vendors(name),products(name)&order=purchase_date.desc`);
   } catch (e) {}
+  try {
+    issues = await sb(`daily_issues?location_id=eq.${state.locationId}&issue_date=gte.${from}&issue_date=lte.${to}&select=id,issue_date,qty,rate,amount,issued_to,products(name,unit)&order=issue_date.desc`);
+  } catch (e) {}
 
   state.salesRows = sales;
   state.expenseRows = expenses;
   state.purchaseRows = purchases;
+  state.issueRows = issues;
 
   const totalSales = sales.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
   const totalExpenses = expenses.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const totalPurchases = purchases.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-  const net = totalSales - totalExpenses - totalPurchases;
+  const totalCogs = issues.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const net = totalSales - totalExpenses - totalCogs;
 
   document.getElementById("kpi-sales").textContent = fmtMoney(totalSales);
   document.getElementById("kpi-expenses").textContent = fmtMoney(totalExpenses);
-  document.getElementById("kpi-purchases").textContent = fmtMoney(totalPurchases);
+  document.getElementById("kpi-cogs").textContent = fmtMoney(totalCogs);
   document.getElementById("kpi-net").textContent = fmtMoney(net);
   const netCard = document.getElementById("kpi-net-card");
   netCard.classList.remove("net-pos", "net-neg");
   netCard.classList.add(net >= 0 ? "net-pos" : "net-neg");
 
-  // Cash position (see hint text in the card for the assumptions behind this)
-  const cashCollected = sales.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0), 0);
-  const creditPurchases = purchases.filter(p => (p.payment_status || "").toLowerCase() === "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
-  const nonCreditPurchases = totalPurchases - creditPurchases;
-  const cashPaidOut = totalExpenses + nonCreditPurchases;
+  // Cash position: see the card's hint for the assumptions.
+  // Cash collected = dine-in + takeaway + own-delivery + bakery, minus the card-paid slice (a receivable).
+  // Food Panda / third-party is excluded entirely — it settles later, it's never cash in hand.
+  const cashSalesBase = sales.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.bakery_sale) || 0), 0);
+  const cardReceivable = sales.reduce((s, r) => s + (Number(r.card_amount) || 0), 0);
+  const foodPandaReceivable = sales.reduce((s, r) => s + (Number(r.third_party_amount) || 0), 0);
+  const cashCollected = cashSalesBase - cardReceivable;
+
+  // Purchases default to Payables (vendor credit) — only a purchase explicitly NOT marked "credit"
+  // (a rare cash advance) counts as cash paid out today.
+  const payablesAdded = purchases.filter(p => (p.payment_status || "").toLowerCase() === "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const cashPaidPurchases = totalPurchases - payablesAdded;
+  const cashPaidOut = totalExpenses + cashPaidPurchases;
   const netCash = cashCollected - cashPaidOut;
 
   document.getElementById("cash-in").textContent = fmtMoney(cashCollected);
   document.getElementById("cash-out").textContent = fmtMoney(cashPaidOut);
-  document.getElementById("cash-credit").textContent = fmtMoney(creditPurchases);
+  document.getElementById("cash-credit").textContent = fmtMoney(payablesAdded);
   document.getElementById("cash-net").textContent = fmtMoney(netCash);
   const cashNetCard = document.getElementById("cash-net-card");
   cashNetCard.classList.remove("net-pos", "net-neg");
   cashNetCard.classList.add(netCash >= 0 ? "net-pos" : "net-neg");
+
+  document.getElementById("rec-fp").textContent = fmtMoney(foodPandaReceivable);
+  document.getElementById("rec-card").textContent = fmtMoney(cardReceivable);
 
   renderChannels(sales);
   renderTopExpenses(expenses);
@@ -420,7 +452,7 @@ function showDetail(key) {
   if (key === "sales") {
     const rows = state.salesRows;
     const body = rows.length
-      ? rows.map(r => drawerRow(r.sale_date, `Dine-in ${fmtMoney(r.dine_in_amount)} · Takeaway ${fmtMoney(r.takeaway_amount)} · Delivery ${fmtMoney(r.delivery_amount)} · 3rd-party ${fmtMoney(r.third_party_amount)}${Number(r.bakery_sale) ? " · Bakery " + fmtMoney(r.bakery_sale) : ""}`, fmtMoney(r.total_sale))).join("")
+      ? rows.map(r => drawerRow(r.sale_date, `Dine-in ${fmtMoney(r.dine_in_amount)} · Takeaway ${fmtMoney(r.takeaway_amount)} · Delivery ${fmtMoney(r.delivery_amount)} · 3rd-party ${fmtMoney(r.third_party_amount)}${Number(r.bakery_sale) ? " · Bakery " + fmtMoney(r.bakery_sale) : ""}${Number(r.card_amount) ? " · Card " + fmtMoney(r.card_amount) : ""}`, fmtMoney(r.total_sale))).join("")
       : '<div class="empty-note">No sales recorded for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
     openDrawer("Sales", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("sales"));
@@ -431,62 +463,118 @@ function showDetail(key) {
       : '<div class="empty-note">No expenses recorded for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     openDrawer("Expenses", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("expenses"));
-  } else if (key === "purchases") {
-    const rows = state.purchaseRows;
+  } else if (key === "cogs") {
+    const rows = state.issueRows;
     const body = rows.length
-      ? rows.map(p => drawerRow(p.products?.name || "Item", `${p.purchase_date} · ${p.vendors?.name || "no vendor"} · ${p.qty} ${p.unit || ""} @ ${fmtMoney(p.rate)} · ${(p.payment_status || "").toUpperCase()}`, fmtMoney(p.amount))).join("")
-      : '<div class="empty-note">No purchases recorded for this range.</div>';
+      ? rows.map(i => drawerRow(i.products?.name || "Item", `${i.issue_date} · ${i.issued_to || "kitchen/floor"} · ${i.qty} ${i.products?.unit || ""} @ ${fmtMoney(i.rate)}`, fmtMoney(i.amount))).join("")
+      : '<div class="empty-note">Nothing issued to kitchen/floor for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    openDrawer("Purchases", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("purchases"));
+    openDrawer("Issued to Kitchen/Floor (COGS)", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cogs"));
   } else if (key === "net") {
     const totalSales = state.salesRows.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
     const totalExpenses = state.expenseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const totalPurchases = state.purchaseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const net = totalSales - totalExpenses - totalPurchases;
+    const totalCogs = state.issueRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const net = totalSales - totalExpenses - totalCogs;
     const body = drawerRow("Sales", "", fmtMoney(totalSales)) +
                  drawerRow("Expenses", "", "−" + fmtMoney(totalExpenses)) +
-                 drawerRow("Purchases", "", "−" + fmtMoney(totalPurchases)) +
+                 drawerRow("Issued (COGS)", "", "−" + fmtMoney(totalCogs)) +
                  `<div class="drawer-total"><span>Net</span><span>${fmtMoney(net)}</span></div>`;
     openDrawer("Net", sub, body + renderRelatedLinks("net"));
   } else if (key === "cash-in") {
     const rows = state.salesRows;
     const body = rows.length
-      ? rows.map(r => drawerRow(r.sale_date, "Dine-in + Takeaway (assumed cash)", fmtMoney((Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0)))).join("")
+      ? rows.map(r => {
+          const base = (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.bakery_sale) || 0);
+          const cardCut = Number(r.card_amount) || 0;
+          return drawerRow(r.sale_date, `Dine-in + Takeaway + Delivery + Bakery${cardCut ? ", minus card " + fmtMoney(cardCut) : ""} (Food Panda excluded)`, fmtMoney(base - cardCut));
+        }).join("")
       : '<div class="empty-note">No sales recorded for this range.</div>';
-    const total = rows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0), 0);
+    const total = rows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.bakery_sale) || 0) - (Number(r.card_amount) || 0), 0);
     openDrawer("Cash Collected", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cash-in"));
   } else if (key === "cash-out") {
     const expRows = state.expenseRows.map(e => ({ main: `${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, sub: e.expense_date, amt: Number(e.amount) || 0 }));
-    const purchRows = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").map(p => ({ main: p.products?.name || "Purchase", sub: `${p.purchase_date} · ${p.vendors?.name || "no vendor"}`, amt: Number(p.amount) || 0 }));
+    const purchRows = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").map(p => ({ main: p.products?.name || "Purchase (cash-paid)", sub: `${p.purchase_date} · ${p.vendors?.name || "no vendor"}`, amt: Number(p.amount) || 0 }));
     const rows = [...expRows, ...purchRows];
     const body = rows.length
       ? rows.map(r => drawerRow(r.main, r.sub, fmtMoney(r.amt))).join("")
       : '<div class="empty-note">No cash paid out for this range.</div>';
     const total = rows.reduce((s, r) => s + r.amt, 0);
     openDrawer("Cash Paid Out", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cash-out"));
-  } else if (key === "cash-credit") {
+  } else if (key === "payables") {
     const rows = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() === "credit");
     const body = rows.length
       ? rows.map(p => drawerRow(p.products?.name || "Item", `${p.purchase_date} · ${p.vendors?.name || "no vendor"} · ${p.qty} ${p.unit || ""}`, fmtMoney(p.amount))).join("")
-      : '<div class="empty-note">No credit purchases for this range.</div>';
+      : '<div class="empty-note">No purchases on credit for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    openDrawer("Credit Purchases", sub, body + (rows.length ? `<div class="drawer-total"><span>Total (payable)</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cash-credit"));
+    openDrawer("Payables Added", sub, body + (rows.length ? `<div class="drawer-total"><span>Total owed to vendors</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("payables"));
   } else if (key === "cash-net") {
-    const cashCollected = state.salesRows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0), 0);
+    const cashCollected = state.salesRows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.bakery_sale) || 0) - (Number(r.card_amount) || 0), 0);
     const totalExpenses = state.expenseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const nonCreditPurchases = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const cashPaidOut = totalExpenses + nonCreditPurchases;
+    const cashPaidPurchases = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const cashPaidOut = totalExpenses + cashPaidPurchases;
     const netCash = cashCollected - cashPaidOut;
-    const body = drawerRow("Cash Collected", "Dine-in + Takeaway", fmtMoney(cashCollected)) +
-                 drawerRow("Cash Paid Out", "Expenses + non-credit purchases", "−" + fmtMoney(cashPaidOut)) +
+    const body = drawerRow("Cash Collected", "Dine-in + Takeaway + Delivery + Bakery, minus card", fmtMoney(cashCollected)) +
+                 drawerRow("Cash Paid Out", "Expenses + cash-paid purchases", "−" + fmtMoney(cashPaidOut)) +
                  `<div class="drawer-total"><span>Net Cash Movement</span><span>${fmtMoney(netCash)}</span></div>`;
     openDrawer("Net Cash Movement", sub, body + renderRelatedLinks("cash-net"));
+  } else if (key === "receivable-fp") {
+    const rows = state.salesRows.filter(r => Number(r.third_party_amount) > 0);
+    const body = rows.length
+      ? rows.map(r => drawerRow(r.sale_date, "Food Panda / third-party — settles later", fmtMoney(r.third_party_amount))).join("")
+      : '<div class="empty-note">No third-party sales for this range.</div>';
+    const total = rows.reduce((s, r) => s + (Number(r.third_party_amount) || 0), 0);
+    openDrawer("Food Panda / 3rd-Party Receivable", sub, body + (rows.length ? `<div class="drawer-total"><span>Total owed to you</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("receivable-fp"));
+  } else if (key === "receivable-card") {
+    const rows = state.salesRows.filter(r => Number(r.card_amount) > 0);
+    const body = rows.length
+      ? rows.map(r => drawerRow(r.sale_date, "Card payments — settles to bank later", fmtMoney(r.card_amount))).join("")
+      : '<div class="empty-note">No card payments logged for this range.</div>';
+    const total = rows.reduce((s, r) => s + (Number(r.card_amount) || 0), 0);
+    openDrawer("Card Payment Receivable", sub, body + (rows.length ? `<div class="drawer-total"><span>Total owed to you</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("receivable-card"));
   }
 }
 
 document.querySelectorAll(".kpi-clickable").forEach(el => {
   el.addEventListener("click", () => showDetail(el.dataset.detail));
 });
+
+// ---------- Master File (persistent navigation panel) ----------
+// This reuses the same side panel. As new modules ship (Payroll, a real live
+// Inventory/MOQ reorder list once stock-on-hand is tracked, the variance-audit
+// layer), swap their "coming soon" line below for a real link.
+function masterFileSection(title, items) {
+  return `<div class="hint" style="margin-top:16px; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">${title}</div>` +
+    items.map(it => it.href
+      ? `<a class="btn-ghost" style="display:block; text-align:left; text-decoration:none; margin-top:6px;" href="${it.href}">${it.label}</a>`
+      : `<div class="empty-note" style="margin-top:6px; padding:9px 12px; border:1px solid var(--border); border-radius:9px;">${it.label} <span class="pill-badge pill-warn" style="margin-left:6px;">Coming soon</span></div>`
+    ).join("");
+}
+
+function openMasterFile() {
+  const body =
+    masterFileSection("Inventory & Items", [
+      { href: "item-master.html", label: "Item Master — add, edit, retire items" },
+      { label: "Items needing reorder (per MOQ) — needs live stock-on-hand tracking first; use Purchase Orders directly for now" }
+    ]) +
+    masterFileSection("Purchasing & Payables", [
+      { href: "goods-receipt.html", label: "Goods Receipt" },
+      { href: "purchase-order.html", label: "Purchase Orders (Demand → Authorize → Order)" },
+      { label: "Vendor payables ledger — table exists, not populated yet" }
+    ]) +
+    masterFileSection("Daily Entry Screens", [
+      { href: "sales-entry.html", label: "Sales Entry" },
+      { href: "expense-entry.html", label: "Expense Entry" },
+      { href: "issue-entry.html", label: "Issue to Kitchen/Floor" }
+    ]) +
+    masterFileSection("People", [
+      { label: "Salary / payroll situation — not built yet" }
+    ]) +
+    masterFileSection("Oversight", [
+      { label: "Variance / audit layer — not built yet" }
+    ]);
+  openDrawer("Master File", "Jump to any module", body);
+}
+document.getElementById("btn-master-file").addEventListener("click", openMasterFile);
 
 function renderChannels(sales) {
   const wrap = document.getElementById("channel-list");

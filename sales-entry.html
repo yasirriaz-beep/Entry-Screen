@@ -130,6 +130,14 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
       <h3><span class="dot"></span>Bakery</h3>
       <div class="field"><label for="bakeryAmount">Sale (PKR)</label><input type="number" id="bakeryAmount" min="0" inputmode="decimal" placeholder="0"></div>
     </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Paid by Card</h3>
+      <div class="field">
+        <label for="cardAmount">Card portion already included above (PKR)</label>
+        <input type="number" id="cardAmount" min="0" inputmode="decimal" placeholder="0">
+      </div>
+      <p class="muted" style="margin:6px 0 0">Doesn't change the total — just flags how much of it isn't cash in Zeeshan's hand (settles to the bank later, like Food Panda).</p>
+    </div>
   </div>
 
   <div class="summary">
@@ -189,7 +197,7 @@ function recalcSummary(){
 }
 
 function resetForm(){
-  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","bakeryAmount"]
+  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","bakeryAmount","cardAmount"]
     .forEach(id => document.getElementById(id).value = "");
   recalcSummary();
 }
@@ -240,7 +248,7 @@ async function loadTodayEntry(){
   const saleDate = document.getElementById("dateInput").value;
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&select=dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,bakery_sale,total_sale,total_covers,created_at`,
+      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&select=dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,bakery_sale,card_amount,total_sale,total_covers,created_at`,
       { headers }
     );
     if (!res.ok) throw new Error(String(res.status));
@@ -253,7 +261,7 @@ async function loadTodayEntry(){
       Takeaway: PKR ${Math.round(r.takeaway_amount || 0).toLocaleString()} &middot;
       Delivery: PKR ${Math.round(r.delivery_amount || 0).toLocaleString()} &middot;
       3rd Party: PKR ${Math.round(r.third_party_amount || 0).toLocaleString()} &middot;
-      Bakery: PKR ${Math.round(r.bakery_sale || 0).toLocaleString()}<br>
+      Bakery: PKR ${Math.round(r.bakery_sale || 0).toLocaleString()}${r.card_amount ? " &middot; Card: PKR " + Math.round(r.card_amount).toLocaleString() : ""}<br>
       <strong>Total so far: PKR ${Math.round(total).toLocaleString()}</strong>
       — saving again for today updates this same record.`;
     todayCard.hidden = false;
@@ -295,6 +303,7 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
     third_party_covers: Math.round(n("tpCovers")),
     third_party_amount: n("tpAmount"),
     bakery_sale: n("bakeryAmount"),
+    card_amount: n("cardAmount"),
     entered_by_user_id: whoId,
   };
 
