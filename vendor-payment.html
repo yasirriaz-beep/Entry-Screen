@@ -125,9 +125,9 @@
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
-const PAYMENT_ROLES = ["cash_expense", "owner"];
+const PAYMENT_ROLES = ["cash_custodian", "director"];
 
-const ROLE_LABELS = { cash_expense: "Cashier", owner: "Director" };
+const ROLE_LABELS = { cash_custodian: "Cash Custodian", director: "Director" };
 
 let state = { userId: null, userName: null, vendors: [], balances: {} };
 

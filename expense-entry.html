@@ -252,14 +252,14 @@
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
-const ROLE = "cash_expense";
+const EXPENSE_ROLES = ["store_man", "shift_manager", "director"];
 
 const ROLE_LABELS = {
-  cash_expense: "Cashier",
-  inventory: "Auditor",
-  owner: "Director",
+  cash_custodian: "Cash Custodian",
+  auditor: "Auditor",
+  director: "Director",
   shift_manager: "Shift Manager",
-  purchasing: "Purchasing"
+  store_man: "Store Man"
 };
 
 const CATEGORIES = [
@@ -302,7 +302,7 @@ function todayStr() {
 
 async function loadNames() {
   try {
-    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=eq.${ROLE}&active=eq.true&select=id,name,role&order=name`);
+    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=in.(${EXPENSE_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
     const grid = document.getElementById("name-grid");
     grid.innerHTML = "";
     rows.forEach(u => {

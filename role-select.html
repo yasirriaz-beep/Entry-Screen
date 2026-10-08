@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg — Who are you?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; font-family: inherit; font-weight: 600; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .dept-header:first-child { margin-top: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg — Daily Entry</h1>
+<div class="sub">Tap your name to go to your tasks.</div>
+
+<div class="card">
+  <div id="name-grid-wrap"></div>
+  <div class="hint" id="empty-hint" hidden>No active users found.</div>
+  <div class="hint" id="error-hint" style="color:var(--err)" hidden></div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+
+const ROLE_LABELS = {
+  director: "Director",
+  auditor: "Auditor",
+  store_man: "Store Man",
+  cash_custodian: "Cash Custodian",
+  shift_manager: "Shift Manager"
+};
+
+const ROLE_ORDER = ["director", "shift_manager", "auditor", "store_man", "cash_custodian"];
+
+const ROLE_HOME = {
+  director: "director-home.html",
+  shift_manager: "shift-manager-home.html",
+  store_man: "store-man-home.html",
+  cash_custodian: "cash-custodian-home.html",
+  auditor: "auditor-home.html"
+};
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function selectUser(u) {
+  try {
+    localStorage.setItem("fnk_user", JSON.stringify({ id: u.id, name: u.name, role: u.role }));
+  } catch (e) { /* localStorage unavailable — proceed anyway */ }
+  const dest = ROLE_HOME[u.role];
+  if (dest) {
+    location.href = dest;
+  } else {
+    document.getElementById("error-hint").textContent = `No task list set up yet for role "${u.role}".`;
+    document.getElementById("error-hint").hidden = false;
+  }
+}
+
+async function loadNames() {
+  const wrap = document.getElementById("name-grid-wrap");
+  try {
+    const rows = await sb(`app_users?active=eq.true&select=id,name,role&order=role,name`);
+    wrap.innerHTML = "";
+    if (!rows.length) {
+      document.getElementById("empty-hint").hidden = false;
+      return;
+    }
+    const grouped = {};
+    rows.forEach(u => {
+      (grouped[u.role] = grouped[u.role] || []).push(u);
+    });
+    const roles = Object.keys(grouped).sort((a, b) => {
+      const ia = ROLE_ORDER.indexOf(a), ib = ROLE_ORDER.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    roles.forEach(role => {
+      const header = document.createElement("div");
+      header.className = "dept-header";
+      header.textContent = ROLE_LABELS[role] || role;
+      wrap.appendChild(header);
+      const grid = document.createElement("div");
+      grid.className = "name-grid";
+      grouped[role].forEach(u => {
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "name-pill";
+        pill.textContent = u.name;
+        pill.onclick = () => selectUser(u);
+        grid.appendChild(pill);
+      });
+      wrap.appendChild(grid);
+    });
+  } catch (e) {
+    document.getElementById("error-hint").textContent = "Couldn't load names: " + e.message;
+    document.getElementById("error-hint").hidden = false;
+  }
+}
+
+loadNames();
+</script>
+
+</body>
+</html>

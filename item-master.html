@@ -64,11 +64,20 @@
 <body>
 
 <h1>Gulberg Item Master</h1>
-<div class="sub">Add, edit, or retire items — owner access only</div>
+<div class="sub">Add, edit, or retire items — director access only</div>
 
 <div id="step-name" class="card">
   <div class="step-label">Who are you?</div>
   <div id="name-grid" class="name-grid"></div>
+  <button class="btn-ghost" id="btn-admin-override-link" type="button" style="margin-top:12px; width:auto; padding:6px 10px; font-size:0.78rem;">Director not available? Admin override</button>
+  <div id="admin-override-panel" hidden style="margin-top:12px;">
+    <label>Admin Override Password</label>
+    <div style="display:flex; gap:8px;">
+      <input type="password" id="admin-override-password" placeholder="Password" style="flex:1;">
+      <button class="btn-primary" id="btn-admin-unlock" type="button" style="width:auto; padding:11px 16px;">Unlock</button>
+    </div>
+    <div class="hint" id="admin-override-error" style="color:var(--err); margin-top:6px;" hidden></div>
+  </div>
 </div>
 
 <div id="panel-main" hidden>
@@ -143,9 +152,12 @@
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const ORG_ID = "00000000-0000-0000-0000-000000000001";
-const ITEM_MASTER_ROLES = ["owner"];
+const ITEM_MASTER_ROLES = ["director"];
 
-const ROLE_LABELS = { owner: "Director" };
+const ROLE_LABELS = { director: "Director" };
+
+// ADMIN OVERRIDE PASSWORD — change this to something only Yasir and his director(s) know.
+const ADMIN_OVERRIDE_PASSWORD = "FNK-Gulberg-2026";
 
 let state = { userId: null, userName: null, products: [] };
 
@@ -206,7 +218,44 @@ function backToNames() {
   document.getElementById("panel-main").hidden = true;
   document.getElementById("step-success").hidden = true;
   document.getElementById("step-name").hidden = false;
+  document.getElementById("admin-override-panel").hidden = true;
+  document.getElementById("admin-override-password").value = "";
+  document.getElementById("admin-override-error").hidden = true;
 }
+
+document.getElementById("btn-admin-override-link").addEventListener("click", () => {
+  const panel = document.getElementById("admin-override-panel");
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) document.getElementById("admin-override-password").focus();
+});
+
+async function tryAdminOverride() {
+  const entered = document.getElementById("admin-override-password").value;
+  const errEl = document.getElementById("admin-override-error");
+  errEl.hidden = true;
+  if (entered !== ADMIN_OVERRIDE_PASSWORD) {
+    errEl.textContent = "Incorrect password.";
+    errEl.hidden = false;
+    return;
+  }
+  try {
+    const rows = await sb(`app_users?name=eq.Admin&role=eq.director&select=id,name`);
+    if (!rows || !rows.length) {
+      errEl.textContent = "No Admin override user found in the database.";
+      errEl.hidden = false;
+      return;
+    }
+    document.getElementById("admin-override-password").value = "";
+    selectUser(rows[0].id, "Admin (override)", { classList: { add() {}, remove() {} } });
+  } catch (e) {
+    errEl.textContent = "Couldn't verify override: " + e.message;
+    errEl.hidden = false;
+  }
+}
+document.getElementById("btn-admin-unlock").addEventListener("click", tryAdminOverride);
+document.getElementById("admin-override-password").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") tryAdminOverride();
+});
 
 function showSuccess(title, sub) {
   document.getElementById("panel-main").hidden = true;

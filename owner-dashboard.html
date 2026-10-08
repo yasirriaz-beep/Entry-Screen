@@ -112,7 +112,7 @@
 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
   <div>
     <h1>FNK Owner Dashboard</h1>
-    <div class="sub">Cross-location snapshot — owner access only</div>
+    <div class="sub">Cross-location snapshot — director access only</div>
   </div>
   <button type="button" class="btn-ghost" id="btn-master-file" style="width:auto; white-space:nowrap; margin-top:4px;">☰ Master File</button>
 </div>
@@ -241,8 +241,8 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const DASHBOARD_ROLES = ["owner"];
-const ROLE_LABELS = { owner: "Director" };
+const DASHBOARD_ROLES = ["director"];
+const ROLE_LABELS = { director: "Director" };
 
 let state = { userId: null, userName: null, locationId: null, range: "today", locations: [], salesRows: [], expenseRows: [], purchaseRows: [], issueRows: [] };
 
@@ -317,7 +317,7 @@ async function loadNames() {
       pill.onclick = () => selectUser(u.id, label, pill);
       grid.appendChild(pill);
     });
-    if (rows.length === 0) grid.innerHTML = '<div class="hint">No owner-level user found.</div>';
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No director-level user found.</div>';
   } catch (e) {
     document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
   }

@@ -89,7 +89,7 @@
   <div id="name-grid" class="name-grid"></div>
 </div>
 
-<!-- INVENTORY (Hammad) : create demand -->
+<!-- AUDITOR / DIRECTOR : create demand -->
 <div id="panel-demand" hidden>
   <div class="card">
     <div class="step-label">New Demand — request items to reorder</div>
@@ -124,7 +124,7 @@
   </div>
 </div>
 
-<!-- OWNER (Yasir) : authorize -->
+<!-- DIRECTOR ONLY : authorize -->
 <div id="panel-authorize" hidden>
   <div class="card">
     <div class="step-label">Demands Awaiting Authorization</div>
@@ -134,7 +134,7 @@
   <button class="btn-ghost" id="btn-authorize-back" type="button">Change Person</button>
 </div>
 
-<!-- PURCHASING (Imran) : place order -->
+<!-- DIRECTOR ONLY : place order -->
 <div id="panel-order" hidden>
   <div class="card">
     <div class="step-label">Authorized — Ready to Order</div>
@@ -155,15 +155,14 @@
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
-const PO_ROLES = ["inventory", "owner", "purchasing"];
+const PO_ROLES = ["auditor", "director"];
 
 const ROLE_LABELS = {
-  cash_expense: "Cashier",
-  inventory: "Auditor",
-  owner: "Director",
+  cash_custodian: "Cash Custodian",
+  auditor: "Auditor",
+  director: "Director",
   shift_manager: "Shift Manager",
-  purchasing: "Purchasing",
-  store_person: "Store Person"
+  store_man: "Store Man"
 };
 
 let state = {
@@ -223,9 +222,15 @@ function selectUser(id, role, name, pillEl) {
   state.userName = name;
   setTimeout(() => {
     document.getElementById("step-name").hidden = true;
-    if (role === "inventory") enterDemandPanel();
-    else if (role === "owner") enterAuthorizePanel();
-    else if (role === "purchasing") enterOrderPanel();
+    // Auditor can only raise demands. Director can raise demands, authorize them,
+    // and place the order, so show all three stages stacked for a director.
+    if (role === "auditor") {
+      enterDemandPanel();
+    } else if (role === "director") {
+      enterDemandPanel();
+      enterAuthorizePanel();
+      enterOrderPanel();
+    }
   }, 150);
 }
 
@@ -261,7 +266,7 @@ function showSuccess(title, sub, backTo) {
   document.getElementById("btn-success-ok").onclick = backTo;
 }
 
-/* ---------- DEMAND (inventory / Hammad) ---------- */
+/* ---------- DEMAND (auditor / director) ---------- */
 
 function populateDemandItemSelect(filterText) {
   const sel = document.getElementById("d-item-select");
@@ -366,7 +371,7 @@ document.getElementById("d-item-select").addEventListener("change", onDemandItem
 document.getElementById("btn-submit-demand").addEventListener("click", submitDemand);
 document.getElementById("btn-demand-back").addEventListener("click", backToNames);
 
-/* ---------- AUTHORIZE (owner / Yasir) ---------- */
+/* ---------- AUTHORIZE (director only) ---------- */
 
 async function enterAuthorizePanel() {
   document.getElementById("panel-authorize").hidden = false;
@@ -463,7 +468,7 @@ function enterAuthorizePanelAgain() {
 
 document.getElementById("btn-authorize-back").addEventListener("click", backToNames);
 
-/* ---------- ORDER (purchasing / Imran) ---------- */
+/* ---------- ORDER (director only) ---------- */
 
 async function enterOrderPanel() {
   document.getElementById("panel-order").hidden = false;
