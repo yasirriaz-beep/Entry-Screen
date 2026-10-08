@@ -120,7 +120,14 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
       </div>
     </div>
     <div class="channel">
-      <h3><span class="dot"></span>Third Party (Food Panda / Careem)</h3>
+      <h3><span class="dot"></span>Food Panda</h3>
+      <div class="row2">
+        <div class="field"><label for="fpCovers">Covers</label><input type="number" id="fpCovers" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="fpAmount">Amount (PKR)</label><input type="number" id="fpAmount" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Third Party (Careem / other)</h3>
       <div class="row2">
         <div class="field"><label for="tpCovers">Covers</label><input type="number" id="tpCovers" min="0" inputmode="numeric" placeholder="0"></div>
         <div class="field"><label for="tpAmount">Amount (PKR)</label><input type="number" id="tpAmount" min="0" inputmode="decimal" placeholder="0"></div>
@@ -190,14 +197,14 @@ function n(id){
 }
 
 function recalcSummary(){
-  const covers = Math.round(n("diCovers") + n("taCovers") + n("dlCovers") + n("tpCovers"));
-  const amount = n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("bakeryAmount");
+  const covers = Math.round(n("diCovers") + n("taCovers") + n("dlCovers") + n("tpCovers") + n("fpCovers"));
+  const amount = n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("fpAmount") + n("bakeryAmount");
   document.getElementById("sumCovers").textContent = covers.toLocaleString();
   document.getElementById("sumAmount").textContent = "PKR " + Math.round(amount).toLocaleString();
 }
 
 function resetForm(){
-  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","bakeryAmount","cardAmount"]
+  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount"]
     .forEach(id => document.getElementById(id).value = "");
   recalcSummary();
 }
@@ -248,19 +255,20 @@ async function loadTodayEntry(){
   const saleDate = document.getElementById("dateInput").value;
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&select=dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,bakery_sale,card_amount,total_sale,total_covers,created_at`,
+      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&select=dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,created_at`,
       { headers }
     );
     if (!res.ok) throw new Error(String(res.status));
     const rows = await res.json();
     if (!rows.length) { todayCard.hidden = true; return; }
     const r = rows[0];
-    const total = r.total_sale != null ? r.total_sale : (r.dine_in_amount + r.takeaway_amount + r.delivery_amount + r.third_party_amount + r.bakery_sale);
+    const total = r.total_sale != null ? r.total_sale : (r.dine_in_amount + r.takeaway_amount + r.delivery_amount + r.third_party_amount + (r.food_panda_amount || 0) + r.bakery_sale);
     body.innerHTML = `
       Dine-in: PKR ${Math.round(r.dine_in_amount || 0).toLocaleString()} (${r.dine_in_covers || 0} covers) &middot;
       Takeaway: PKR ${Math.round(r.takeaway_amount || 0).toLocaleString()} &middot;
       Delivery: PKR ${Math.round(r.delivery_amount || 0).toLocaleString()} &middot;
-      3rd Party: PKR ${Math.round(r.third_party_amount || 0).toLocaleString()} &middot;
+      Third Party: PKR ${Math.round(r.third_party_amount || 0).toLocaleString()} &middot;
+      Food Panda: PKR ${Math.round(r.food_panda_amount || 0).toLocaleString()} &middot;
       Bakery: PKR ${Math.round(r.bakery_sale || 0).toLocaleString()}${r.card_amount ? " &middot; Card: PKR " + Math.round(r.card_amount).toLocaleString() : ""}<br>
       <strong>Total so far: PKR ${Math.round(total).toLocaleString()}</strong>
       — saving again for today updates this same record.`;
@@ -277,7 +285,7 @@ document.getElementById("continueBtn").addEventListener("click", () => {
   loadTodayEntry();
 });
 
-["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","bakeryAmount"]
+["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount"]
   .forEach(id => document.getElementById(id).addEventListener("input", recalcSummary));
 
 document.getElementById("salesForm").addEventListener("submit", async (e) => {
@@ -302,6 +310,8 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
     delivery_amount: n("dlAmount"),
     third_party_covers: Math.round(n("tpCovers")),
     third_party_amount: n("tpAmount"),
+    food_panda_covers: Math.round(n("fpCovers")),
+    food_panda_amount: n("fpAmount"),
     bakery_sale: n("bakeryAmount"),
     card_amount: n("cardAmount"),
     entered_by_user_id: whoId,
