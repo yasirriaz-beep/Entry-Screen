@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Purchase Orders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --border: #e4ddd1;
+    --ink: #2a2420;
+    --ink-soft: #6f655a;
+    --accent: #9c3b2e;
+    --accent-ink: #ffffff;
+    --field-bg: #fcfaf6;
+    --ok: #3d7a4f;
+    --ok-bg: #eaf4ec;
+    --warn: #a3650a;
+    --warn-bg: #fdf1dd;
+    --err: #b3261e;
+    --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  select[readonly], input[readonly] { opacity: 0.7; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; }
+  .btn-outline-err { background: transparent; border: 1px solid var(--err); color: var(--err); }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+  .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); cursor: pointer; }
+  .po-card .po-title { font-weight: 600; }
+  .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
+  .po-detail { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .po-detail .row2 { margin-bottom: 10px; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+  .badge-demand { background: var(--warn-bg); color: var(--warn); }
+  .badge-authorized { background: var(--ok-bg); color: var(--ok); }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Purchase Orders</h1>
+<div class="sub" id="flow-sub">Demand → Authorize → Order → (Goods Receipt)</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<!-- INVENTORY (Hammad) : create demand -->
+<div id="panel-demand" hidden>
+  <div class="card">
+    <div class="step-label">New Demand — request items to reorder</div>
+    <div class="field">
+      <label>Item</label>
+      <input type="text" id="d-item-search" placeholder="Start typing an item name...">
+      <select id="d-item-select" style="margin-top:6px;"></select>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Qty to Order</label>
+        <input type="number" id="d-qty" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Unit</label>
+        <input type="text" id="d-unit" readonly>
+      </div>
+    </div>
+    <div class="hint" id="d-suggest-hint"></div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="d-notes" rows="2" placeholder="Optional"></textarea>
+    </div>
+  </div>
+  <button class="btn-primary" id="btn-submit-demand" type="button">Submit Demand</button>
+  <button class="btn-ghost" id="btn-demand-back" type="button">Change Person</button>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="step-label">Your Pending Demands</div>
+    <div id="my-demand-list"></div>
+    <div class="hint" id="my-demand-empty" hidden>Nothing pending right now.</div>
+  </div>
+</div>
+
+<!-- OWNER (Yasir) : authorize -->
+<div id="panel-authorize" hidden>
+  <div class="card">
+    <div class="step-label">Demands Awaiting Authorization</div>
+    <div id="demand-list"></div>
+    <div class="hint" id="demand-empty-hint" hidden>No pending demands.</div>
+  </div>
+  <button class="btn-ghost" id="btn-authorize-back" type="button">Change Person</button>
+</div>
+
+<!-- PURCHASING (Imran) : place order -->
+<div id="panel-order" hidden>
+  <div class="card">
+    <div class="step-label">Authorized — Ready to Order</div>
+    <div id="authorized-list"></div>
+    <div class="hint" id="authorized-empty-hint" hidden>Nothing authorized yet.</div>
+  </div>
+  <button class="btn-ghost" id="btn-order-back" type="button">Change Person</button>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;" id="success-title">Done</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub"></div>
+  <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">OK</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const PO_ROLES = ["inventory", "owner", "purchasing"];
+
+const ROLE_LABELS = {
+  cash_expense: "Cashier",
+  inventory: "Auditor",
+  owner: "Director",
+  shift_manager: "Shift Manager",
+  purchasing: "Purchasing",
+  store_person: "Store Person"
+};
+
+let state = {
+  userId: null,
+  userRole: null,
+  userName: null,
+  products: [],
+  vendors: []
+};
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=in.(${PO_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, u.role, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) {
+      grid.innerHTML = '<div class="hint">No one set up for purchase orders at Gulberg yet.</div>';
+    }
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, role, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userRole = role;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    if (role === "inventory") enterDemandPanel();
+    else if (role === "owner") enterAuthorizePanel();
+    else if (role === "purchasing") enterOrderPanel();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null; state.userRole = null; state.userName = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-demand").hidden = true;
+  document.getElementById("panel-authorize").hidden = true;
+  document.getElementById("panel-order").hidden = true;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+
+async function loadProducts() {
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
+  } catch (e) { state.products = []; }
+}
+
+async function loadVendors() {
+  try {
+    state.vendors = await sb(`vendors?active=eq.true&select=id,name&order=name`);
+  } catch (e) { state.vendors = []; }
+}
+
+function showSuccess(title, sub, backTo) {
+  document.getElementById("panel-demand").hidden = true;
+  document.getElementById("panel-authorize").hidden = true;
+  document.getElementById("panel-order").hidden = true;
+  document.getElementById("success-title").textContent = title;
+  document.getElementById("success-sub").textContent = sub || "";
+  document.getElementById("step-success").hidden = false;
+  document.getElementById("btn-success-ok").onclick = backTo;
+}
+
+/* ---------- DEMAND (inventory / Hammad) ---------- */
+
+function populateDemandItemSelect(filterText) {
+  const sel = document.getElementById("d-item-select");
+  const ft = (filterText || "").trim().toUpperCase();
+  const matches = ft
+    ? state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft))
+    : state.products.slice(0, 40);
+  sel.innerHTML = '<option value="">— pick an item —</option>' +
+    matches.slice(0, 60).map(p => `<option value="${p.id}">${p.code || "?"} — ${p.name}</option>`).join("");
+}
+
+async function onDemandItemSelected() {
+  const sel = document.getElementById("d-item-select");
+  const p = state.products.find(x => x.id === sel.value);
+  const hintEl = document.getElementById("d-suggest-hint");
+  document.getElementById("d-unit").value = p ? (p.unit || "") : "";
+  if (!p) { hintEl.textContent = ""; return; }
+  hintEl.textContent = "Checking recent usage…";
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/suggest_reorder_qty`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_location_id: LOCATION_ID, p_product_id: p.id })
+    });
+    const suggested = await res.json();
+    if (suggested != null) {
+      document.getElementById("d-qty").value = suggested;
+      hintEl.textContent = `Suggested ${suggested} ${p.unit || ""} based on recent usage — change if needed.`;
+    } else {
+      hintEl.textContent = "No usage pattern on file yet — enter the quantity manually.";
+    }
+  } catch (e) {
+    hintEl.textContent = "Couldn't calculate a suggestion — enter the quantity manually.";
+  }
+}
+
+async function loadMyDemands() {
+  const list = document.getElementById("my-demand-list");
+  const emptyHint = document.getElementById("my-demand-empty");
+  try {
+    const rows = await sb(`purchase_orders?requested_by=eq.${state.userId}&status=eq.Demand&select=id,qty_requested,unit,requested_at,products(name,code)&order=requested_at.desc`);
+    list.innerHTML = "";
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(r => {
+      const card = document.createElement("div");
+      card.className = "po-card";
+      card.style.cursor = "default";
+      card.innerHTML = `
+        <div class="po-title">${r.products?.name || "Item"} <span class="badge badge-demand">Awaiting authorization</span></div>
+        <div class="po-sub">Requested ${r.qty_requested} ${r.unit || r.products?.unit || ""}</div>`;
+      list.appendChild(card);
+    });
+  } catch (e) { emptyHint.hidden = false; }
+}
+
+function enterDemandPanel() {
+  document.getElementById("panel-demand").hidden = false;
+  document.getElementById("d-item-search").value = "";
+  document.getElementById("d-qty").value = "";
+  document.getElementById("d-unit").value = "";
+  document.getElementById("d-notes").value = "";
+  document.getElementById("d-suggest-hint").textContent = "";
+  populateDemandItemSelect("");
+  loadMyDemands();
+}
+
+async function submitDemand() {
+  const sel = document.getElementById("d-item-select");
+  const qty = parseFloat(document.getElementById("d-qty").value) || 0;
+  const notes = document.getElementById("d-notes").value || null;
+  if (!sel.value) return alert("Pick an item.");
+  if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+  const p = state.products.find(x => x.id === sel.value);
+
+  const btn = document.getElementById("btn-submit-demand");
+  btn.disabled = true;
+  try {
+    await sb("purchase_orders", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        location_id: LOCATION_ID,
+        product_id: sel.value,
+        qty_requested: qty,
+        unit: p ? p.unit : null,
+        requested_by: state.userId,
+        status: "Demand",
+        notes: notes
+      })
+    });
+    showSuccess("Demand submitted", `${p ? p.name : "Item"} — ${qty} ${p ? p.unit || "" : ""} sent to Yasir for authorization.`, () => { backToNames(); });
+  } catch (e) {
+    alert("Couldn't submit: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("d-item-search").addEventListener("input", (e) => populateDemandItemSelect(e.target.value));
+document.getElementById("d-item-select").addEventListener("change", onDemandItemSelected);
+document.getElementById("btn-submit-demand").addEventListener("click", submitDemand);
+document.getElementById("btn-demand-back").addEventListener("click", backToNames);
+
+/* ---------- AUTHORIZE (owner / Yasir) ---------- */
+
+async function enterAuthorizePanel() {
+  document.getElementById("panel-authorize").hidden = false;
+  await loadDemandList();
+}
+
+async function loadDemandList() {
+  const list = document.getElementById("demand-list");
+  const emptyHint = document.getElementById("demand-empty-hint");
+  list.innerHTML = "";
+  try {
+    const rows = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=eq.Demand&select=id,qty_requested,unit,requested_at,notes,products(id,name,code,unit,current_rate)&order=requested_at.asc`);
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(po => {
+      const card = document.createElement("div");
+      card.className = "po-card";
+      const prod = po.products;
+      card.innerHTML = `
+        <div class="po-title">${prod ? prod.name : "Unknown item"}</div>
+        <div class="po-sub">Requested ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${new Date(po.requested_at).toLocaleDateString()}</div>
+        ${po.notes ? `<div class="po-sub">${po.notes}</div>` : ""}
+        <div class="po-detail" hidden>
+          <div class="row2">
+            <div>
+              <label>Qty to Authorize</label>
+              <input type="number" class="authorize-qty" step="any" value="${po.qty_requested}">
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn-primary btn-sm authorize-confirm-btn" style="flex:1;">Authorize</button>
+            <button type="button" class="btn-outline-err btn-sm authorize-reject-btn" style="flex:1;">Reject</button>
+          </div>
+        </div>`;
+      const detail = card.querySelector(".po-detail");
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".po-detail")) return;
+        document.querySelectorAll("#demand-list .po-detail").forEach(d => { if (d !== detail) d.hidden = true; });
+        detail.hidden = !detail.hidden;
+      });
+      card.querySelector(".authorize-confirm-btn").addEventListener("click", () => authorizeDemand(po, card));
+      card.querySelector(".authorize-reject-btn").addEventListener("click", () => rejectDemand(po));
+      list.appendChild(card);
+    });
+  } catch (e) {
+    emptyHint.hidden = false;
+    emptyHint.textContent = "Couldn't load demands: " + e.message;
+  }
+}
+
+async function authorizeDemand(po, cardEl) {
+  const qty = parseFloat(cardEl.querySelector(".authorize-qty").value) || 0;
+  if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+  try {
+    await sb(`purchase_orders?id=eq.${po.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        status: "Authorized",
+        qty_requested: qty,
+        authorized_by: state.userId,
+        authorized_at: new Date().toISOString()
+      })
+    });
+    showSuccess("Authorized", `${po.products?.name || "Item"} — ${qty} ${po.unit || ""} sent to Imran to order.`, () => { enterAuthorizePanelAgain(); });
+  } catch (e) {
+    alert("Couldn't authorize: " + e.message);
+  }
+}
+
+async function rejectDemand(po) {
+  if (!confirm(`Cancel the demand for ${po.products?.name || "this item"}?`)) return;
+  try {
+    await sb(`purchase_orders?id=eq.${po.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        status: "Cancelled",
+        authorized_by: state.userId,
+        authorized_at: new Date().toISOString()
+      })
+    });
+    showSuccess("Demand cancelled", `${po.products?.name || "Item"} — demand removed.`, () => { enterAuthorizePanelAgain(); });
+  } catch (e) {
+    alert("Couldn't cancel: " + e.message);
+  }
+}
+
+function enterAuthorizePanelAgain() {
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("panel-authorize").hidden = false;
+  loadDemandList();
+}
+
+document.getElementById("btn-authorize-back").addEventListener("click", backToNames);
+
+/* ---------- ORDER (purchasing / Imran) ---------- */
+
+async function enterOrderPanel() {
+  document.getElementById("panel-order").hidden = false;
+  await loadAuthorizedList();
+}
+
+async function loadAuthorizedList() {
+  const list = document.getElementById("authorized-list");
+  const emptyHint = document.getElementById("authorized-empty-hint");
+  list.innerHTML = "";
+  try {
+    const rows = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=eq.Authorized&select=id,qty_requested,unit,authorized_at,products(id,name,code,unit,current_rate),vendor_id&order=authorized_at.asc`);
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(po => {
+      const card = document.createElement("div");
+      card.className = "po-card";
+      const prod = po.products;
+      const vendorOptions = state.vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join("");
+      card.innerHTML = `
+        <div class="po-title">${prod ? prod.name : "Unknown item"} <span class="badge badge-authorized">Authorized</span></div>
+        <div class="po-sub">${po.qty_requested} ${po.unit || prod?.unit || ""} · authorized ${new Date(po.authorized_at).toLocaleDateString()}</div>
+        <div class="po-detail" hidden>
+          <div class="field">
+            <label>Vendor</label>
+            <select class="order-vendor"><option value="">— select vendor —</option>${vendorOptions}<option value="__add_new__">+ Add New Vendor…</option></select>
+          </div>
+          <div class="row2">
+            <div>
+              <label>Qty Ordered</label>
+              <input type="number" class="order-qty" step="any" value="${po.qty_requested}">
+            </div>
+            <div>
+              <label>Agreed Rate (PKR)</label>
+              <input type="number" class="order-rate" step="any" value="${prod?.current_rate || ""}">
+            </div>
+          </div>
+          <button type="button" class="btn-primary btn-sm order-confirm-btn">Mark as Ordered</button>
+        </div>`;
+      const detail = card.querySelector(".po-detail");
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".po-detail")) return;
+        document.querySelectorAll("#authorized-list .po-detail").forEach(d => { if (d !== detail) d.hidden = true; });
+        detail.hidden = !detail.hidden;
+      });
+      const vendorSel = card.querySelector(".order-vendor");
+      vendorSel.addEventListener("change", (e) => handleOrderVendorAddNew(e, vendorSel));
+      card.querySelector(".order-confirm-btn").addEventListener("click", () => markOrdered(po, card));
+      list.appendChild(card);
+    });
+  } catch (e) {
+    emptyHint.hidden = false;
+    emptyHint.textContent = "Couldn't load authorized items: " + e.message;
+  }
+}
+
+async function handleOrderVendorAddNew(e, selEl) {
+  if (e.target.value !== "__add_new__") return;
+  const name = (prompt("New vendor name:") || "").trim();
+  if (!name) { selEl.selectedIndex = 0; return; }
+  try {
+    const inserted = await sb("vendors", {
+      method: "POST",
+      headers: { "Prefer": "return=representation" },
+      body: JSON.stringify({ org_id: "00000000-0000-0000-0000-000000000001", name: name, active: true })
+    });
+    const newId = inserted && inserted[0] ? inserted[0].id : null;
+    state.vendors.push({ id: newId, name: name });
+    const addOpt = selEl.querySelector('option[value="__add_new__"]');
+    const opt = document.createElement("option");
+    opt.value = newId;
+    opt.textContent = name;
+    selEl.insertBefore(opt, addOpt);
+    selEl.value = newId;
+  } catch (err) {
+    alert("Could not add vendor: " + err.message);
+    selEl.selectedIndex = 0;
+  }
+}
+
+async function markOrdered(po, cardEl) {
+  const vendorId = cardEl.querySelector(".order-vendor").value || null;
+  const qty = parseFloat(cardEl.querySelector(".order-qty").value) || 0;
+  if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+  if (!vendorId) return alert("Pick a vendor.");
+  try {
+    await sb(`purchase_orders?id=eq.${po.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        status: "Ordered",
+        qty_requested: qty,
+        vendor_id: vendorId,
+        ordered_by: state.userId,
+        ordered_at: new Date().toISOString()
+      })
+    });
+    showSuccess("Order placed", `${po.products?.name || "Item"} — ready to receive at the store.`, () => { enterOrderPanelAgain(); });
+  } catch (e) {
+    alert("Couldn't mark as ordered: " + e.message);
+  }
+}
+
+function enterOrderPanelAgain() {
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("panel-order").hidden = false;
+  loadAuthorizedList();
+}
+
+document.getElementById("btn-order-back").addEventListener("click", backToNames);
+
+loadNames();
+loadProducts();
+loadVendors();
+</script>
+
+</body>
+</html>
