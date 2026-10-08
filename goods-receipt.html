@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Goods Receipt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --border: #e4ddd1;
+    --ink: #2a2420;
+    --ink-soft: #6f655a;
+    --accent: #9c3b2e;
+    --accent-ink: #ffffff;
+    --field-bg: #fcfaf6;
+    --ok: #3d7a4f;
+    --ok-bg: #eaf4ec;
+    --warn: #a3650a;
+    --warn-bg: #fdf1dd;
+    --err: #b3261e;
+    --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .mode-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+  .mode-btn { flex: 1; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 11px; font-size: 0.88rem; }
+  .mode-btn.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .banner ul { margin: 6px 0 0 18px; padding: 0; }
+  .ack-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; font-size: 0.85rem; }
+  .ack-row input { width: auto; margin-top: 2px; }
+  .amount-display { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.4rem; font-weight: 600; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+  .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; background: var(--field-bg); }
+  .po-card.selected { border-color: var(--accent); background: var(--ok-bg); }
+  .po-card .po-title { font-weight: 600; }
+  .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Goods Receipt</h1>
+<div class="sub">Forks N Knives — confirm what actually arrived</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who's receiving this delivery?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="step-mode" class="card" hidden>
+  <div class="step-label">Was this ordered through a Purchase Order?</div>
+  <div class="mode-toggle">
+    <button type="button" class="mode-btn" id="mode-po">Yes — match to PO</button>
+    <button type="button" class="mode-btn" id="mode-adhoc">No — log it anyway</button>
+  </div>
+</div>
+
+<div id="step-po-pick" class="card" hidden>
+  <div class="step-label">Pick the Purchase Order this delivery is for</div>
+  <div id="po-list"></div>
+  <div class="hint" id="po-empty-hint" hidden>No open (Authorized/Ordered) purchase orders found for Gulberg.</div>
+</div>
+
+<div id="step-form" hidden>
+  <div class="card">
+    <div id="po-context-banner"></div>
+
+    <div class="field" id="block-item-pick" hidden>
+      <label>Item Code / Name</label>
+      <input type="text" id="f-item-search" placeholder="Start typing an item name...">
+      <select id="f-item-select" style="margin-top:6px;"></select>
+      <div class="hint" id="item-hint"></div>
+    </div>
+
+    <div class="row2 field">
+      <div>
+        <label>Qty Received</label>
+        <input type="number" id="f-qty" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Rate (PKR)</label>
+        <input type="number" id="f-rate" step="any" placeholder="0">
+      </div>
+    </div>
+
+    <div id="variance-hint"></div>
+
+    <div class="field">
+      <label>Vendor</label>
+      <select id="f-vendor"><option value="">— None / N/A —</option></select>
+    </div>
+
+    <div class="field">
+      <label>Invoice / Delivery Note #</label>
+      <input type="text" id="f-inv" placeholder="Optional">
+    </div>
+
+    <div class="field">
+      <label>Payment Status</label>
+      <select id="f-payment-status">
+        <option value="credit">On Credit (payable)</option>
+        <option value="paid">Paid Now</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="f-notes" rows="2" placeholder="Optional — condition, shortage explanation, etc."></textarea>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:4px;">
+      <span class="hint">Total</span>
+      <span class="amount-display" id="total-display">PKR 0</span>
+    </div>
+  </div>
+
+  <button class="btn-primary" id="btn-save" type="button">Save Receipt</button>
+  <button class="btn-ghost" id="btn-back" type="button">Back</button>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;">Receipt saved</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub">Entry cleared. Ready for the next one.</div>
+  <button class="btn-primary" id="btn-another" type="button" style="margin-top:18px;">Receive Another</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const RECEIVER_ROLES = ["store_person", "shift_manager"];
+
+const ROLE_LABELS = {
+  cash_expense: "Cashier",
+  inventory: "Auditor",
+  owner: "Director",
+  shift_manager: "Shift Manager",
+  purchasing: "Purchasing",
+  store_person: "Store Person"
+};
+
+let state = {
+  userId: null,
+  userName: null,
+  products: [],
+  mode: null,       // 'po' | 'adhoc'
+  pos: [],
+  selectedPO: null  // the PO row, if mode === 'po'
+};
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=in.(${RECEIVER_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) {
+      grid.innerHTML = '<div class="hint">No authorized receivers found for Gulberg.</div>';
+    }
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("step-mode").hidden = false;
+  }, 150);
+}
+
+async function loadProducts() {
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
+  } catch (e) { state.products = []; }
+}
+
+async function loadVendors() {
+  try {
+    const rows = await sb(`vendors?active=eq.true&select=id,name&order=name`);
+    const sel = document.getElementById("f-vendor");
+    rows.forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v.id;
+      opt.textContent = v.name;
+      sel.appendChild(opt);
+    });
+  } catch (e) { /* non-fatal */ }
+}
+
+async function loadOpenPOs() {
+  try {
+    state.pos = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=in.(Authorized,Ordered)&select=id,qty_requested,unit,status,products(id,name,code,unit,current_rate),vendors(id,name)&order=requested_at.desc`);
+  } catch (e) { state.pos = []; }
+  const list = document.getElementById("po-list");
+  const emptyHint = document.getElementById("po-empty-hint");
+  list.innerHTML = "";
+  if (!state.pos.length) {
+    emptyHint.hidden = false;
+    return;
+  }
+  emptyHint.hidden = true;
+  state.pos.forEach(po => {
+    const card = document.createElement("div");
+    card.className = "po-card";
+    const prod = po.products;
+    const vend = po.vendors;
+    card.innerHTML = `
+      <div class="po-title">${prod ? prod.name : "Unknown item"}</div>
+      <div class="po-sub">${vend ? vend.name : "No vendor"} · Ordered ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${po.status}</div>
+    `;
+    card.onclick = () => selectPO(po, card);
+    list.appendChild(card);
+  });
+}
+
+function selectPO(po, cardEl) {
+  document.querySelectorAll(".po-card").forEach(c => c.classList.remove("selected"));
+  cardEl.classList.add("selected");
+  state.selectedPO = po;
+  setTimeout(() => {
+    document.getElementById("step-po-pick").hidden = true;
+    enterForm();
+  }, 150);
+}
+
+function enterForm() {
+  document.getElementById("step-form").hidden = false;
+  document.getElementById("f-qty").value = "";
+  document.getElementById("f-rate").value = "";
+  document.getElementById("f-inv").value = "";
+  document.getElementById("f-notes").value = "";
+  document.getElementById("f-payment-status").value = "credit";
+  document.getElementById("variance-hint").innerHTML = "";
+
+  if (state.mode === "po" && state.selectedPO) {
+    const po = state.selectedPO;
+    document.getElementById("block-item-pick").hidden = true;
+    document.getElementById("po-context-banner").innerHTML = `
+      <div class="banner banner-ok">
+        Receiving against PO: <strong>${po.products?.name || "item"}</strong> ·
+        Ordered ${po.qty_requested} ${po.unit || po.products?.unit || ""} from ${po.vendors?.name || "vendor"}
+      </div>`;
+    if (po.products?.current_rate) document.getElementById("f-rate").value = po.products.current_rate;
+    if (po.vendors?.id) document.getElementById("f-vendor").value = po.vendors.id;
+  } else {
+    document.getElementById("block-item-pick").hidden = false;
+    document.getElementById("po-context-banner").innerHTML = "";
+    populateItemSelect("");
+  }
+  recalcAmount();
+}
+
+function populateItemSelect(filterText) {
+  const sel = document.getElementById("f-item-select");
+  const ft = (filterText || "").trim().toUpperCase();
+  const matches = ft
+    ? state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft))
+    : state.products.slice(0, 40);
+  sel.innerHTML = '<option value="">— pick an item —</option>' +
+    matches.slice(0, 60).map(p => `<option value="${p.id}">${p.code || "?"} — ${p.name}</option>`).join("");
+}
+
+function onItemSelected() {
+  const sel = document.getElementById("f-item-select");
+  const p = state.products.find(x => x.id === sel.value);
+  if (p) {
+    document.getElementById("f-rate").value = p.current_rate || "";
+    document.getElementById("item-hint").textContent = `Unit: ${p.unit || "—"} · Last rate on file: PKR ${p.current_rate || 0}`;
+  } else {
+    document.getElementById("item-hint").textContent = "";
+  }
+  recalcAmount();
+}
+
+function recalcAmount() {
+  const qty = parseFloat(document.getElementById("f-qty").value) || 0;
+  const rate = parseFloat(document.getElementById("f-rate").value) || 0;
+  const amount = qty * rate;
+  document.getElementById("total-display").textContent = "PKR " + amount.toLocaleString("en-PK", { maximumFractionDigits: 2 });
+
+  if (state.mode === "po" && state.selectedPO) {
+    const requested = parseFloat(state.selectedPO.qty_requested) || 0;
+    const hintEl = document.getElementById("variance-hint");
+    if (qty > 0 && requested > 0 && qty !== requested) {
+      const diff = qty - requested;
+      const label = diff > 0 ? "more than" : "less than";
+      hintEl.innerHTML = `<div class="banner banner-warn">Received qty is ${Math.abs(diff)} ${label} what was ordered (${requested}). Double-check before saving.</div>`;
+    } else {
+      hintEl.innerHTML = "";
+    }
+  }
+  return amount;
+}
+
+async function saveReceipt() {
+  const qty = parseFloat(document.getElementById("f-qty").value) || 0;
+  const rate = parseFloat(document.getElementById("f-rate").value) || 0;
+  const amount = qty * rate;
+  const vendorId = document.getElementById("f-vendor").value || null;
+  const invNumber = document.getElementById("f-inv").value || null;
+  const notes = document.getElementById("f-notes").value || null;
+  const paymentStatus = document.getElementById("f-payment-status").value;
+
+  if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+
+  let productId = null, unit = null, variance = null, poId = null;
+
+  if (state.mode === "po" && state.selectedPO) {
+    const po = state.selectedPO;
+    productId = po.products?.id || null;
+    unit = po.unit || po.products?.unit || null;
+    poId = po.id;
+    const requested = parseFloat(po.qty_requested) || 0;
+    if (requested > 0 && qty !== requested) {
+      variance = `Ordered ${requested}, received ${qty} (${po.unit || unit || ""})`;
+    }
+  } else {
+    const itemSel = document.getElementById("f-item-select");
+    if (!itemSel.value) return alert("Pick an item.");
+    const p = state.products.find(x => x.id === itemSel.value);
+    productId = itemSel.value;
+    unit = p ? p.unit : null;
+  }
+
+  const payload = {
+    location_id: LOCATION_ID,
+    product_id: productId,
+    vendor_id: vendorId,
+    inv_number: invNumber,
+    purchase_date: todayStr(),
+    unit: unit,
+    rate: rate,
+    qty: qty,
+    amount: amount,
+    payment_status: paymentStatus,
+    notes: notes,
+    entered_by_user_id: state.userId,
+    po_id: poId,
+    variance_note: variance
+  };
+
+  const btn = document.getElementById("btn-save");
+  btn.disabled = true;
+  try {
+    const inserted = await sb("purchases", {
+      method: "POST",
+      headers: { "Prefer": "return=representation" },
+      body: JSON.stringify(payload)
+    });
+    const purchaseId = inserted && inserted[0] ? inserted[0].id : null;
+
+    if (poId && purchaseId) {
+      await sb(`purchase_orders?id=eq.${poId}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          status: "Received",
+          received_qty: qty,
+          received_at: new Date().toISOString(),
+          received_by_user_id: state.userId,
+          linked_purchase_id: purchaseId
+        })
+      });
+    }
+
+    document.getElementById("success-sub").textContent = variance
+      ? `Saved — flagged for review: ${variance}`
+      : "Entry cleared. Ready for the next one.";
+    showSuccess();
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showSuccess() {
+  document.getElementById("step-form").hidden = true;
+  document.getElementById("step-success").hidden = false;
+}
+
+function resetToMode() {
+  state.mode = null;
+  state.selectedPO = null;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-form").hidden = true;
+  document.getElementById("step-po-pick").hidden = true;
+  document.getElementById("step-mode").hidden = false;
+}
+
+document.getElementById("mode-po").addEventListener("click", () => {
+  state.mode = "po";
+  document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("selected"));
+  document.getElementById("mode-po").classList.add("selected");
+  document.getElementById("step-mode").hidden = true;
+  document.getElementById("step-po-pick").hidden = false;
+  loadOpenPOs();
+});
+document.getElementById("mode-adhoc").addEventListener("click", () => {
+  state.mode = "adhoc";
+  document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("selected"));
+  document.getElementById("mode-adhoc").classList.add("selected");
+  document.getElementById("step-mode").hidden = true;
+  enterForm();
+});
+document.getElementById("f-qty").addEventListener("input", recalcAmount);
+document.getElementById("f-rate").addEventListener("input", recalcAmount);
+document.getElementById("f-item-search").addEventListener("input", (e) => populateItemSelect(e.target.value));
+document.getElementById("f-item-select").addEventListener("change", onItemSelected);
+document.getElementById("btn-save").addEventListener("click", saveReceipt);
+document.getElementById("btn-back").addEventListener("click", resetToMode);
+document.getElementById("btn-another").addEventListener("click", resetToMode);
+
+loadNames();
+loadVendors();
+loadProducts();
+</script>
+
+</body>
+</html>
