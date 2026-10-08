@@ -56,10 +56,34 @@ live sheet.
 
 ## What's seeded so far
 The CT-1/CT-2/CT-3/PAS/CUPCAKE-REG/CUPCAKE-CUS/SUN/3MILK/BRO items above were added
-to `variance_items` (department='bakery', location=Gulberg/C-5) on 2026-10-08 so the
-variance-entry/pos-upload/variance-dashboard screens have something to work with.
-The four unclear codes (C/C, C.2.P, LAV/CAK, C.B, DIM) were **not** added — confirm
-their real names with Yasir before adding them.
+to `variance_items` (department='bakery', location=Gulberg/C-5) on 2026-10-08. Yasir
+then clarified the 4 unclear codes (2026-10-08): C/C = Customized Cake (priced per
+lb), LAV = Lava Cake, C.B = Choco Ball, C.2.P = likely Cheese Cake (unconfirmed) —
+all added, plus an editable `current_price` column (prices drift, Yasir wanted them
+fixable without re-importing a file every time).
+
+**2026-10-09: superseded by an updated bar & bakery menu** (two photos, saved as
+`bar_bakery_menu_1.png` / `bar_bakery_menu_2.png` in this folder) — this is the
+current, authoritative price list, newer than the Feb-2026 FSD file above. Retired
+the old generic Cake Size 1/2/3 tiers, Cupcake Regular/Custom, and generic Sundae;
+replaced with flavor-level items:
+- **Cakes** (Rs. 1999 each, Cheese Cake Rs. 4999): Red Velvet, London, Lotus, Cheese,
+  Matilda, Caramel, Tiramisu
+- **Cupcakes** (Rs. 240 each): Chocolate, Caramel, Red Velvet
+- **Sundae** (Rs. 240 each): Chocolate, Caramel, Red Velvet
+- Pastry, Customized Cake (per lb), Lava Cake, Choco Ball, Brownie, Three Milk Slice
+  were NOT in the photographed menu pages — left as-is rather than assumed
+  discontinued (the menu may have more pages not photographed).
+
+Also added the full **Drinks/Bar menu** from the same photos (all department='drinks',
+Gulberg): Hot Coffee (9 items), Hot Drink/Tea (5), basic bottled drinks (350ML Drink,
+Small/Large Water), Cold Beverages special drinks (Mint Margarita, Lemonade, Fresh
+Lime), Mojito (6 flavors), Ice Cream Shake (6 flavors), Special Shake (3), Cold
+Coffee (6) — 41 drinks items total. Note: this is the BAR/coffee side of the menu,
+distinct from the bottle-size "Water & BEVERAGES" POS category (REG/1.5LTR/1LTR/
+345ML/etc., generic "COLD DRINK" by size) discussed earlier for the store-pour
+process — that size-based item set still hasn't been added since Yasir hasn't shared
+Gulberg-specific bottle-size items yet.
 
 ## For the later full bakery-financials build
 - `INVONTERY FEB` = bakery's own raw-material inventory (not finished goods) — needed
