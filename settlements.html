@@ -243,17 +243,24 @@ function backToNames() {
 document.getElementById("btn-back").addEventListener("click", backToNames);
 
 function sourceFieldForBrand(brand) {
-  return brand === "Credit/Debit Card" ? "card_amount" : "third_party_amount";
+  if (brand === "Credit/Debit Card") return "card_amount";
+  if (brand === "Food Panda") return "food_panda_amount";
+  return "third_party_amount";
 }
 
 function updateGrossLabel() {
   const brand = document.getElementById("f-brand").value;
   const isCard = brand === "Credit/Debit Card";
+  const isFoodPanda = brand === "Food Panda";
   document.getElementById("our-gross-label").textContent = isCard
     ? "Our Recorded Card Sales for This Period"
+    : isFoodPanda
+    ? "Our Recorded Food Panda Sales for This Period"
     : "Our Recorded 3rd-Party Sales for This Period";
   document.getElementById("our-gross-hint").textContent = isCard
     ? "Pulled from Sales Entry's \"Paid by Card\" field for these dates — compare it to what the processor's statement says."
+    : isFoodPanda
+    ? "Pulled from Sales Entry's \"Food Panda\" channel for these dates — compare it to what Food Panda's statement says."
     : "Pulled from Sales Entry's \"Third Party\" channel for these dates — compare it to what the brand's statement says.";
 }
 document.getElementById("f-brand").addEventListener("change", () => { updateGrossLabel(); refreshOurGross(); });
