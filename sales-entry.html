@@ -308,7 +308,7 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
   };
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_sales`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_sales?on_conflict=location_id,sale_date`, {
       method: "POST",
       headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(payload),
