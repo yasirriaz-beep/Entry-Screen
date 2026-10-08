@@ -197,6 +197,13 @@
   </div>
 
   <div class="card">
+    <h2>Drinks &amp; Bakery Variance (Last 7 Days)</h2>
+    <div id="variance-summary-list"><div class="spinner-note">Loading…</div></div>
+    <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="variance-dashboard.html">Go to Variance Dashboard</a>
+    <div class="hint" style="margin-top:8px;">Usage (store-entered by the shift manager) vs. Sold (uploaded POS report, Director-only) — flags items off by more than 10%, a theft-prevention check kept independent on both sides.</div>
+  </div>
+
+  <div class="card">
     <h2>Awaiting Your Authorization</h2>
     <div id="demand-wrap"><div class="spinner-note">Loading…</div></div>
   </div>
@@ -369,7 +376,54 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary()]);
+}
+
+async function loadVarianceSummary() {
+  const wrap = document.getElementById("variance-summary-list");
+  const to = new Date().toISOString().slice(0, 10);
+  const fromD = new Date(); fromD.setDate(fromD.getDate() - 6);
+  const from = fromD.toISOString().slice(0, 10);
+
+  let items = [], entries = [], batches = [], lines = [];
+  try {
+    items = await sb(`variance_items?location_id=eq.${state.locationId}&active=eq.true&select=id,name,department,unit`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+  if (!items.length) { wrap.innerHTML = '<div class="empty-note">No Drinks/Bakery items set up yet — see the Item List screen.</div>'; return; }
+  try {
+    entries = await sb(`variance_daily_entries?location_id=eq.${state.locationId}&entry_date=gte.${from}&entry_date=lte.${to}&select=variance_item_id,usage_qty`);
+  } catch (e) { entries = []; }
+  try {
+    batches = await sb(`pos_upload_batches?location_id=eq.${state.locationId}&report_from=gte.${from}T00:00:00&report_from=lte.${to}T23:59:59&select=id`);
+  } catch (e) { batches = []; }
+  const batchIds = batches.map(b => b.id);
+  if (batchIds.length) {
+    try {
+      lines = await sb(`pos_sale_lines?batch_id=in.(${batchIds.join(",")})&matched_variance_item_id=not.is.null&select=matched_variance_item_id,qty_sold`);
+    } catch (e) { lines = []; }
+  }
+
+  const usageByItem = {}, soldByItem = {};
+  entries.forEach(e => { usageByItem[e.variance_item_id] = (usageByItem[e.variance_item_id] || 0) + (Number(e.usage_qty) || 0); });
+  lines.forEach(l => { soldByItem[l.matched_variance_item_id] = (soldByItem[l.matched_variance_item_id] || 0) + (Number(l.qty_sold) || 0); });
+
+  const flagged = items.map(it => {
+    const usage = usageByItem[it.id] || 0, sold = soldByItem[it.id] || 0;
+    const diff = usage - sold;
+    const pct = usage > 0 ? Math.abs(diff) / usage * 100 : (sold > 0 ? 100 : 0);
+    return { name: it.name, unit: it.unit, usage, sold, diff, pct };
+  }).filter(r => r.pct > 10 && (r.usage > 0 || r.sold > 0)).sort((a, b) => b.pct - a.pct);
+
+  if (!batchIds.length) {
+    wrap.innerHTML = '<div class="empty-note">No POS report uploaded for this period yet — nothing to compare against.</div>';
+    return;
+  }
+  if (!flagged.length) {
+    wrap.innerHTML = '<div class="empty-note">Nothing off by more than 10% this week.</div>';
+    return;
+  }
+  wrap.innerHTML = flagged.map(f => `
+    <div class="channel-row"><span>${f.name}</span><span class="amt">used ${f.usage} vs sold ${f.sold} ${f.unit} (${f.diff > 0 ? "+" : ""}${Math.round(f.diff * 100) / 100})</span></div>`).join("");
 }
 
 async function loadReorderAlerts() {
@@ -656,6 +710,12 @@ function openMasterFile() {
       { href: "item-master.html", label: "Item Master — add, edit, retire items" },
       { href: "moq-setup.html", label: "MOQ Setup — set min stock level & reorder qty per item" },
       { href: "stock-count.html", label: "Stock Count — physical counts, feeds the Reorder Alerts card" }
+    ]) +
+    masterFileSection("Drinks & Bakery Variance (Theft Prevention)", [
+      { href: "variance-items.html", label: "Item List — add/retire drinks & bakery items" },
+      { href: "variance-entry.html", label: "Daily Usage Entry — store side, Shift Manager" },
+      { href: "pos-upload.html", label: "Upload POS Sold Report — Director only" },
+      { href: "variance-dashboard.html", label: "Variance Dashboard — compare & export" }
     ]) +
     masterFileSection("Purchasing & Payables", [
       { href: "goods-receipt.html", label: "Goods Receipt" },

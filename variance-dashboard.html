@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Drinks &amp; Bakery Variance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 120px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab-btn { flex: 1; background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; font-weight: 600; cursor: pointer; color: var(--ink); }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .summary-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; margin-right: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; }
+  tr.flag td { background: var(--err-bg); }
+  .diff-tag { font-weight: 700; }
+  .diff-ok { color: var(--ok); }
+  .diff-off { color: var(--err); }
+  .overflow-x { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h1>Drinks &amp; Bakery Variance</h1>
+<div class="sub">Usage (store side) vs. Sold (POS side) — flags where the gap exceeds the threshold</div>
+
+<div class="card">
+  <div class="row2 field" style="margin-bottom:14px;">
+    <div>
+      <label>From</label>
+      <input type="date" id="f-from">
+    </div>
+    <div>
+      <label>To</label>
+      <input type="date" id="f-to">
+    </div>
+  </div>
+  <div class="row2 field" style="margin-bottom:0;">
+    <div>
+      <label>Flag Threshold (%)</label>
+      <input type="number" id="f-threshold" value="10" min="0" step="1">
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button type="button" class="tab-btn active" id="tab-drinks" data-dept="drinks">Drinks</button>
+  <button type="button" class="tab-btn" id="tab-bakery" data-dept="bakery">Bakery</button>
+</div>
+
+<div class="card">
+  <div id="summary-chips"></div>
+  <div class="overflow-x" style="margin-top:12px;">
+    <table>
+      <thead>
+        <tr><th>Item</th><th>Usage</th><th>Sold (POS)</th><th>Diff</th></tr>
+      </thead>
+      <tbody id="variance-rows"></tbody>
+    </table>
+  </div>
+  <div class="hint" id="empty-hint" hidden>No items yet — add items on the Item List screen.</div>
+</div>
+
+<button class="btn-primary" id="btn-export" type="button">Export to Excel</button>
+<a href="variance-items.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Manage Item List</a>
+<a href="variance-entry.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Daily Usage Entry</a>
+<a href="pos-upload.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Upload POS Report</a>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+
+let state = { dept: "drinks", rows: [] };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function daysAgoStr(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
+function fmtQty(n) { const v = Number(n) || 0; return (Math.round(v * 100) / 100).toLocaleString(); }
+
+document.getElementById("f-from").value = daysAgoStr(6);
+document.getElementById("f-to").value = todayStr();
+document.getElementById("f-from").addEventListener("change", loadAll);
+document.getElementById("f-to").addEventListener("change", loadAll);
+document.getElementById("f-threshold").addEventListener("input", renderRows);
+document.getElementById("tab-drinks").addEventListener("click", () => setDept("drinks"));
+document.getElementById("tab-bakery").addEventListener("click", () => setDept("bakery"));
+
+function setDept(dept) {
+  state.dept = dept;
+  document.getElementById("tab-drinks").classList.toggle("active", dept === "drinks");
+  document.getElementById("tab-bakery").classList.toggle("active", dept === "bakery");
+  loadAll();
+}
+
+async function loadAll() {
+  const from = document.getElementById("f-from").value || daysAgoStr(6);
+  const to = document.getElementById("f-to").value || todayStr();
+
+  let items = [];
+  try {
+    items = await sb(`variance_items?location_id=eq.${LOCATION_ID}&department=eq.${state.dept}&active=eq.true&select=id,name,unit&order=name`);
+  } catch (e) { items = []; }
+
+  let entries = [];
+  try {
+    entries = await sb(`variance_daily_entries?location_id=eq.${LOCATION_ID}&entry_date=gte.${from}&entry_date=lte.${to}&select=variance_item_id,usage_qty`);
+  } catch (e) { entries = []; }
+
+  let batches = [];
+  try {
+    batches = await sb(`pos_upload_batches?location_id=eq.${LOCATION_ID}&report_from=gte.${from}T00:00:00&report_from=lte.${to}T23:59:59&select=id`);
+  } catch (e) { batches = []; }
+  const batchIds = batches.map(b => b.id);
+
+  let lines = [];
+  if (batchIds.length) {
+    try {
+      lines = await sb(`pos_sale_lines?batch_id=in.(${batchIds.join(",")})&matched_variance_item_id=not.is.null&select=matched_variance_item_id,qty_sold`);
+    } catch (e) { lines = []; }
+  }
+
+  const usageByItem = {};
+  entries.forEach(e => { usageByItem[e.variance_item_id] = (usageByItem[e.variance_item_id] || 0) + (Number(e.usage_qty) || 0); });
+  const soldByItem = {};
+  lines.forEach(l => { soldByItem[l.matched_variance_item_id] = (soldByItem[l.matched_variance_item_id] || 0) + (Number(l.qty_sold) || 0); });
+
+  state.rows = items.map(it => {
+    const usage = usageByItem[it.id] || 0;
+    const sold = soldByItem[it.id] || 0;
+    return { name: it.name, unit: it.unit, usage, sold, diff: usage - sold };
+  });
+
+  renderRows();
+}
+
+function renderRows() {
+  const threshold = parseFloat(document.getElementById("f-threshold").value) || 0;
+  const tbody = document.getElementById("variance-rows");
+  const emptyHint = document.getElementById("empty-hint");
+  tbody.innerHTML = "";
+  if (!state.rows.length) { emptyHint.hidden = false; document.getElementById("summary-chips").innerHTML = ""; return; }
+  emptyHint.hidden = true;
+
+  let flagCount = 0, totalUsage = 0, totalSold = 0;
+  state.rows.forEach(r => {
+    totalUsage += r.usage; totalSold += r.sold;
+    const pct = r.usage > 0 ? Math.abs(r.diff) / r.usage * 100 : (r.sold > 0 ? 100 : 0);
+    const flagged = pct > threshold && (r.usage > 0 || r.sold > 0);
+    if (flagged) flagCount++;
+    const tr = document.createElement("tr");
+    if (flagged) tr.className = "flag";
+    const diffClass = Math.abs(r.diff) < 0.01 ? "diff-ok" : "diff-off";
+    tr.innerHTML = `
+      <td>${r.name} <span class="hint" style="margin:0;">(${r.unit})</span></td>
+      <td>${fmtQty(r.usage)}</td>
+      <td>${fmtQty(r.sold)}</td>
+      <td class="diff-tag ${diffClass}">${r.diff > 0 ? "+" : ""}${fmtQty(r.diff)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("summary-chips").innerHTML = `
+    <span class="summary-chip">${state.rows.length} item(s)</span>
+    <span class="summary-chip">Usage ${fmtQty(totalUsage)}</span>
+    <span class="summary-chip">Sold ${fmtQty(totalSold)}</span>
+    <span class="summary-chip" style="${flagCount ? 'color:var(--err); border-color:var(--err);' : ''}">${flagCount} flagged over ${threshold}%</span>
+  `;
+}
+
+function exportToExcel() {
+  const from = document.getElementById("f-from").value;
+  const to = document.getElementById("f-to").value;
+  const data = [["Item", "Unit", "Usage", "Sold (POS)", "Diff"]];
+  state.rows.forEach(r => data.push([r.name, r.unit, r.usage, r.sold, r.diff]));
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, state.dept === "drinks" ? "Drinks Variance" : "Bakery Variance");
+  XLSX.writeFile(wb, `Gulberg_${state.dept}_variance_${from}_to_${to}.xlsx`);
+}
+document.getElementById("btn-export").addEventListener("click", exportToExcel);
+
+loadAll();
+</script>
+
+</body>
+</html>
