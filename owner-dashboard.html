@@ -38,6 +38,8 @@
   select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
   button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
   .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
   [hidden] { display: none !important; }
   .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
   .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -74,6 +76,35 @@
   .exp-row .exp-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .exp-row .exp-sub { font-size: 0.74rem; color: var(--ink-soft); }
   .exp-row .exp-amt { font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
+  .demand-row { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--field-bg); display: flex; align-items: center; gap: 10px; }
+  .demand-row input[type="checkbox"] { width: auto; flex-shrink: 0; height: 18px; accent-color: var(--accent); }
+  .demand-row .demand-main { flex: 1; min-width: 0; }
+  .demand-row .demand-title { font-weight: 600; font-size: 0.9rem; }
+  .demand-row .demand-sub { font-size: 0.78rem; color: var(--ink-soft); }
+  .demand-row .demand-qty { width: 84px; flex-shrink: 0; padding: 8px 9px; font-size: 0.88rem; }
+  .demand-row .demand-reject { flex-shrink: 0; background: transparent; border: none; color: var(--err); font-size: 0.78rem; padding: 4px 2px; text-decoration: underline; }
+  .demand-header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.8rem; color: var(--ink-soft); }
+  .demand-header-row input[type="checkbox"] { width: auto; accent-color: var(--accent); }
+  .btn-authorize-bar { width: 100%; margin-top: 4px; }
+  .attention-info-row { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--field-bg); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .attention-info-row .alert-title { font-weight: 600; font-size: 0.9rem; }
+  .attention-info-row .alert-sub { font-size: 0.78rem; color: var(--ink-soft); margin-top: 2px; }
+  .kpi-clickable { cursor: pointer; transition: border-color 0.15s; }
+  .kpi-clickable:hover, .kpi-clickable:active { border-color: var(--accent); }
+  .kpi-clickable .kpi-label::after { content: " ›"; opacity: 0.5; }
+  .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.42); z-index: 50; }
+  .drawer-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 100%; max-width: 420px;
+    background: var(--surface); z-index: 51; box-shadow: -6px 0 28px rgba(0,0,0,0.25);
+    display: flex; flex-direction: column;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+  }
+  .drawer-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+  .drawer-header h2 { margin: 0; }
+  .drawer-close { background: transparent; border: none; font-size: 1.4rem; line-height: 1; padding: 2px 6px; color: var(--ink-soft); border-radius: 8px; }
+  .drawer-sub { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .drawer-total { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 0; border-top: 2px solid var(--border); margin-top: 6px; font-family: 'Zilla Slab', Georgia, serif; font-size: 1.05rem; }
 </style>
 </head>
 <body>
@@ -106,10 +137,10 @@
   <div class="card">
     <h2 id="kpi-heading">Today — Snapshot</h2>
     <div class="kpi-grid" id="kpi-grid">
-      <div class="kpi"><div class="kpi-label">Sales</div><div class="kpi-value" id="kpi-sales">—</div></div>
-      <div class="kpi"><div class="kpi-label">Expenses</div><div class="kpi-value" id="kpi-expenses">—</div></div>
-      <div class="kpi"><div class="kpi-label">Purchases</div><div class="kpi-value" id="kpi-purchases">—</div></div>
-      <div class="kpi" id="kpi-net-card"><div class="kpi-label">Net</div><div class="kpi-value" id="kpi-net">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="sales"><div class="kpi-label">Sales</div><div class="kpi-value" id="kpi-sales">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="expenses"><div class="kpi-label">Expenses</div><div class="kpi-value" id="kpi-expenses">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="purchases"><div class="kpi-label">Purchases</div><div class="kpi-value" id="kpi-purchases">—</div></div>
+      <div class="kpi kpi-clickable" id="kpi-net-card" data-detail="net"><div class="kpi-label">Net</div><div class="kpi-value" id="kpi-net">—</div></div>
     </div>
     <div class="hint" style="margin-top:10px;">Net = Sales − Expenses − Purchases, for the selected location &amp; range.</div>
   </div>
@@ -120,7 +151,23 @@
   </div>
 
   <div class="card">
-    <h2>Needs Your Attention</h2>
+    <h2>Cash Position</h2>
+    <div class="kpi-grid">
+      <div class="kpi kpi-clickable" data-detail="cash-in"><div class="kpi-label">Cash Collected</div><div class="kpi-value" id="cash-in">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="cash-out"><div class="kpi-label">Cash Paid Out</div><div class="kpi-value" id="cash-out">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="cash-credit"><div class="kpi-label">Credit Purchases</div><div class="kpi-value" id="cash-credit">—</div></div>
+      <div class="kpi kpi-clickable" id="cash-net-card" data-detail="cash-net"><div class="kpi-label">Net Cash Movement</div><div class="kpi-value" id="cash-net">—</div></div>
+    </div>
+    <div class="hint" style="margin-top:10px;">Estimate: Cash Collected = dine-in + takeaway sales. Cash Paid Out = all expenses (Zeeshan pays these in cash) + any purchase not marked "credit". Credit Purchases are vendor-financed, not yet paid. Delivery/third-party sales are assumed non-cash and excluded.</div>
+  </div>
+
+  <div class="card">
+    <h2>Awaiting Your Authorization</h2>
+    <div id="demand-wrap"><div class="spinner-note">Loading…</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Also Pending</h2>
     <div id="attention-list"><div class="spinner-note">Loading…</div></div>
   </div>
 
@@ -137,13 +184,38 @@
   <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 </div>
 
+<div id="drawer-overlay" class="drawer-overlay" hidden></div>
+<div id="drawer-panel" class="drawer-panel" hidden>
+  <div class="drawer-header">
+    <div>
+      <h2 id="drawer-title">Details</h2>
+      <div class="drawer-sub" id="drawer-sub"></div>
+    </div>
+    <button type="button" class="drawer-close" id="drawer-close">&times;</button>
+  </div>
+  <div id="drawer-body"></div>
+</div>
+
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const DASHBOARD_ROLES = ["owner"];
 const ROLE_LABELS = { owner: "Director" };
 
-let state = { userId: null, userName: null, locationId: null, range: "today", locations: [] };
+let state = { userId: null, userName: null, locationId: null, range: "today", locations: [], salesRows: [], expenseRows: [], purchaseRows: [] };
+
+const RELATED_LINKS = {
+  sales:       [{ href: "sales-entry.html", label: "Open Sales Entry" }],
+  expenses:    [{ href: "expense-entry.html", label: "Open Expense Entry" }],
+  purchases:   [{ href: "goods-receipt.html", label: "Open Goods Receipt" }, { href: "purchase-order.html", label: "Open Purchase Orders" }],
+  net:         [{ href: "sales-entry.html", label: "Open Sales Entry" }, { href: "expense-entry.html", label: "Open Expense Entry" }, { href: "goods-receipt.html", label: "Open Goods Receipt" }],
+  "cash-in":   [{ href: "sales-entry.html", label: "Open Sales Entry" }],
+  "cash-out":  [{ href: "expense-entry.html", label: "Open Expense Entry" }, { href: "goods-receipt.html", label: "Open Goods Receipt" }],
+  "cash-credit": [{ href: "purchase-order.html", label: "Open Purchase Orders" }],
+  "cash-net":  [{ href: "sales-entry.html", label: "Open Sales Entry" }, { href: "goods-receipt.html", label: "Open Goods Receipt" }]
+};
+// As more modules ship (Payroll, Inventory/Issuance, the variance-audit layer), add their
+// pages here per detail key so this same side panel becomes the jump-off point to them.
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -260,7 +332,7 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadAttention(), loadAlerts()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts()]);
 }
 
 async function loadKpis() {
@@ -269,14 +341,18 @@ async function loadKpis() {
 
   let sales = [], expenses = [], purchases = [];
   try {
-    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale`);
+    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale&order=sale_date.desc`);
   } catch (e) {}
   try {
-    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date`);
+    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date&order=expense_date.desc`);
   } catch (e) {}
   try {
-    purchases = await sb(`purchases?location_id=eq.${state.locationId}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=amount`);
+    purchases = await sb(`purchases?location_id=eq.${state.locationId}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=id,purchase_date,qty,unit,rate,amount,payment_status,vendors(name),products(name)&order=purchase_date.desc`);
   } catch (e) {}
+
+  state.salesRows = sales;
+  state.expenseRows = expenses;
+  state.purchaseRows = purchases;
 
   const totalSales = sales.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
   const totalExpenses = expenses.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -291,9 +367,126 @@ async function loadKpis() {
   netCard.classList.remove("net-pos", "net-neg");
   netCard.classList.add(net >= 0 ? "net-pos" : "net-neg");
 
+  // Cash position (see hint text in the card for the assumptions behind this)
+  const cashCollected = sales.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0), 0);
+  const creditPurchases = purchases.filter(p => (p.payment_status || "").toLowerCase() === "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const nonCreditPurchases = totalPurchases - creditPurchases;
+  const cashPaidOut = totalExpenses + nonCreditPurchases;
+  const netCash = cashCollected - cashPaidOut;
+
+  document.getElementById("cash-in").textContent = fmtMoney(cashCollected);
+  document.getElementById("cash-out").textContent = fmtMoney(cashPaidOut);
+  document.getElementById("cash-credit").textContent = fmtMoney(creditPurchases);
+  document.getElementById("cash-net").textContent = fmtMoney(netCash);
+  const cashNetCard = document.getElementById("cash-net-card");
+  cashNetCard.classList.remove("net-pos", "net-neg");
+  cashNetCard.classList.add(netCash >= 0 ? "net-pos" : "net-neg");
+
   renderChannels(sales);
   renderTopExpenses(expenses);
 }
+
+// ---------- Side panel (drawer) ----------
+function renderRelatedLinks(key) {
+  const links = RELATED_LINKS[key];
+  if (!links || !links.length) return "";
+  return `<div class="hint" style="margin-top:14px; margin-bottom:6px;">Related screens</div>
+    ${links.map(l => `<a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:6px;" href="${l.href}">${l.label}</a>`).join("")}`;
+}
+
+function drawerRow(main, sub, amt) {
+  return `<div class="exp-row"><div><div class="exp-main">${main}</div><div class="exp-sub">${sub || ""}</div></div><div class="exp-amt">${amt}</div></div>`;
+}
+
+function openDrawer(title, sub, bodyHtml) {
+  document.getElementById("drawer-title").textContent = title;
+  document.getElementById("drawer-sub").textContent = sub || "";
+  document.getElementById("drawer-body").innerHTML = bodyHtml;
+  document.getElementById("drawer-overlay").hidden = false;
+  document.getElementById("drawer-panel").hidden = false;
+}
+function closeDrawer() {
+  document.getElementById("drawer-overlay").hidden = true;
+  document.getElementById("drawer-panel").hidden = true;
+}
+document.getElementById("drawer-close").addEventListener("click", closeDrawer);
+document.getElementById("drawer-overlay").addEventListener("click", closeDrawer);
+
+function showDetail(key) {
+  const { label } = rangeDates();
+  const locName = (state.locations.find(l => l.id === state.locationId) || {}).name || "";
+  const sub = `${locName} · ${label}`;
+
+  if (key === "sales") {
+    const rows = state.salesRows;
+    const body = rows.length
+      ? rows.map(r => drawerRow(r.sale_date, `Dine-in ${fmtMoney(r.dine_in_amount)} · Takeaway ${fmtMoney(r.takeaway_amount)} · Delivery ${fmtMoney(r.delivery_amount)} · 3rd-party ${fmtMoney(r.third_party_amount)}${Number(r.bakery_sale) ? " · Bakery " + fmtMoney(r.bakery_sale) : ""}`, fmtMoney(r.total_sale))).join("")
+      : '<div class="empty-note">No sales recorded for this range.</div>';
+    const total = rows.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
+    openDrawer("Sales", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("sales"));
+  } else if (key === "expenses") {
+    const rows = [...state.expenseRows].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+    const body = rows.length
+      ? rows.map(e => drawerRow(`${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, `${e.expense_date}${e.detail ? " · " + e.detail : ""}`, fmtMoney(e.amount))).join("")
+      : '<div class="empty-note">No expenses recorded for this range.</div>';
+    const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    openDrawer("Expenses", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("expenses"));
+  } else if (key === "purchases") {
+    const rows = state.purchaseRows;
+    const body = rows.length
+      ? rows.map(p => drawerRow(p.products?.name || "Item", `${p.purchase_date} · ${p.vendors?.name || "no vendor"} · ${p.qty} ${p.unit || ""} @ ${fmtMoney(p.rate)} · ${(p.payment_status || "").toUpperCase()}`, fmtMoney(p.amount))).join("")
+      : '<div class="empty-note">No purchases recorded for this range.</div>';
+    const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    openDrawer("Purchases", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("purchases"));
+  } else if (key === "net") {
+    const totalSales = state.salesRows.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
+    const totalExpenses = state.expenseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const totalPurchases = state.purchaseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const net = totalSales - totalExpenses - totalPurchases;
+    const body = drawerRow("Sales", "", fmtMoney(totalSales)) +
+                 drawerRow("Expenses", "", "−" + fmtMoney(totalExpenses)) +
+                 drawerRow("Purchases", "", "−" + fmtMoney(totalPurchases)) +
+                 `<div class="drawer-total"><span>Net</span><span>${fmtMoney(net)}</span></div>`;
+    openDrawer("Net", sub, body + renderRelatedLinks("net"));
+  } else if (key === "cash-in") {
+    const rows = state.salesRows;
+    const body = rows.length
+      ? rows.map(r => drawerRow(r.sale_date, "Dine-in + Takeaway (assumed cash)", fmtMoney((Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0)))).join("")
+      : '<div class="empty-note">No sales recorded for this range.</div>';
+    const total = rows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0), 0);
+    openDrawer("Cash Collected", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cash-in"));
+  } else if (key === "cash-out") {
+    const expRows = state.expenseRows.map(e => ({ main: `${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, sub: e.expense_date, amt: Number(e.amount) || 0 }));
+    const purchRows = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").map(p => ({ main: p.products?.name || "Purchase", sub: `${p.purchase_date} · ${p.vendors?.name || "no vendor"}`, amt: Number(p.amount) || 0 }));
+    const rows = [...expRows, ...purchRows];
+    const body = rows.length
+      ? rows.map(r => drawerRow(r.main, r.sub, fmtMoney(r.amt))).join("")
+      : '<div class="empty-note">No cash paid out for this range.</div>';
+    const total = rows.reduce((s, r) => s + r.amt, 0);
+    openDrawer("Cash Paid Out", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cash-out"));
+  } else if (key === "cash-credit") {
+    const rows = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() === "credit");
+    const body = rows.length
+      ? rows.map(p => drawerRow(p.products?.name || "Item", `${p.purchase_date} · ${p.vendors?.name || "no vendor"} · ${p.qty} ${p.unit || ""}`, fmtMoney(p.amount))).join("")
+      : '<div class="empty-note">No credit purchases for this range.</div>';
+    const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    openDrawer("Credit Purchases", sub, body + (rows.length ? `<div class="drawer-total"><span>Total (payable)</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cash-credit"));
+  } else if (key === "cash-net") {
+    const cashCollected = state.salesRows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0), 0);
+    const totalExpenses = state.expenseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const nonCreditPurchases = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const cashPaidOut = totalExpenses + nonCreditPurchases;
+    const netCash = cashCollected - cashPaidOut;
+    const body = drawerRow("Cash Collected", "Dine-in + Takeaway", fmtMoney(cashCollected)) +
+                 drawerRow("Cash Paid Out", "Expenses + non-credit purchases", "−" + fmtMoney(cashPaidOut)) +
+                 `<div class="drawer-total"><span>Net Cash Movement</span><span>${fmtMoney(netCash)}</span></div>`;
+    openDrawer("Net Cash Movement", sub, body + renderRelatedLinks("cash-net"));
+  }
+}
+
+document.querySelectorAll(".kpi-clickable").forEach(el => {
+  el.addEventListener("click", () => showDetail(el.dataset.detail));
+});
 
 function renderChannels(sales) {
   const wrap = document.getElementById("channel-list");
@@ -320,29 +513,106 @@ function renderTopExpenses(expenses) {
     </div>`).join("");
 }
 
+async function loadDemandQueue() {
+  const wrap = document.getElementById("demand-wrap");
+  let demand = [];
+  try {
+    demand = await sb(`purchase_orders?location_id=eq.${state.locationId}&status=eq.Demand&select=id,qty_requested,unit,requested_at,notes,products(id,name,code,unit)&order=requested_at.asc`);
+  } catch (e) {
+    wrap.innerHTML = `<div class="empty-note">Couldn't load requests: ${e.message}</div>`;
+    return;
+  }
+  if (!demand.length) { wrap.innerHTML = '<div class="empty-note">Nothing waiting on you — all caught up.</div>'; return; }
+
+  wrap.innerHTML = `
+    <div class="demand-header-row">
+      <input type="checkbox" id="demand-select-all" checked>
+      <span>Select all (${demand.length})</span>
+    </div>
+    <div id="demand-rows"></div>
+    <button type="button" class="btn-primary btn-authorize-bar" id="btn-authorize-selected">Authorize Selected</button>
+  `;
+  const rowsWrap = document.getElementById("demand-rows");
+  demand.forEach(po => {
+    const prod = po.products;
+    const row = document.createElement("div");
+    row.className = "demand-row";
+    row.innerHTML = `
+      <input type="checkbox" class="demand-check" checked>
+      <div class="demand-main">
+        <div class="demand-title">${prod ? prod.name : "Unknown item"}</div>
+        <div class="demand-sub">Requested ${new Date(po.requested_at).toLocaleDateString()}${po.notes ? " · " + po.notes : ""} · <button type="button" class="demand-reject">Reject</button></div>
+      </div>
+      <input type="number" class="demand-qty" step="any" value="${po.qty_requested}">
+      <span class="hint" style="margin:0;">${po.unit || prod?.unit || ""}</span>
+    `;
+    row.querySelector(".demand-reject").addEventListener("click", (e) => { e.stopPropagation(); rejectDemandPO(po); });
+    row._po = po;
+    rowsWrap.appendChild(row);
+  });
+
+  document.getElementById("demand-select-all").addEventListener("change", (e) => {
+    document.querySelectorAll(".demand-check").forEach(c => { c.checked = e.target.checked; });
+  });
+  document.getElementById("btn-authorize-selected").addEventListener("click", authorizeSelectedDemand);
+}
+
+async function authorizeSelectedDemand() {
+  const rows = [...document.querySelectorAll("#demand-rows .demand-row")].filter(r => r.querySelector(".demand-check").checked);
+  if (!rows.length) return alert("Select at least one request to authorize.");
+  const btn = document.getElementById("btn-authorize-selected");
+  btn.disabled = true;
+  btn.textContent = "Authorizing…";
+  let failed = 0;
+  for (const row of rows) {
+    const po = row._po;
+    const qty = parseFloat(row.querySelector(".demand-qty").value) || 0;
+    if (!qty || qty <= 0) { failed++; continue; }
+    try {
+      await sb(`purchase_orders?id=eq.${po.id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ status: "Authorized", qty_requested: qty, authorized_by: state.userId, authorized_at: new Date().toISOString() })
+      });
+    } catch (e) { failed++; }
+  }
+  btn.disabled = false;
+  btn.textContent = "Authorize Selected";
+  if (failed) alert(`${failed} item(s) couldn't be authorized — check quantities and try again.`);
+  await loadDemandQueue();
+  await loadAttention();
+}
+
+async function rejectDemandPO(po) {
+  if (!confirm(`Cancel the demand for ${po.products?.name || "this item"}?`)) return;
+  try {
+    await sb(`purchase_orders?id=eq.${po.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ status: "Cancelled", authorized_by: state.userId, authorized_at: new Date().toISOString() })
+    });
+    await loadDemandQueue();
+  } catch (e) {
+    alert("Couldn't cancel: " + e.message);
+  }
+}
+
 async function loadAttention() {
   const wrap = document.getElementById("attention-list");
-  let demand = [], authorized = [];
-  try {
-    demand = await sb(`purchase_orders?location_id=eq.${state.locationId}&status=eq.Demand&select=id,qty_requested,unit,requested_at,products(name)&order=requested_at.asc`);
-  } catch (e) {}
+  let authorized = [];
   try {
     authorized = await sb(`purchase_orders?location_id=eq.${state.locationId}&status=eq.Authorized&select=id,qty_requested,unit,authorized_at,products(name)&order=authorized_at.asc`);
   } catch (e) {}
 
-  const rows = [];
-  if (demand.length) rows.push({ title: `${demand.length} purchase ${demand.length === 1 ? "request" : "requests"} awaiting your authorization`, sub: demand.slice(0, 3).map(d => d.products?.name).filter(Boolean).join(", ") + (demand.length > 3 ? "…" : ""), pill: "pill-warn", pillText: "Authorize" });
-  if (authorized.length) rows.push({ title: `${authorized.length} authorized ${authorized.length === 1 ? "order" : "orders"} awaiting purchasing to place`, sub: authorized.slice(0, 3).map(d => d.products?.name).filter(Boolean).join(", ") + (authorized.length > 3 ? "…" : ""), pill: "pill-ok", pillText: "Ordered soon" });
-
-  if (!rows.length) { wrap.innerHTML = '<div class="empty-note">Nothing pending — purchase order pipeline is clear.</div>'; return; }
-  wrap.innerHTML = rows.map(r => `
-    <div class="alert-row">
+  if (!authorized.length) { wrap.innerHTML = '<div class="empty-note">Nothing authorized and waiting on purchasing right now.</div>'; return; }
+  wrap.innerHTML = `
+    <div class="attention-info-row">
       <div>
-        <div class="alert-title">${r.title}</div>
-        <div class="alert-sub">${r.sub || ""}</div>
+        <div class="alert-title">${authorized.length} authorized ${authorized.length === 1 ? "order" : "orders"} awaiting purchasing to place</div>
+        <div class="alert-sub">${authorized.slice(0, 4).map(d => d.products?.name).filter(Boolean).join(", ")}${authorized.length > 4 ? "…" : ""}</div>
       </div>
-      <span class="pill-badge ${r.pill}">${r.pillText}</span>
-    </div>`).join("");
+      <span class="pill-badge pill-ok">Ordered soon</span>
+    </div>`;
 }
 
 async function loadAlerts() {
