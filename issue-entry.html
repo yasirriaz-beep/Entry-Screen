@@ -57,6 +57,9 @@
   .ack-row input { width: auto; margin-top: 2px; }
   .amount-display { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.4rem; font-weight: 600; }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .po-card .po-title { font-weight: 600; }
+  .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
   .success-wrap { text-align: center; padding: 48px 16px; }
   .success-wrap .check { font-size: 2.6rem; }
 </style>
@@ -115,6 +118,12 @@
 
   <button class="btn-primary" id="btn-check" type="button">Check &amp; Save</button>
   <button class="btn-ghost" id="btn-back" type="button">Back</button>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="step-label">Issued Today</div>
+    <div id="today-list"></div>
+    <div class="hint" id="today-empty" hidden>Nothing issued yet today.</div>
+  </div>
 </div>
 
 <div id="step-success" class="card success-wrap" hidden>
@@ -193,7 +202,27 @@ function selectUser(id, name, pillEl) {
     document.getElementById("step-name").hidden = true;
     document.getElementById("step-form").hidden = false;
     document.getElementById("f-date").value = todayStr();
+    loadTodayList();
   }, 150);
+}
+
+async function loadTodayList() {
+  const list = document.getElementById("today-list");
+  const emptyHint = document.getElementById("today-empty");
+  try {
+    const rows = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&issue_date=eq.${todayStr()}&select=id,qty,issued_to,amount,created_at,products(name,unit)&order=created_at.desc`);
+    list.innerHTML = "";
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "po-card";
+      row.innerHTML = `
+        <div class="po-title">${r.products?.name || "Item"}</div>
+        <div class="po-sub">${r.qty} ${r.products?.unit || ""} → ${r.issued_to} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>`;
+      list.appendChild(row);
+    });
+  } catch (e) { emptyHint.hidden = false; }
 }
 
 async function loadProducts() {
@@ -364,6 +393,7 @@ function resetForm() {
   recalcAmount();
   document.getElementById("step-success").hidden = true;
   document.getElementById("step-form").hidden = false;
+  loadTodayList();
 }
 
 document.querySelectorAll(".dest-pill").forEach(btn => {

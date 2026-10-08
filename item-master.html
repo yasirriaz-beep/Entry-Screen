@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Item Master</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 120px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  .btn-outline-err { background: transparent; border: 1px solid var(--err); color: var(--err); }
+  .btn-outline-ok { background: transparent; border: 1px solid var(--ok); color: var(--ok); }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .item-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .item-row .item-top { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; }
+  .item-row .item-title { font-weight: 600; }
+  .item-row .item-sub { font-size: 0.8rem; color: var(--ink-soft); }
+  .item-detail { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-left: 6px; background: var(--err-bg); color: var(--err); }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Item Master</h1>
+<div class="sub">Add, edit, or retire items — owner access only</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="card">
+    <div class="step-label">Add New Item</div>
+    <div class="row2 field">
+      <div>
+        <label>Code</label>
+        <input type="text" id="n-code" placeholder="e.g. VEG-014">
+      </div>
+      <div>
+        <label>Name</label>
+        <input type="text" id="n-name" placeholder="Item name">
+      </div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Category</label>
+        <input type="text" id="n-category" placeholder="e.g. Produce">
+      </div>
+      <div>
+        <label>Unit</label>
+        <select id="n-unit">
+          <option value="KG">KG</option>
+          <option value="GM">GM</option>
+          <option value="LTR">LTR</option>
+          <option value="ML">ML</option>
+          <option value="PCS">PCS</option>
+          <option value="DZN">DZN</option>
+          <option value="PACK">PACK</option>
+          <option value="BOX">BOX</option>
+          <option value="CTN">CTN</option>
+          <option value="BOTTLE">BOTTLE</option>
+          <option value="CAN">CAN</option>
+          <option value="BAG">BAG</option>
+          <option value="JAR">JAR</option>
+          <option value="TIN">TIN</option>
+          <option value="ROLL">ROLL</option>
+          <option value="OTHER">Other (type below)</option>
+        </select>
+        <input type="text" id="n-unit-other" placeholder="Enter unit" style="margin-top:6px;" hidden>
+      </div>
+    </div>
+    <div class="field">
+      <label>Current Rate (PKR)</label>
+      <input type="number" id="n-rate" step="any" placeholder="0">
+    </div>
+    <button class="btn-primary" id="btn-add-item" type="button">Add Item</button>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Existing Items</div>
+    <input type="text" id="search-items" placeholder="Search by name or code...">
+    <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="show-inactive" style="width:auto;"> Show retired items too
+    </label>
+    <div id="item-list" style="margin-top:12px;"></div>
+    <div class="hint" id="item-list-empty" hidden>No items match.</div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;" id="success-title">Saved</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub"></div>
+  <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">OK</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const ORG_ID = "00000000-0000-0000-0000-000000000001";
+const ITEM_MASTER_ROLES = ["owner"];
+
+const ROLE_LABELS = { owner: "Director" };
+
+let state = { userId: null, userName: null, products: [] };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?role=in.(${ITEM_MASTER_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with item-master access found.</div>';
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    loadItems();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+
+function showSuccess(title, sub) {
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("success-title").textContent = title;
+  document.getElementById("success-sub").textContent = sub || "";
+  document.getElementById("step-success").hidden = false;
+}
+
+document.getElementById("n-unit").addEventListener("change", (e) => {
+  document.getElementById("n-unit-other").hidden = e.target.value !== "OTHER";
+});
+
+async function addItem() {
+  const code = document.getElementById("n-code").value.trim();
+  const name = document.getElementById("n-name").value.trim();
+  const category = document.getElementById("n-category").value.trim() || null;
+  const unitSel = document.getElementById("n-unit").value;
+  const unit = unitSel === "OTHER" ? (document.getElementById("n-unit-other").value.trim() || null) : unitSel;
+  const rate = parseFloat(document.getElementById("n-rate").value) || null;
+
+  if (!name) return alert("Enter an item name.");
+  if (!unit) return alert("Enter a unit.");
+
+  const btn = document.getElementById("btn-add-item");
+  btn.disabled = true;
+  try {
+    await sb("products", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        org_id: ORG_ID, code: code || null, name: name, category: category,
+        unit: unit, current_rate: rate, active: true,
+        created_by: state.userId, updated_by: state.userId, updated_at: new Date().toISOString()
+      })
+    });
+    document.getElementById("n-code").value = "";
+    document.getElementById("n-name").value = "";
+    document.getElementById("n-category").value = "";
+    document.getElementById("n-rate").value = "";
+    document.getElementById("n-unit").value = "KG";
+    document.getElementById("n-unit-other").hidden = true;
+    showSuccess("Item added", `${name} — ready to use across all entry screens.`);
+    await loadItems();
+  } catch (e) {
+    alert("Couldn't add item: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btn-add-item").addEventListener("click", addItem);
+document.getElementById("btn-success-ok").addEventListener("click", () => {
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+});
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+async function loadItems() {
+  const showInactive = document.getElementById("show-inactive").checked;
+  const filter = showInactive ? "" : "&active=eq.true";
+  try {
+    state.products = await sb(`products?select=id,code,name,category,unit,current_rate,active&order=name${filter}`);
+  } catch (e) { state.products = []; }
+  renderItemList();
+}
+
+function renderItemList() {
+  const search = document.getElementById("search-items").value.trim().toUpperCase();
+  const list = document.getElementById("item-list");
+  const emptyHint = document.getElementById("item-list-empty");
+  const rows = state.products.filter(p =>
+    !search || p.name.toUpperCase().includes(search) || (p.code || "").toUpperCase().includes(search)
+  );
+  list.innerHTML = "";
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+  rows.slice(0, 100).forEach(p => {
+    const row = document.createElement("div");
+    row.className = "item-row";
+    row.innerHTML = `
+      <div class="item-top">
+        <div>
+          <span class="item-title">${p.name}</span>${!p.active ? '<span class="badge">Retired</span>' : ""}
+          <div class="item-sub">${p.code || "no code"} · ${p.unit || "no unit"} · PKR ${p.current_rate || 0}</div>
+        </div>
+      </div>
+      <div class="item-detail" hidden>
+        <div class="row2 field">
+          <div>
+            <label>Unit</label>
+            <select class="e-unit">
+              ${["KG","GM","LTR","ML","PCS","DZN","PACK","BOX","CTN","BOTTLE","CAN","BAG","JAR","TIN","ROLL"].map(u =>
+                `<option value="${u}" ${p.unit === u ? "selected" : ""}>${u}</option>`
+              ).join("")}
+              <option value="__custom__" ${!["KG","GM","LTR","ML","PCS","DZN","PACK","BOX","CTN","BOTTLE","CAN","BAG","JAR","TIN","ROLL"].includes(p.unit) ? "selected" : ""}>${
+                ["KG","GM","LTR","ML","PCS","DZN","PACK","BOX","CTN","BOTTLE","CAN","BAG","JAR","TIN","ROLL"].includes(p.unit) ? "Other (type below)" : (p.unit || "Other (type below)")
+              }</option>
+            </select>
+            <input type="text" class="e-unit-other" value="${["KG","GM","LTR","ML","PCS","DZN","PACK","BOX","CTN","BOTTLE","CAN","BAG","JAR","TIN","ROLL"].includes(p.unit) ? "" : (p.unit || "")}"
+              style="margin-top:6px;" ${["KG","GM","LTR","ML","PCS","DZN","PACK","BOX","CTN","BOTTLE","CAN","BAG","JAR","TIN","ROLL"].includes(p.unit) ? "hidden" : ""}>
+          </div>
+          <div>
+            <label>Rate (PKR)</label>
+            <input type="number" class="e-rate" step="any" value="${p.current_rate || ""}">
+          </div>
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <input type="text" class="e-category" value="${p.category || ""}">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-primary btn-sm e-save-btn" style="flex:1;">Save Changes</button>
+          <button type="button" class="btn-sm ${p.active ? "btn-outline-err e-retire-btn" : "btn-outline-ok e-restore-btn"}" style="flex:1;">
+            ${p.active ? "Retire Item" : "Restore Item"}
+          </button>
+        </div>
+      </div>`;
+    const detail = row.querySelector(".item-detail");
+    row.querySelector(".item-top").addEventListener("click", () => {
+      document.querySelectorAll("#item-list .item-detail").forEach(d => { if (d !== detail) d.hidden = true; });
+      detail.hidden = !detail.hidden;
+    });
+    const unitSel = row.querySelector(".e-unit");
+    const unitOther = row.querySelector(".e-unit-other");
+    unitSel.addEventListener("change", () => { unitOther.hidden = unitSel.value !== "__custom__"; });
+    row.querySelector(".e-save-btn").addEventListener("click", () => saveItemEdit(p, row));
+    const retireBtn = row.querySelector(".e-retire-btn");
+    if (retireBtn) retireBtn.addEventListener("click", () => setItemActive(p, false));
+    const restoreBtn = row.querySelector(".e-restore-btn");
+    if (restoreBtn) restoreBtn.addEventListener("click", () => setItemActive(p, true));
+    list.appendChild(row);
+  });
+}
+
+async function saveItemEdit(p, rowEl) {
+  const unitSel = rowEl.querySelector(".e-unit").value;
+  const unit = unitSel === "__custom__" ? (rowEl.querySelector(".e-unit-other").value.trim() || null) : unitSel;
+  const rate = parseFloat(rowEl.querySelector(".e-rate").value) || null;
+  const category = rowEl.querySelector(".e-category").value.trim() || null;
+  if (!unit) return alert("Enter a unit.");
+  try {
+    await sb(`products?id=eq.${p.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ unit, current_rate: rate, category, updated_by: state.userId, updated_at: new Date().toISOString() })
+    });
+    await loadItems();
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  }
+}
+
+async function setItemActive(p, active) {
+  if (!active && !confirm(`Retire "${p.name}"? It stays in history but won't show up for new entries.`)) return;
+  try {
+    await sb(`products?id=eq.${p.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ active, updated_by: state.userId, updated_at: new Date().toISOString() })
+    });
+    await loadItems();
+  } catch (e) {
+    alert("Couldn't update: " + e.message);
+  }
+}
+
+document.getElementById("search-items").addEventListener("input", renderItemList);
+document.getElementById("show-inactive").addEventListener("change", loadItems);
+
+loadNames();
+</script>
+
+</body>
+</html>

@@ -73,9 +73,14 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
 
 <div class="eyebrow">Forks N Knives &middot; Gulberg</div>
 <h1>Daily Sales Entry</h1>
-<p class="muted" style="margin:4px 0 18px">Enter the day's sales by channel. Nothing you've entered before shows here &mdash; each visit starts blank.</p>
+<p class="muted" style="margin:4px 0 18px">Enter the day's sales by channel.</p>
 
 <div id="banner" class="banner"></div>
+
+<div class="card" id="todayCard" hidden>
+  <h3 style="margin:0 0 10px">Today's Entry So Far</h3>
+  <div id="todayBody" class="muted"></div>
+</div>
 
 <div class="card" id="whoCard">
   <div class="who-row">
@@ -219,6 +224,7 @@ async function init(){
         users.map(u => `<option value="${u.id}">${ROLE_LABELS[u.role] || u.name}</option>`).join("");
     }
     document.getElementById("continueBtn").disabled = false;
+    loadTodayEntry();
   } catch (err) {
     showBanner("Could not load the name list (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations'/'app_users' allows anon SELECT if this persists.", "danger");
     document.getElementById("continueBtn").disabled = false;
@@ -227,10 +233,40 @@ async function init(){
   }
 }
 
+async function loadTodayEntry(){
+  const todayCard = document.getElementById("todayCard");
+  const body = document.getElementById("todayBody");
+  if (!locationId) { todayCard.hidden = true; return; }
+  const saleDate = document.getElementById("dateInput").value;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&select=dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,bakery_sale,total_sale,total_covers,created_at`,
+      { headers }
+    );
+    if (!res.ok) throw new Error(String(res.status));
+    const rows = await res.json();
+    if (!rows.length) { todayCard.hidden = true; return; }
+    const r = rows[0];
+    const total = r.total_sale != null ? r.total_sale : (r.dine_in_amount + r.takeaway_amount + r.delivery_amount + r.third_party_amount + r.bakery_sale);
+    body.innerHTML = `
+      Dine-in: PKR ${Math.round(r.dine_in_amount || 0).toLocaleString()} (${r.dine_in_covers || 0} covers) &middot;
+      Takeaway: PKR ${Math.round(r.takeaway_amount || 0).toLocaleString()} &middot;
+      Delivery: PKR ${Math.round(r.delivery_amount || 0).toLocaleString()} &middot;
+      3rd Party: PKR ${Math.round(r.third_party_amount || 0).toLocaleString()} &middot;
+      Bakery: PKR ${Math.round(r.bakery_sale || 0).toLocaleString()}<br>
+      <strong>Total so far: PKR ${Math.round(total).toLocaleString()}</strong>
+      — saving again for today updates this same record.`;
+    todayCard.hidden = false;
+  } catch (e) {
+    todayCard.hidden = true;
+  }
+}
+
 document.getElementById("continueBtn").addEventListener("click", () => {
   document.getElementById("whoCard").hidden = true;
   document.getElementById("salesForm").hidden = false;
   hideBanner();
+  loadTodayEntry();
 });
 
 ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","bakeryAmount"]
@@ -277,6 +313,7 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
     document.getElementById("salesForm").hidden = true;
     document.getElementById("whoCard").hidden = false;
     document.getElementById("whoSelect").value = "";
+    loadTodayEntry();
   } catch (err) {
     showBanner("Could not save: " + err.message, "danger");
   } finally {

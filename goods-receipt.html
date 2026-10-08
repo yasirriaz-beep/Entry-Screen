@@ -164,6 +164,12 @@
 
   <button class="btn-primary" id="btn-save" type="button">Save Receipt</button>
   <button class="btn-ghost" id="btn-back" type="button">Back</button>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="step-label">Received Today</div>
+    <div id="today-list"></div>
+    <div class="hint" id="today-empty" hidden>Nothing received yet today.</div>
+  </div>
 </div>
 
 <div id="step-success" class="card success-wrap" hidden>
@@ -439,8 +445,29 @@ function selectPO(po, cardEl) {
   }, 150);
 }
 
+async function loadTodayList() {
+  const list = document.getElementById("today-list");
+  const emptyHint = document.getElementById("today-empty");
+  try {
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${todayStr()}&select=id,qty,unit,amount,created_at,products(name),vendors(name)&order=created_at.desc`);
+    list.innerHTML = "";
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "po-card";
+      row.style.cursor = "default";
+      row.innerHTML = `
+        <div class="po-title">${r.products?.name || "Item"}</div>
+        <div class="po-sub">${r.qty} ${r.unit || ""} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>`;
+      list.appendChild(row);
+    });
+  } catch (e) { emptyHint.hidden = false; }
+}
+
 function enterForm() {
   document.getElementById("step-form").hidden = false;
+  loadTodayList();
   document.getElementById("f-qty").value = "";
   document.getElementById("f-rate").value = "";
   document.getElementById("f-inv").value = "";
