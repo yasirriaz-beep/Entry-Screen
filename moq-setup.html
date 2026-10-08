@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg MOQ Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 90px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 7px 10px; font-size: 0.8rem; border-radius: 8px; width: auto; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .filter-row > * { flex: 1; min-width: 140px; }
+  .progress-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; }
+  .item-row { display: grid; grid-template-columns: 1fr 90px 90px; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
+  .item-row:last-child { border-bottom: none; }
+  .item-name { font-size: 0.88rem; min-width: 0; }
+  .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
+  .item-row input { padding: 7px 8px; font-size: 0.85rem; text-align: right; }
+  .item-row input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .col-header { display: grid; grid-template-columns: 1fr 90px 90px; gap: 8px; font-size: 0.7rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .sticky-save { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
+  .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg MOQ Setup</h1>
+<div class="sub">Set minimum stock level &amp; reorder quantity per item — Director access only</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="card">
+    <div class="filter-row">
+      <input type="text" id="search-items" placeholder="Search by name or code...">
+      <select id="filter-category"><option value="">All categories</option></select>
+    </div>
+    <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="filter-unset" style="width:auto;"> Only items with no threshold set yet
+    </label>
+    <div class="progress-chip" id="progress-chip">Loading…</div>
+    <div class="hint" style="margin-top:8px;">Min Stock Level is the quantity that triggers a reorder flag. Reorder Qty is how much to order when it does. Both in the item's own unit (KG, PCS, etc).</div>
+  </div>
+
+  <div class="card">
+    <div class="col-header">
+      <div>Item</div>
+      <div style="text-align:right;">Min Stock</div>
+      <div style="text-align:right;">Reorder Qty</div>
+    </div>
+    <div id="item-list"></div>
+    <div class="hint" id="item-list-empty" hidden>No items match.</div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div class="sticky-save" id="sticky-save" hidden>
+  <button class="btn-primary" id="btn-save-all" type="button">Save Changes (<span id="dirty-count">0</span>)</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const MOQ_ROLES = ["owner"];
+const ROLE_LABELS = { owner: "Director" };
+
+let state = { userId: null, userName: null, products: [], dirty: {} };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?role=in.(${MOQ_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with access found.</div>';
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    loadProducts();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+async function loadProducts() {
+  document.getElementById("progress-chip").textContent = "Loading…";
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,min_stock_level,reorder_qty&order=category,name`);
+  } catch (e) { state.products = []; }
+  const cats = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
+  const sel = document.getElementById("filter-category");
+  sel.innerHTML = '<option value="">All categories</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join("");
+  renderProgress();
+  renderItemList();
+}
+
+function renderProgress() {
+  const total = state.products.length;
+  const done = state.products.filter(p => p.min_stock_level != null && p.reorder_qty != null).length;
+  document.getElementById("progress-chip").textContent = `${done}/${total} items have both thresholds set`;
+}
+
+function renderItemList() {
+  const search = document.getElementById("search-items").value.trim().toUpperCase();
+  const cat = document.getElementById("filter-category").value;
+  const onlyUnset = document.getElementById("filter-unset").checked;
+  const list = document.getElementById("item-list");
+  const emptyHint = document.getElementById("item-list-empty");
+
+  const rows = state.products.filter(p => {
+    if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
+    if (cat && p.category !== cat) return false;
+    if (onlyUnset && p.min_stock_level != null && p.reorder_qty != null) return false;
+    return true;
+  });
+
+  list.innerHTML = "";
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  let lastCat = null;
+  rows.slice(0, 300).forEach(p => {
+    const c = p.category || "Uncategorized";
+    if (c !== lastCat) {
+      const header = document.createElement("div");
+      header.className = "dept-header";
+      header.textContent = c;
+      list.appendChild(header);
+      lastCat = c;
+    }
+    const dirtyVal = state.dirty[p.id];
+    const minVal = dirtyVal ? dirtyVal.min_stock_level : p.min_stock_level;
+    const reorderVal = dirtyVal ? dirtyVal.reorder_qty : p.reorder_qty;
+
+    const row = document.createElement("div");
+    row.className = "item-row";
+    row.innerHTML = `
+      <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
+      <input type="number" class="i-min" step="any" value="${minVal != null ? minVal : ""}" placeholder="—">
+      <input type="number" class="i-reorder" step="any" value="${reorderVal != null ? reorderVal : ""}" placeholder="—">
+    `;
+    const minInput = row.querySelector(".i-min");
+    const reorderInput = row.querySelector(".i-reorder");
+    if (dirtyVal) { minInput.classList.add("dirty"); reorderInput.classList.add("dirty"); }
+    const markDirty = () => {
+      const minV = parseFloat(minInput.value);
+      const reorderV = parseFloat(reorderInput.value);
+      state.dirty[p.id] = {
+        min_stock_level: isNaN(minV) ? null : minV,
+        reorder_qty: isNaN(reorderV) ? null : reorderV
+      };
+      minInput.classList.add("dirty");
+      reorderInput.classList.add("dirty");
+      updateSaveBar();
+    };
+    minInput.addEventListener("input", markDirty);
+    reorderInput.addEventListener("input", markDirty);
+    list.appendChild(row);
+  });
+}
+
+function updateSaveBar() {
+  const count = Object.keys(state.dirty).length;
+  document.getElementById("dirty-count").textContent = count;
+  document.getElementById("sticky-save").hidden = count === 0;
+}
+
+async function saveAllChanges() {
+  const ids = Object.keys(state.dirty);
+  if (!ids.length) return;
+  const btn = document.getElementById("btn-save-all");
+  btn.disabled = true;
+  let done = 0, failed = 0;
+  for (const id of ids) {
+    const vals = state.dirty[id];
+    try {
+      await sb(`products?id=eq.${id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          min_stock_level: vals.min_stock_level,
+          reorder_qty: vals.reorder_qty,
+          updated_by: state.userId,
+          updated_at: new Date().toISOString()
+        })
+      });
+      const p = state.products.find(x => x.id === id);
+      if (p) { p.min_stock_level = vals.min_stock_level; p.reorder_qty = vals.reorder_qty; }
+      delete state.dirty[id];
+      done++;
+    } catch (e) { failed++; }
+    btn.textContent = `Saving ${done + failed}/${ids.length}…`;
+  }
+  btn.textContent = `Save Changes (0)`;
+  btn.disabled = false;
+  updateSaveBar();
+  renderProgress();
+  renderItemList();
+  if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
+}
+document.getElementById("btn-save-all").addEventListener("click", saveAllChanges);
+
+document.getElementById("search-items").addEventListener("input", renderItemList);
+document.getElementById("filter-category").addEventListener("change", renderItemList);
+document.getElementById("filter-unset").addEventListener("change", renderItemList);
+
+loadNames();
+</script>
+
+</body>
+</html>

@@ -610,7 +610,8 @@ function openMasterFile() {
   const body =
     masterFileSection("Inventory & Items", [
       { href: "item-master.html", label: "Item Master — add, edit, retire items" },
-      { label: "Items needing reorder (per MOQ) — needs live stock-on-hand tracking first; use Purchase Orders directly for now" }
+      { href: "moq-setup.html", label: "MOQ Setup — set min stock level & reorder qty per item" },
+      { label: "Items needing reorder (per MOQ) — thresholds now settable; live alerts need stock-on-hand counts next" }
     ]) +
     masterFileSection("Purchasing & Payables", [
       { href: "goods-receipt.html", label: "Goods Receipt" },
