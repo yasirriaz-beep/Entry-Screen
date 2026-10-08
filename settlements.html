@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Settlements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 130px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .readout { background: var(--field-bg); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .settle-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .settle-top { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; }
+  .settle-title { font-weight: 600; }
+  .settle-sub { font-size: 0.8rem; color: var(--ink-soft); }
+  .settle-detail { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .kv-row { display: flex; justify-content: space-between; font-size: 0.86rem; padding: 5px 0; }
+  .kv-row .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .pill-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill-warn { background: var(--warn-bg); color: var(--warn); }
+  .pill-err { background: var(--err-bg); color: var(--err); }
+  .pill-ok { background: var(--ok-bg); color: var(--ok); }
+  .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Settlements</h1>
+<div class="sub">Reconcile what third-party platforms and the card processor say they'll pay against what actually lands</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="card">
+    <div class="step-label">Record a New Statement</div>
+    <div class="row2 field">
+      <div>
+        <label>Brand</label>
+        <select id="f-brand">
+          <option value="Food Panda">Food Panda</option>
+          <option value="Careem Now">Careem Now</option>
+          <option value="Credit/Debit Card">Credit/Debit Card</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Period Start</label>
+        <input type="date" id="f-start">
+      </div>
+      <div>
+        <label>Period End</label>
+        <input type="date" id="f-end">
+      </div>
+    </div>
+    <div class="field">
+      <label id="our-gross-label">Our Recorded 3rd-Party Sales for This Period</label>
+      <div class="readout" id="our-gross">Pick a date range to check</div>
+      <div class="hint" id="our-gross-hint">Pulled from Sales Entry's "Third Party" channel for these dates — compare it to what the brand's statement says.</div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Gross Sale (per statement)</label>
+        <input type="number" id="f-gross" min="0" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Commission</label>
+        <input type="number" id="f-commission" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Other Fee Adjustments</label>
+        <input type="number" id="f-fees" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Tax</label>
+        <input type="number" id="f-tax" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+    <div class="field">
+      <label>Refund / Chargeback</label>
+      <input type="number" id="f-refund" min="0" step="any" placeholder="0">
+    </div>
+    <div class="field">
+      <label>Reported Net (statement gross − commission − fees − tax − refund)</label>
+      <div class="readout" id="fp-net-readout">PKR 0</div>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="f-notes" rows="2" placeholder="Statement reference, anything unusual"></textarea>
+    </div>
+    <button class="btn-primary" id="btn-save-statement" type="button">Save Statement</button>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Awaiting Bank Deposit</div>
+    <div id="pending-list"><div class="hint">Loading…</div></div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Reconcile via Bank Statement</div>
+    <div class="field">
+      <label>Upload Statement (CSV export from your bank)</label>
+      <input type="file" id="f-statement" accept=".csv,text/csv">
+      <div class="hint">Works with a plain CSV export (date, description, credit/deposit amount columns). Scanned PDF statements aren't supported — export CSV from online banking instead.</div>
+    </div>
+    <div id="reconcile-results"></div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Settled History</div>
+    <div id="history-list"><div class="hint">Loading…</div></div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const SETTLEMENT_ROLES = ["owner", "cash_expense"];
+const ROLE_LABELS = { owner: "Director", cash_expense: "Cashier" };
+
+let state = { userId: null, userName: null };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function fmtMoney(n) {
+  return "PKR " + Math.round(Number(n) || 0).toLocaleString();
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=in.(${SETTLEMENT_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No authorized user found.</div>';
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    const today = todayStr();
+    document.getElementById("f-end").value = today;
+    const d = new Date(); d.setDate(d.getDate() - 14);
+    document.getElementById("f-start").value = d.toISOString().slice(0, 10);
+    refreshOurGross();
+    loadPending();
+    loadHistory();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+function sourceFieldForBrand(brand) {
+  return brand === "Credit/Debit Card" ? "card_amount" : "third_party_amount";
+}
+
+function updateGrossLabel() {
+  const brand = document.getElementById("f-brand").value;
+  const isCard = brand === "Credit/Debit Card";
+  document.getElementById("our-gross-label").textContent = isCard
+    ? "Our Recorded Card Sales for This Period"
+    : "Our Recorded 3rd-Party Sales for This Period";
+  document.getElementById("our-gross-hint").textContent = isCard
+    ? "Pulled from Sales Entry's \"Paid by Card\" field for these dates — compare it to what the processor's statement says."
+    : "Pulled from Sales Entry's \"Third Party\" channel for these dates — compare it to what the brand's statement says.";
+}
+document.getElementById("f-brand").addEventListener("change", () => { updateGrossLabel(); refreshOurGross(); });
+
+async function refreshOurGross() {
+  const start = document.getElementById("f-start").value;
+  const end = document.getElementById("f-end").value;
+  const field = sourceFieldForBrand(document.getElementById("f-brand").value);
+  const box = document.getElementById("our-gross");
+  if (!start || !end) { box.textContent = "Pick a date range to check"; return; }
+  try {
+    const rows = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${start}&sale_date=lte.${end}&select=${field}`);
+    const total = rows.reduce((s, r) => s + (Number(r[field]) || 0), 0);
+    box.textContent = fmtMoney(total);
+  } catch (e) { box.textContent = "Couldn't load (" + e.message + ")"; }
+}
+document.getElementById("f-start").addEventListener("change", refreshOurGross);
+document.getElementById("f-end").addEventListener("change", refreshOurGross);
+updateGrossLabel();
+
+function n(id) { const v = document.getElementById(id).value; return v === "" ? 0 : parseFloat(v); }
+
+function recalcFpNet() {
+  const net = n("f-gross") - n("f-commission") - n("f-fees") - n("f-tax") - n("f-refund");
+  document.getElementById("fp-net-readout").textContent = fmtMoney(net);
+  return net;
+}
+["f-gross", "f-commission", "f-fees", "f-tax", "f-refund"].forEach(id =>
+  document.getElementById(id).addEventListener("input", recalcFpNet)
+);
+
+async function saveStatement() {
+  const brand = document.getElementById("f-brand").value;
+  const start = document.getElementById("f-start").value;
+  const end = document.getElementById("f-end").value;
+  const gross = n("f-gross");
+  const commission = n("f-commission");
+  const fees = n("f-fees");
+  const tax = n("f-tax");
+  const refund = n("f-refund");
+  const notes = document.getElementById("f-notes").value.trim() || null;
+
+  if (!start || !end) return alert("Pick a period start and end date.");
+  if (!gross) return alert("Enter the gross sale from the statement.");
+
+  const fpNet = gross - commission - fees - tax - refund;
+
+  // "Our recorded gross" is shown live in the #our-gross box above for the person to
+  // eyeball-compare against the statement's own gross before saving. The database
+  // computes recomputed_net itself (a generated column, from gross_sale/commission/
+  // fees/tax/refund) — it can't be and must not be sent in the insert payload.
+
+  const btn = document.getElementById("btn-save-statement");
+  btn.disabled = true;
+  try {
+    await sb("food_panda_settlements", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        location_id: LOCATION_ID,
+        brand: brand,
+        period_label: `${start} to ${end}`,
+        period_start: start,
+        period_end: end,
+        gross_sale: gross,
+        fp_commission: commission,
+        fp_fee_adjustments: fees,
+        fp_tax: tax,
+        fp_refund: refund,
+        fp_reported_net: fpNet,
+        entered_by_user_id: state.userId,
+        notes: notes
+      })
+    });
+    ["f-gross", "f-commission", "f-fees", "f-tax", "f-refund", "f-notes"].forEach(id => document.getElementById(id).value = "");
+    recalcFpNet();
+    alert("Statement saved. It'll show under \"Awaiting Bank Deposit\" until you record what actually lands.");
+    loadPending();
+    loadHistory();
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btn-save-statement").addEventListener("click", saveStatement);
+
+function varianceBadge(diff) {
+  if (Math.abs(diff) < 1) return `<span class="pill-badge pill-ok">Matches</span>`;
+  return `<span class="pill-badge ${diff > 0 ? "pill-warn" : "pill-err"}">${diff > 0 ? "Short by" : "Over by"} ${fmtMoney(Math.abs(diff))}</span>`;
+}
+
+async function loadPending() {
+  const wrap = document.getElementById("pending-list");
+  let rows = [];
+  try {
+    rows = await sb(`food_panda_settlements?location_id=eq.${LOCATION_ID}&actual_bank_deposit=is.null&select=id,brand,period_label,gross_sale,fp_reported_net,recomputed_net&order=period_label.desc`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+  if (!rows.length) { wrap.innerHTML = '<div class="empty-note">Nothing waiting on a deposit.</div>'; return; }
+  wrap.innerHTML = "";
+  rows.forEach(r => {
+    const grossDiff = (r.recomputed_net != null && r.fp_reported_net != null) ? (r.recomputed_net - r.fp_reported_net) : null;
+    const row = document.createElement("div");
+    row.className = "settle-row";
+    row.innerHTML = `
+      <div class="settle-top">
+        <div>
+          <div class="settle-title">${r.brand} · ${r.period_label}</div>
+          <div class="settle-sub">Statement says net ${fmtMoney(r.fp_reported_net)}${grossDiff !== null ? " · " : ""}${grossDiff !== null ? varianceBadge(grossDiff) : ""}</div>
+        </div>
+      </div>
+      <div class="settle-detail" hidden>
+        <div class="kv-row"><span>Gross (statement)</span><span class="v">${fmtMoney(r.gross_sale)}</span></div>
+        <div class="kv-row"><span>Our recomputed net</span><span class="v">${fmtMoney(r.recomputed_net)}</span></div>
+        <div class="kv-row"><span>Statement's reported net</span><span class="v">${fmtMoney(r.fp_reported_net)}</span></div>
+        <div class="row2" style="margin-top:10px;">
+          <div>
+            <label>Actual Bank Deposit</label>
+            <input type="number" class="dep-amount" step="any" placeholder="0">
+          </div>
+          <div>
+            <label>Deposit Date</label>
+            <input type="date" class="dep-date" value="${todayStr()}">
+          </div>
+        </div>
+        <button type="button" class="btn-primary btn-sm dep-save-btn" style="width:100%; margin-top:10px;">Record Deposit</button>
+      </div>`;
+    const detail = row.querySelector(".settle-detail");
+    row.querySelector(".settle-top").addEventListener("click", () => {
+      document.querySelectorAll("#pending-list .settle-detail").forEach(d => { if (d !== detail) d.hidden = true; });
+      detail.hidden = !detail.hidden;
+    });
+    row.querySelector(".dep-save-btn").addEventListener("click", () => recordDeposit(r, row));
+    wrap.appendChild(row);
+  });
+}
+
+async function applyDeposit(id, amount, date) {
+  await sb(`food_panda_settlements?id=eq.${id}`, {
+    method: "PATCH",
+    headers: { "Prefer": "return=minimal" },
+    body: JSON.stringify({ actual_bank_deposit: amount, deposit_date: date })
+  });
+  loadPending();
+  loadHistory();
+}
+
+async function recordDeposit(r, rowEl) {
+  const amount = parseFloat(rowEl.querySelector(".dep-amount").value) || 0;
+  const date = rowEl.querySelector(".dep-date").value;
+  if (!amount || amount <= 0) return alert("Enter the amount that actually landed.");
+  if (!date) return alert("Pick the deposit date.");
+  try {
+    await applyDeposit(r.id, amount, date);
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  }
+}
+
+// ---------- Bank statement upload & auto-match ----------
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length);
+  if (!lines.length) return [];
+  const splitLine = (line) => line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+  const headers = splitLine(lines[0]).map(h => h.toLowerCase());
+
+  const findCol = (...keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+  const dateIdx = findCol("date");
+  let amountIdx = findCol("credit", "deposit");
+  if (amountIdx === -1) amountIdx = findCol("amount");
+  const descIdx = findCol("desc", "narration", "particular", "detail", "remark");
+
+  if (dateIdx === -1 || amountIdx === -1) return { error: "Couldn't find a date column and a credit/deposit/amount column in the header row. Expected something like: Date, Description, Credit." };
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitLine(lines[i]);
+    if (cols.length <= Math.max(dateIdx, amountIdx)) continue;
+    const rawDate = cols[dateIdx];
+    const rawAmount = (cols[amountIdx] || "").replace(/[^0-9.\-]/g, "");
+    const amount = parseFloat(rawAmount);
+    if (!rawDate || !amount || amount <= 0) continue;
+    let iso = null;
+    const dmY = rawDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (dmY) {
+      let [, d, m, y] = dmY;
+      if (y.length === 2) y = "20" + y;
+      iso = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    } else {
+      const parsed = new Date(rawDate);
+      if (!isNaN(parsed)) iso = parsed.toISOString().slice(0, 10);
+    }
+    if (!iso) continue;
+    rows.push({ date: iso, description: descIdx >= 0 ? (cols[descIdx] || "") : "", amount });
+  }
+  return { rows };
+}
+
+function findBestMatch(settlement, bankRows) {
+  const target = Number(settlement.fp_reported_net) || 0;
+  if (!target) return null;
+  const periodEnd = settlement.period_end;
+  const tolerance = Math.max(50, target * 0.02);
+  let best = null, bestDiff = Infinity;
+  bankRows.forEach(b => {
+    if (periodEnd && b.date < periodEnd) return; // deposits land on/after the period ends
+    const diff = Math.abs(b.amount - target);
+    if (diff <= tolerance && diff < bestDiff) { best = b; bestDiff = diff; }
+  });
+  return best ? { ...best, diff: best.amount - target } : null;
+}
+
+document.getElementById("f-statement").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  const results = document.getElementById("reconcile-results");
+  if (!file) return;
+  results.innerHTML = '<div class="hint">Reading…</div>';
+  try {
+    const text = await file.text();
+    const parsed = parseCsv(text);
+    if (parsed.error) { results.innerHTML = `<div class="empty-note">${parsed.error}</div>`; return; }
+    if (!parsed.rows.length) { results.innerHTML = '<div class="empty-note">No usable credit/deposit rows found in that file.</div>'; return; }
+
+    const pending = await sb(`food_panda_settlements?location_id=eq.${LOCATION_ID}&actual_bank_deposit=is.null&select=id,brand,period_label,period_end,fp_reported_net`);
+    if (!pending.length) { results.innerHTML = '<div class="empty-note">Nothing pending to match against — all settlements are already deposited.</div>'; return; }
+
+    results.innerHTML = `<div class="hint" style="margin-bottom:8px;">Matched ${parsed.rows.length} statement line(s) against ${pending.length} pending settlement(s).</div>`;
+    pending.forEach(p => {
+      const match = findBestMatch(p, parsed.rows);
+      const row = document.createElement("div");
+      row.className = "settle-row";
+      if (match) {
+        row.innerHTML = `
+          <div class="settle-top" style="cursor:default;">
+            <div>
+              <div class="settle-title">${p.brand} · ${p.period_label}</div>
+              <div class="settle-sub">Statement expects ${fmtMoney(p.fp_reported_net)} · found ${fmtMoney(match.amount)} on ${match.date}${match.description ? " — " + match.description : ""} ${varianceBadge(-match.diff)}</div>
+            </div>
+          </div>
+          <div class="settle-detail">
+            <button type="button" class="btn-primary btn-sm confirm-match-btn" style="width:100%;">Confirm This Deposit</button>
+          </div>`;
+        row.querySelector(".confirm-match-btn").addEventListener("click", async (ev) => {
+          ev.target.disabled = true;
+          try { await applyDeposit(p.id, match.amount, match.date); ev.target.textContent = "Saved ✓"; }
+          catch (err) { alert("Couldn't save: " + err.message); ev.target.disabled = false; }
+        });
+      } else {
+        row.innerHTML = `
+          <div class="settle-top" style="cursor:default;">
+            <div>
+              <div class="settle-title">${p.brand} · ${p.period_label}</div>
+              <div class="settle-sub">Expects ${fmtMoney(p.fp_reported_net)} — no matching line found in this statement</div>
+            </div>
+          </div>`;
+      }
+      results.appendChild(row);
+    });
+  } catch (err) {
+    results.innerHTML = `<div class="empty-note">Couldn't read that file: ${err.message}</div>`;
+  }
+});
+
+async function loadHistory() {
+  const wrap = document.getElementById("history-list");
+  let rows = [];
+  try {
+    rows = await sb(`food_panda_settlements?location_id=eq.${LOCATION_ID}&actual_bank_deposit=not.is.null&select=id,brand,period_label,fp_reported_net,actual_bank_deposit,deposit_date&order=deposit_date.desc&limit=20`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+  if (!rows.length) { wrap.innerHTML = '<div class="empty-note">No settled deposits yet.</div>'; return; }
+  wrap.innerHTML = rows.map(r => {
+    const diff = (r.fp_reported_net || 0) - (r.actual_bank_deposit || 0);
+    return `<div class="settle-row">
+      <div class="settle-top">
+        <div>
+          <div class="settle-title">${r.brand} · ${r.period_label}</div>
+          <div class="settle-sub">Deposited ${fmtMoney(r.actual_bank_deposit)} on ${r.deposit_date} · ${varianceBadge(diff)}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+loadNames();
+</script>
+
+</body>
+</html>
