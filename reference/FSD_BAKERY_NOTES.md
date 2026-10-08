@@ -80,10 +80,21 @@ Gulberg): Hot Coffee (9 items), Hot Drink/Tea (5), basic bottled drinks (350ML D
 Small/Large Water), Cold Beverages special drinks (Mint Margarita, Lemonade, Fresh
 Lime), Mojito (6 flavors), Ice Cream Shake (6 flavors), Special Shake (3), Cold
 Coffee (6) — 41 drinks items total. Note: this is the BAR/coffee side of the menu,
-distinct from the bottle-size "Water & BEVERAGES" POS category (REG/1.5LTR/1LTR/
-345ML/etc., generic "COLD DRINK" by size) discussed earlier for the store-pour
-process — that size-based item set still hasn't been added since Yasir hasn't shared
-Gulberg-specific bottle-size items yet.
+distinct from the bottle-size "Water & BEVERAGES" POS category discussed below.
+
+**2026-10-09: the dine-in pour-from-bottle process (the original theft-prevention
+scenario) added.** Per Yasir: "we use 2.25 ltr bottle in dine in. We take out 8
+glasses of drink from 2.25 ltr which is priced at 110 rupees. 1.5 ltr, 1 ltr and
+regular size go in take away and delivery orders." Confirmed Rs. 110 is **per glass**
+(not per bottle). Added to `variance_items` (department='drinks', Gulberg):
+- **Cold Drink – Dine-In Glass** (poured from 2.25L bottle, 8 glasses/bottle),
+  unit='glass', price=Rs. 110. This is the item the shift manager's drinks person
+  tracks via Opening/Added/Closing/Discard — note for whoever enters data: counts
+  should be in **glass-equivalent units** (1 bottle issued = 8 glasses) so usage can
+  be compared against POS-sold glasses.
+- **Cold Drink – 1.5 LTR / 1 LTR / Regular Bottle (Takeaway/Delivery)** — sold whole,
+  not poured; unit='bottle'. Prices not yet given (Yasir chose to skip for now) —
+  `current_price` left null, editable later in variance-items.html.
 
 ## For the later full bakery-financials build
 - `INVONTERY FEB` = bakery's own raw-material inventory (not finished goods) — needed
