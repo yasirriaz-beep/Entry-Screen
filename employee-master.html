@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Employee Master</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 120px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  .btn-outline-err { background: transparent; border: 1px solid var(--err); color: var(--err); }
+  .btn-outline-ok { background: transparent; border: 1px solid var(--ok); color: var(--ok); }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .emp-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .emp-row .emp-top { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; gap: 8px; }
+  .emp-row .emp-title { font-weight: 600; }
+  .emp-row .emp-sub { font-size: 0.8rem; color: var(--ink-soft); }
+  .emp-detail { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-left: 6px; background: var(--err-bg); color: var(--err); white-space: nowrap; }
+  .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Employee Master</h1>
+<div class="sub">Add, edit, or retire employees — Director access only</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="card">
+    <div class="step-label">Add New Employee</div>
+    <div class="row2 field">
+      <div>
+        <label>Name</label>
+        <input type="text" id="n-name" placeholder="Full name">
+      </div>
+      <div>
+        <label>FT / PT</label>
+        <select id="n-ftpt">
+          <option value="FT">Full-time</option>
+          <option value="PT">Part-time</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Department</label>
+        <input type="text" id="n-dept" placeholder="e.g. FOH, BOH, Delivery">
+      </div>
+      <div>
+        <label>Designation</label>
+        <input type="text" id="n-designation" placeholder="e.g. Server, Rider">
+      </div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Monthly Salary (PKR)</label>
+        <input type="number" id="n-salary" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Hire Date (optional)</label>
+        <input type="date" id="n-hire-date">
+      </div>
+    </div>
+    <button class="btn-primary" id="btn-add-emp" type="button">Add Employee</button>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Existing Employees</div>
+    <input type="text" id="search-emp" placeholder="Search by name or designation...">
+    <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="show-retired" style="width:auto;"> Show retired employees too
+    </label>
+    <div class="hint" id="emp-count" style="margin-top:8px;"></div>
+    <div id="emp-list" style="margin-top:12px;"></div>
+    <div class="hint" id="emp-list-empty" hidden>No employees match.</div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;" id="success-title">Saved</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub"></div>
+  <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">OK</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const ORG_ID = "00000000-0000-0000-0000-000000000001";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const EMPLOYEE_MASTER_ROLES = ["owner"];
+const ROLE_LABELS = { owner: "Director" };
+
+let state = { userId: null, userName: null, employees: [] };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?role=in.(${EMPLOYEE_MASTER_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with employee-master access found.</div>';
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    loadEmployees();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+
+function showSuccess(title, sub) {
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("success-title").textContent = title;
+  document.getElementById("success-sub").textContent = sub || "";
+  document.getElementById("step-success").hidden = false;
+}
+
+async function addEmployee() {
+  const name = document.getElementById("n-name").value.trim();
+  const ftpt = document.getElementById("n-ftpt").value;
+  const dept = document.getElementById("n-dept").value.trim() || null;
+  const designation = document.getElementById("n-designation").value.trim() || null;
+  const salary = parseFloat(document.getElementById("n-salary").value) || 0;
+  const hireDate = document.getElementById("n-hire-date").value || null;
+
+  if (!name) return alert("Enter the employee's name.");
+  if (!salary) return alert("Enter a monthly salary.");
+
+  const btn = document.getElementById("btn-add-emp");
+  btn.disabled = true;
+  try {
+    await sb("employees", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        org_id: ORG_ID, location_id: LOCATION_ID, name, department: dept, designation,
+        employment_type: ftpt, monthly_salary: salary, hire_date: hireDate, active: true,
+        created_by: state.userId, updated_by: state.userId, updated_at: new Date().toISOString()
+      })
+    });
+    document.getElementById("n-name").value = "";
+    document.getElementById("n-dept").value = "";
+    document.getElementById("n-designation").value = "";
+    document.getElementById("n-salary").value = "";
+    document.getElementById("n-hire-date").value = "";
+    document.getElementById("n-ftpt").value = "FT";
+    showSuccess("Employee added", `${name} — ready to use on the payroll screen.`);
+    await loadEmployees();
+  } catch (e) {
+    alert("Couldn't add employee: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btn-add-emp").addEventListener("click", addEmployee);
+document.getElementById("btn-success-ok").addEventListener("click", () => {
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+});
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+async function loadEmployees() {
+  const showRetired = document.getElementById("show-retired").checked;
+  const filter = showRetired ? "" : "&active=eq.true";
+  try {
+    state.employees = await sb(`employees?location_id=eq.${LOCATION_ID}&select=id,name,department,designation,employment_type,monthly_salary,active,hire_date&order=department,name${filter}`);
+  } catch (e) { state.employees = []; }
+  renderEmpList();
+}
+
+function fmtMoney(n) {
+  return "PKR " + Math.round(Number(n) || 0).toLocaleString();
+}
+
+function renderEmpList() {
+  const search = document.getElementById("search-emp").value.trim().toUpperCase();
+  const list = document.getElementById("emp-list");
+  const emptyHint = document.getElementById("emp-list-empty");
+  const countHint = document.getElementById("emp-count");
+  const rows = state.employees.filter(e =>
+    !search || e.name.toUpperCase().includes(search) || (e.designation || "").toUpperCase().includes(search) || (e.department || "").toUpperCase().includes(search)
+  );
+  list.innerHTML = "";
+  const activeCount = rows.filter(e => e.active).length;
+  const totalSalary = rows.filter(e => e.active).reduce((s, e) => s + (Number(e.monthly_salary) || 0), 0);
+  countHint.textContent = `${activeCount} active employee(s) · total monthly base ${fmtMoney(totalSalary)}`;
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  let lastDept = null;
+  rows.slice(0, 200).forEach(e => {
+    const dept = e.department || "Unassigned";
+    if (dept !== lastDept) {
+      const header = document.createElement("div");
+      header.className = "dept-header";
+      header.textContent = dept;
+      list.appendChild(header);
+      lastDept = dept;
+    }
+    const row = document.createElement("div");
+    row.className = "emp-row";
+    row.innerHTML = `
+      <div class="emp-top">
+        <div>
+          <span class="emp-title">${e.name}</span>${!e.active ? '<span class="badge">Retired</span>' : ""}
+          <div class="emp-sub">${e.designation || "no designation"} · ${e.employment_type || "—"} · ${fmtMoney(e.monthly_salary)}/mo</div>
+        </div>
+      </div>
+      <div class="emp-detail" hidden>
+        <div class="row2 field">
+          <div>
+            <label>Designation</label>
+            <input type="text" class="e-designation" value="${e.designation || ""}">
+          </div>
+          <div>
+            <label>Department</label>
+            <input type="text" class="e-dept" value="${e.department || ""}">
+          </div>
+        </div>
+        <div class="row2 field">
+          <div>
+            <label>Monthly Salary (PKR)</label>
+            <input type="number" class="e-salary" step="any" value="${e.monthly_salary || ""}">
+          </div>
+          <div>
+            <label>FT / PT</label>
+            <select class="e-ftpt">
+              <option value="FT" ${e.employment_type === "FT" ? "selected" : ""}>Full-time</option>
+              <option value="PT" ${e.employment_type === "PT" ? "selected" : ""}>Part-time</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-primary btn-sm e-save-btn" style="flex:1;">Save Changes</button>
+          <button type="button" class="btn-sm ${e.active ? "btn-outline-err e-retire-btn" : "btn-outline-ok e-restore-btn"}" style="flex:1;">
+            ${e.active ? "Retire" : "Restore"}
+          </button>
+        </div>
+      </div>`;
+    const detail = row.querySelector(".emp-detail");
+    row.querySelector(".emp-top").addEventListener("click", () => {
+      document.querySelectorAll("#emp-list .emp-detail").forEach(d => { if (d !== detail) d.hidden = true; });
+      detail.hidden = !detail.hidden;
+    });
+    row.querySelector(".e-save-btn").addEventListener("click", () => saveEmpEdit(e, row));
+    const retireBtn = row.querySelector(".e-retire-btn");
+    if (retireBtn) retireBtn.addEventListener("click", () => setEmpActive(e, false));
+    const restoreBtn = row.querySelector(".e-restore-btn");
+    if (restoreBtn) restoreBtn.addEventListener("click", () => setEmpActive(e, true));
+    list.appendChild(row);
+  });
+}
+
+async function saveEmpEdit(e, rowEl) {
+  const designation = rowEl.querySelector(".e-designation").value.trim() || null;
+  const dept = rowEl.querySelector(".e-dept").value.trim() || null;
+  const salary = parseFloat(rowEl.querySelector(".e-salary").value) || 0;
+  const ftpt = rowEl.querySelector(".e-ftpt").value;
+  try {
+    await sb(`employees?id=eq.${e.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        designation, department: dept, monthly_salary: salary, employment_type: ftpt,
+        updated_by: state.userId, updated_at: new Date().toISOString()
+      })
+    });
+    await loadEmployees();
+  } catch (e2) {
+    alert("Couldn't save: " + e2.message);
+  }
+}
+
+async function setEmpActive(e, active) {
+  if (!active && !confirm(`Retire "${e.name}"? Their payroll history stays intact but they won't show up for new entries.`)) return;
+  try {
+    const payload = {
+      active,
+      updated_by: state.userId, updated_at: new Date().toISOString()
+    };
+    if (!active) { payload.retired_by = state.userId; payload.retired_at = new Date().toISOString(); }
+    await sb(`employees?id=eq.${e.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify(payload)
+    });
+    await loadEmployees();
+  } catch (e2) {
+    alert("Couldn't update: " + e2.message);
+  }
+}
+
+document.getElementById("search-emp").addEventListener("input", renderEmpList);
+document.getElementById("show-retired").addEventListener("change", loadEmployees);
+
+loadNames();
+</script>
+
+</body>
+</html>

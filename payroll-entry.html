@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Payroll</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 120px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .readout { background: var(--field-bg); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .summary-tile { background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .summary-tile .lbl { font-size: 0.72rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; }
+  .summary-tile .val { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .emp-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .emp-row .emp-top { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; gap: 8px; }
+  .emp-row .emp-title { font-weight: 600; }
+  .emp-row .emp-sub { font-size: 0.8rem; color: var(--ink-soft); }
+  .emp-detail { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .pill-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill-ok { background: var(--ok-bg); color: var(--ok); }
+  .pill-warn { background: var(--warn-bg); color: var(--warn); }
+  .advance-note { font-size: 0.8rem; background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Payroll</h1>
+<div class="sub">Monthly salary entry — advances paid as expenses deduct automatically</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="card">
+    <div class="step-label">Pay Period</div>
+    <input type="month" id="f-period">
+  </div>
+
+  <div class="card">
+    <div class="step-label">This Month So Far</div>
+    <div class="summary-grid">
+      <div class="summary-tile"><div class="lbl">Employees</div><div class="val" id="sum-count">0</div></div>
+      <div class="summary-tile"><div class="lbl">Net Payroll</div><div class="val" id="sum-net">PKR 0</div></div>
+      <div class="summary-tile"><div class="lbl">Paid So Far</div><div class="val" id="sum-paid">PKR 0</div></div>
+      <div class="summary-tile"><div class="lbl">Outstanding</div><div class="val" id="sum-outstanding">PKR 0</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Employees</div>
+    <input type="text" id="search-emp" placeholder="Search by name...">
+    <div id="emp-list" style="margin-top:12px;"></div>
+    <div class="hint" id="emp-list-empty" hidden>No active employees found.</div>
+  </div>
+
+  <a href="employee-master.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Manage Employee List</a>
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const ADVANCE_CATEGORY = "Payroll/Employee Charge";
+const PAYROLL_ROLES = ["owner"];
+const ROLE_LABELS = { owner: "Director" };
+
+let state = { userId: null, userName: null, employees: [], entries: {}, advances: {} };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function fmtMoney(n) { return "PKR " + Math.round(Number(n) || 0).toLocaleString(); }
+
+function currentMonthStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function periodBounds(monthStr) {
+  // monthStr like "2026-09"
+  const [y, m] = monthStr.split("-").map(Number);
+  const start = `${monthStr}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end, periodMonth: start, daysInMonth: lastDay };
+}
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?role=in.(${PAYROLL_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with payroll access found.</div>';
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    document.getElementById("f-period").value = currentMonthStr();
+    loadAll();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+document.getElementById("f-period").addEventListener("change", loadAll);
+
+async function loadAll() {
+  await loadEmployees();
+  await loadEntriesAndAdvances();
+  renderEmpList();
+}
+
+async function loadEmployees() {
+  try {
+    state.employees = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&select=id,name,department,designation,employment_type,monthly_salary&order=department,name`);
+  } catch (e) { state.employees = []; }
+}
+
+async function loadEntriesAndAdvances() {
+  const monthStr = document.getElementById("f-period").value || currentMonthStr();
+  const { start, end, periodMonth } = periodBounds(monthStr);
+  state.periodMonth = periodMonth;
+  state.periodStart = start;
+  state.periodEnd = end;
+
+  // Existing payroll entries for this period
+  state.entries = {};
+  try {
+    const rows = await sb(`payroll_entries?location_id=eq.${LOCATION_ID}&period_month=eq.${periodMonth}&select=*`);
+    rows.forEach(r => { state.entries[r.employee_id] = r; });
+  } catch (e) { /* none yet */ }
+
+  // Advances paid as expenses this period, per employee
+  state.advances = {};
+  try {
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&category=eq.${encodeURIComponent(ADVANCE_CATEGORY)}&expense_date=gte.${start}&expense_date=lte.${end}&employee_id=not.is.null&select=employee_id,amount,expense_date`);
+    rows.forEach(r => {
+      if (!state.advances[r.employee_id]) state.advances[r.employee_id] = { total: 0, count: 0 };
+      state.advances[r.employee_id].total += Number(r.amount) || 0;
+      state.advances[r.employee_id].count += 1;
+    });
+  } catch (e) { /* none yet */ }
+
+  renderSummary();
+}
+
+function renderSummary() {
+  const entries = Object.values(state.entries);
+  document.getElementById("sum-count").textContent = state.employees.length;
+  const totalNet = entries.reduce((s, e) => s + (Number(e.net_salary) || 0), 0);
+  const totalPaid = entries.reduce((s, e) => s + (Number(e.paid_amount) || 0), 0);
+  document.getElementById("sum-net").textContent = fmtMoney(totalNet);
+  document.getElementById("sum-paid").textContent = fmtMoney(totalPaid);
+  document.getElementById("sum-outstanding").textContent = fmtMoney(totalNet - totalPaid);
+}
+
+function renderEmpList() {
+  const search = document.getElementById("search-emp").value.trim().toUpperCase();
+  const list = document.getElementById("emp-list");
+  const emptyHint = document.getElementById("emp-list-empty");
+  const rows = state.employees.filter(e => !search || e.name.toUpperCase().includes(search));
+  list.innerHTML = "";
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  let lastDept = null;
+  rows.forEach(e => {
+    const dept = e.department || "Unassigned";
+    if (dept !== lastDept) {
+      const header = document.createElement("div");
+      header.className = "dept-header";
+      header.textContent = dept;
+      list.appendChild(header);
+      lastDept = dept;
+    }
+    const existing = state.entries[e.id];
+    const advance = state.advances[e.id] || { total: 0, count: 0 };
+    const net = existing ? Number(existing.net_salary) || 0 : null;
+    const isPaid = existing && existing.paid_amount != null && Number(existing.paid_amount) > 0;
+
+    const row = document.createElement("div");
+    row.className = "emp-row";
+    row.innerHTML = `
+      <div class="emp-top">
+        <div>
+          <span class="emp-title">${e.name}</span>
+          <div class="emp-sub">${e.designation || "—"} · ${fmtMoney(e.monthly_salary)}/mo${net !== null ? " · Net " + fmtMoney(net) : ""}</div>
+        </div>
+        ${existing ? `<span class="pill-badge ${isPaid ? "pill-ok" : "pill-warn"}">${isPaid ? "Paid" : "Pending"}</span>` : ""}
+      </div>
+      <div class="emp-detail" hidden></div>`;
+    const detail = row.querySelector(".emp-detail");
+    row.querySelector(".emp-top").addEventListener("click", () => {
+      const willOpen = detail.hidden;
+      document.querySelectorAll("#emp-list .emp-detail").forEach(d => { if (d !== detail) d.hidden = true; });
+      detail.hidden = !detail.hidden;
+      if (willOpen && !detail.dataset.built) {
+        buildDetail(detail, e, existing, advance);
+        detail.dataset.built = "1";
+      }
+    });
+    list.appendChild(row);
+  });
+}
+
+function buildDetail(detail, e, existing, advance) {
+  const perDayRate = (Number(e.monthly_salary) || 0) / 26;
+  const daysWorked = existing ? Number(existing.days_worked) : 26;
+  const salaryEarned = existing ? Number(existing.salary_earned) : Math.round(perDayRate * daysWorked * 100) / 100;
+  const km = existing ? Number(existing.km_driven) || 0 : 0;
+  const kmAmount = existing ? Number(existing.km_amount) || 0 : 0;
+  const bonus = existing ? Number(existing.bonus) || 0 : 0;
+  const phoneLoad = existing ? Number(existing.phone_load) || 0 : 0;
+  const loanDeduction = existing ? Number(existing.loan_deduction) || 0 : 0;
+  // Advance deduction: prefer what's already saved on the entry; otherwise default to this period's auto-pulled total.
+  const advanceDeduction = existing && existing.advance_deduction != null ? Number(existing.advance_deduction) : advance.total;
+  const paidAmount = existing ? existing.paid_amount : null;
+  const paidDate = existing ? existing.paid_date : null;
+
+  detail.innerHTML = `
+    <div class="row2 field">
+      <div><label>Days Worked</label><input type="number" class="p-days" step="any" value="${daysWorked}"></div>
+      <div><label>Salary Earned (PKR)</label><input type="number" class="p-salary" step="any" value="${salaryEarned}"></div>
+    </div>
+    <div class="row2 field">
+      <div><label>KM Driven</label><input type="number" class="p-km" step="any" value="${km}"></div>
+      <div><label>KM Amount (PKR)</label><input type="number" class="p-km-amount" step="any" value="${kmAmount}"></div>
+    </div>
+    <div class="row2 field">
+      <div><label>Bonus (PKR)</label><input type="number" class="p-bonus" step="any" value="${bonus}"></div>
+      <div><label>Phone Load (PKR)</label><input type="number" class="p-phone" step="any" value="${phoneLoad}"></div>
+    </div>
+    ${advance.count > 0 ? `<div class="advance-note">${advance.count} advance expense(s) this period totaling ${fmtMoney(advance.total)} — pulled in automatically below. Adjust if something shouldn't count.</div>` : ""}
+    <div class="row2 field">
+      <div><label>Advance Deduction (PKR)</label><input type="number" class="p-advance" step="any" value="${advanceDeduction}"></div>
+      <div><label>Loan Deduction (PKR)</label><input type="number" class="p-loan" step="any" value="${loanDeduction}"></div>
+    </div>
+    <div class="field">
+      <label>Net Salary</label>
+      <div class="readout p-net-readout">PKR 0</div>
+    </div>
+    <div class="row2 field">
+      <div><label>Paid Amount (PKR)</label><input type="number" class="p-paid" step="any" placeholder="0" value="${paidAmount != null ? paidAmount : ""}"></div>
+      <div><label>Paid Date</label><input type="date" class="p-paid-date" value="${paidDate || ""}"></div>
+    </div>
+    <button type="button" class="btn-primary btn-sm p-save-btn" style="width:100%;">Save Payroll Entry</button>
+  `;
+
+  const recalc = () => {
+    const g = (sel) => parseFloat(detail.querySelector(sel).value) || 0;
+    const net = g(".p-salary") + g(".p-km-amount") + g(".p-bonus") + g(".p-phone") - g(".p-advance") - g(".p-loan");
+    detail.querySelector(".p-net-readout").textContent = fmtMoney(net);
+  };
+  detail.querySelector(".p-days").addEventListener("input", () => {
+    const d = parseFloat(detail.querySelector(".p-days").value) || 0;
+    detail.querySelector(".p-salary").value = Math.round(perDayRate * d * 100) / 100;
+    recalc();
+  });
+  ["p-salary","p-km-amount","p-bonus","p-phone","p-advance","p-loan"].forEach(cls => {
+    detail.querySelector("." + cls).addEventListener("input", recalc);
+  });
+  recalc();
+
+  detail.querySelector(".p-save-btn").addEventListener("click", () => savePayrollEntry(e, detail, existing));
+}
+
+async function savePayrollEntry(e, detail, existing) {
+  const g = (sel) => parseFloat(detail.querySelector(sel).value) || 0;
+  const payload = {
+    employee_id: e.id,
+    location_id: LOCATION_ID,
+    period_month: state.periodMonth,
+    days_worked: g(".p-days"),
+    salary_earned: g(".p-salary"),
+    km_driven: g(".p-km"),
+    km_amount: g(".p-km-amount"),
+    bonus: g(".p-bonus"),
+    phone_load: g(".p-phone"),
+    advance_deduction: g(".p-advance"),
+    loan_deduction: g(".p-loan"),
+    paid_amount: parseFloat(detail.querySelector(".p-paid").value) || null,
+    paid_date: detail.querySelector(".p-paid-date").value || null,
+    entered_by_user_id: state.userId
+  };
+  const btn = detail.querySelector(".p-save-btn");
+  btn.disabled = true;
+  try {
+    if (existing) {
+      await sb(`payroll_entries?id=eq.${existing.id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      await sb("payroll_entries", {
+        method: "POST",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(payload)
+      });
+    }
+    await loadEntriesAndAdvances();
+    renderEmpList();
+  } catch (err) {
+    alert("Couldn't save: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("search-emp").addEventListener("input", renderEmpList);
+
+loadNames();
+</script>
+
+</body>
+</html>

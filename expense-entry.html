@@ -209,7 +209,13 @@
 
     <div id="block-charged-to" class="field" hidden>
       <label>Charged To</label>
-      <input type="text" id="f-charged-to" placeholder="e.g. Yasir Sb, or employee name">
+      <input type="text" id="f-charged-to" placeholder="e.g. Yasir Sb">
+    </div>
+
+    <div id="block-employee" class="field" hidden>
+      <label>Employee (advance against salary)</label>
+      <select id="f-employee"><option value="">— pick an employee —</option></select>
+      <div class="hint">This amount will show up automatically as an advance deduction on their payroll for this month.</div>
     </div>
 
     <div class="field">
@@ -265,9 +271,10 @@ const CATEGORIES = [
   "Government Charges & Taxes","Food Panda Commission","Miscellaneous","Donation"
 ];
 const ITEM_CODE_CATEGORY = "Inventory Purchase";
-const CHARGED_TO_CATEGORIES = ["Director Draw","Payroll/Employee Charge"];
+const CHARGED_TO_CATEGORIES = ["Director Draw"];
+const EMPLOYEE_ADVANCE_CATEGORIES = ["Payroll/Employee Charge"];
 
-let state = { userId: null, userName: null, products: [], pendingFlags: [], acknowledged: false };
+let state = { userId: null, userName: null, products: [], employees: [], pendingFlags: [], acknowledged: false };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -393,6 +400,15 @@ async function handleVendorAddNew(e) {
 }
 document.getElementById("f-vendor").addEventListener("change", handleVendorAddNew);
 
+async function loadEmployees() {
+  try {
+    state.employees = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&select=id,name,department,designation&order=name`);
+    const sel = document.getElementById("f-employee");
+    sel.innerHTML = '<option value="">— pick an employee —</option>' +
+      state.employees.map(e => `<option value="${e.id}">${e.name}${e.designation ? " — " + e.designation : ""}</option>`).join("");
+  } catch (e) { /* non-fatal */ }
+}
+
 async function loadProducts() {
   try {
     state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
@@ -443,6 +459,7 @@ function onCategoryChange() {
   document.getElementById("block-item").hidden = !isItem;
   document.getElementById("block-amount-direct").hidden = isItem;
   document.getElementById("block-charged-to").hidden = !CHARGED_TO_CATEGORIES.includes(cat);
+  document.getElementById("block-employee").hidden = !EMPLOYEE_ADVANCE_CATEGORIES.includes(cat);
   if (isItem) populateItemSelect("");
   resetAiBanner();
   recalcAmount();
@@ -494,6 +511,9 @@ async function runCheckAndMaybeSave() {
   if (!amount || amount <= 0) return alert("Enter an amount greater than zero.");
   if (cat === ITEM_CODE_CATEGORY && !document.getElementById("f-item-select").value) {
     return alert("Pick an item for an Inventory Purchase.");
+  }
+  if (EMPLOYEE_ADVANCE_CATEGORIES.includes(cat) && !document.getElementById("f-employee").value) {
+    return alert("Pick which employee this advance is for.");
   }
 
   // Already flagged and not yet acknowledged -> don't re-check, just block.
@@ -566,6 +586,12 @@ async function saveExpense({ status, reason }) {
   if (CHARGED_TO_CATEGORIES.includes(cat)) {
     payload.charged_to = chargedTo;
   }
+  if (EMPLOYEE_ADVANCE_CATEGORIES.includes(cat)) {
+    const empSel = document.getElementById("f-employee");
+    const emp = state.employees.find(x => x.id === empSel.value);
+    payload.employee_id = empSel.value || null;
+    payload.charged_to = emp ? emp.name : null;
+  }
 
   try {
     document.getElementById("btn-check").disabled = true;
@@ -595,6 +621,7 @@ function resetForm() {
   document.getElementById("f-amount").value = "";
   document.getElementById("f-vendor").selectedIndex = 0;
   document.getElementById("f-charged-to").value = "";
+  document.getElementById("f-employee").selectedIndex = 0;
   document.getElementById("f-detail").value = "";
   document.getElementById("f-item-search").value = "";
   onCategoryChange();
@@ -617,7 +644,7 @@ document.getElementById("btn-back").addEventListener("click", () => {
 document.getElementById("btn-another").addEventListener("click", resetForm);
 
 // Any field edit after a flag invalidates the previous check result.
-["f-category","f-qty","f-rate","f-amount","f-vendor","f-date"].forEach(id => {
+["f-category","f-qty","f-rate","f-amount","f-vendor","f-date","f-employee"].forEach(id => {
   document.getElementById(id).addEventListener("input", () => {
     if (state.pendingFlags.length) resetAiBanner();
   });
@@ -628,6 +655,7 @@ onCategoryChange();
 loadNames();
 loadVendors();
 loadProducts();
+loadEmployees();
 </script>
 
 </body>
