@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Stock Count</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 90px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .filter-row > * { flex: 1; min-width: 140px; }
+  .progress-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; margin-right: 6px; }
+  .item-row { display: grid; grid-template-columns: 1fr 100px 100px; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
+  .item-row:last-child { border-bottom: none; }
+  .item-name { font-size: 0.88rem; min-width: 0; }
+  .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
+  .item-row input { padding: 7px 8px; font-size: 0.85rem; text-align: right; }
+  .item-row input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .expected-val { font-size: 0.82rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .col-header { display: grid; grid-template-columns: 1fr 100px 100px; gap: 8px; font-size: 0.7rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .sticky-save { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
+  .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
+  .variance-tag { font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-left: 4px; }
+  .variance-ok { background: var(--ok-bg); color: var(--ok); }
+  .variance-off { background: var(--err-bg); color: var(--err); }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Stock Count</h1>
+<div class="sub">Physical count — compares against what purchases minus issues would predict</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="card">
+    <div class="step-label">Count Date</div>
+    <input type="date" id="f-date">
+    <div class="hint">One count per item per day. Counting the same item again on the same date overwrites the earlier count.</div>
+  </div>
+
+  <div class="card">
+    <div class="filter-row">
+      <input type="text" id="search-items" placeholder="Search by name or code...">
+      <select id="filter-category"><option value="">All categories</option></select>
+    </div>
+    <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="filter-moq" style="width:auto;" checked> Only items with an MOQ threshold set
+    </label>
+    <div id="progress-chips"></div>
+  </div>
+
+  <div class="card">
+    <div class="col-header">
+      <div>Item</div>
+      <div style="text-align:right;">Expected</div>
+      <div style="text-align:right;">Counted</div>
+    </div>
+    <div id="item-list"></div>
+    <div class="hint" id="item-list-empty" hidden>No items match.</div>
+  </div>
+
+  <a href="moq-setup.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Set MOQ Thresholds</a>
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div class="sticky-save" id="sticky-save" hidden>
+  <button class="btn-primary" id="btn-save-all" type="button">Save Counts (<span id="dirty-count">0</span>)</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const STOCK_COUNT_ROLES = ["owner", "inventory"];
+const ROLE_LABELS = { owner: "Director", inventory: "Auditor" };
+
+let state = {
+  userId: null, userName: null,
+  products: [], purchases: [], issues: [], snapshots: [],
+  existing: {}, // product_id -> snapshot row for the chosen date
+  dirty: {}
+};
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function fmtQty(n) {
+  const v = Number(n) || 0;
+  return (Math.round(v * 100) / 100).toLocaleString();
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?role=in.(${STOCK_COUNT_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with stock-count access found.</div>';
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    document.getElementById("f-date").value = todayStr();
+    loadAll();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+document.getElementById("f-date").addEventListener("change", loadAll);
+
+async function loadAll() {
+  state.dirty = {};
+  updateSaveBar();
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate,min_stock_level,reorder_qty&order=category,name`);
+  } catch (e) { state.products = []; }
+  try {
+    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date`);
+  } catch (e) { state.purchases = []; }
+  try {
+    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date`);
+  } catch (e) { state.issues = []; }
+  try {
+    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc`);
+  } catch (e) { state.snapshots = []; }
+
+  const cats = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
+  const sel = document.getElementById("filter-category");
+  const prevCat = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join("");
+  sel.value = prevCat;
+
+  computeExistingForDate();
+  renderItemList();
+}
+
+function computeExistingForDate() {
+  const date = document.getElementById("f-date").value || todayStr();
+  state.existing = {};
+  state.snapshots.forEach(s => {
+    if (s.snapshot_date === date) state.existing[s.product_id] = s;
+  });
+}
+
+// Theoretical expected qty as of `date`: last count's closing_qty (or 0 if never counted)
+// plus purchases since that count, minus issues since that count.
+function expectedQty(productId, date) {
+  const priorSnaps = state.snapshots.filter(s => s.product_id === productId && s.snapshot_date < date);
+  const last = priorSnaps[0]; // already sorted desc
+  const windowStart = last ? last.snapshot_date : null;
+  const opening = last ? Number(last.closing_qty) || 0 : 0;
+  const purchasesQty = state.purchases
+    .filter(p => p.product_id === productId && p.purchase_date <= date && (!windowStart || p.purchase_date > windowStart))
+    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  const issuesQty = state.issues
+    .filter(i => i.product_id === productId && i.issue_date <= date && (!windowStart || i.issue_date > windowStart))
+    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  return { opening, purchasesQty, issuesQty, expected: opening + purchasesQty - issuesQty, windowStart };
+}
+
+function renderItemList() {
+  const search = document.getElementById("search-items").value.trim().toUpperCase();
+  const cat = document.getElementById("filter-category").value;
+  const onlyMoq = document.getElementById("filter-moq").checked;
+  const date = document.getElementById("f-date").value || todayStr();
+  const list = document.getElementById("item-list");
+  const emptyHint = document.getElementById("item-list-empty");
+
+  const rows = state.products.filter(p => {
+    if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
+    if (cat && p.category !== cat) return false;
+    if (onlyMoq && (p.min_stock_level == null || p.reorder_qty == null)) return false;
+    return true;
+  });
+
+  const countedToday = Object.keys(state.existing).length;
+  document.getElementById("progress-chips").innerHTML =
+    `<span class="progress-chip">${countedToday} counted on ${date}</span>` +
+    `<span class="progress-chip">${rows.length} in this view</span>`;
+
+  list.innerHTML = "";
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  let lastCat = null;
+  rows.slice(0, 300).forEach(p => {
+    const c = p.category || "Uncategorized";
+    if (c !== lastCat) {
+      const header = document.createElement("div");
+      header.className = "dept-header";
+      header.textContent = c;
+      list.appendChild(header);
+      lastCat = c;
+    }
+    const exist = state.existing[p.id];
+    const dirtyVal = state.dirty[p.id];
+    const { expected } = expectedQty(p.id, date);
+    const countedVal = dirtyVal != null ? dirtyVal : (exist ? exist.closing_qty : "");
+
+    let varianceTag = "";
+    if (countedVal !== "" && countedVal != null) {
+      const diff = Number(countedVal) - expected;
+      varianceTag = Math.abs(diff) < 0.01
+        ? `<span class="variance-tag variance-ok">match</span>`
+        : `<span class="variance-tag variance-off">${diff > 0 ? "+" : ""}${fmtQty(diff)}</span>`;
+    }
+
+    const row = document.createElement("div");
+    row.className = "item-row";
+    row.innerHTML = `
+      <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
+      <div class="expected-val">${fmtQty(expected)}</div>
+      <div style="display:flex; align-items:center; gap:4px;">
+        <input type="number" class="i-count" step="any" value="${countedVal}" placeholder="—">
+      </div>
+    `;
+    const countInput = row.querySelector(".i-count");
+    if (dirtyVal != null) countInput.classList.add("dirty");
+    countInput.addEventListener("input", () => {
+      const v = parseFloat(countInput.value);
+      state.dirty[p.id] = isNaN(v) ? null : v;
+      if (isNaN(v)) delete state.dirty[p.id];
+      countInput.classList.add("dirty");
+      updateSaveBar();
+      renderItemList();
+    });
+    list.appendChild(row);
+  });
+  // append variance tags after the fact via a second pass (kept simple: re-render covers it)
+}
+
+function updateSaveBar() {
+  const count = Object.keys(state.dirty).length;
+  document.getElementById("dirty-count").textContent = count;
+  document.getElementById("sticky-save").hidden = count === 0;
+}
+
+async function saveAllCounts() {
+  const date = document.getElementById("f-date").value || todayStr();
+  const ids = Object.keys(state.dirty);
+  if (!ids.length) return;
+  const btn = document.getElementById("btn-save-all");
+  btn.disabled = true;
+  let done = 0, failed = 0;
+  for (const id of ids) {
+    const counted = state.dirty[id];
+    const p = state.products.find(x => x.id === id);
+    const rate = p ? (Number(p.current_rate) || 0) : 0;
+    const { opening, purchasesQty, issuesQty, expected } = expectedQty(id, date);
+    const variance_qty = counted - expected;
+    const denom = opening + purchasesQty;
+    const variance_pct = denom > 0 ? Math.round((variance_qty / denom) * 10000) / 100 : null;
+    const payload = {
+      location_id: LOCATION_ID, product_id: id, snapshot_date: date,
+      opening_qty: opening, opening_amount: Math.round(opening * rate * 100) / 100,
+      purchases_qty: purchasesQty, purchases_amount: Math.round(purchasesQty * rate * 100) / 100,
+      issues_qty: issuesQty,
+      closing_qty: counted, closing_amount: Math.round(counted * rate * 100) / 100,
+      variance_qty, variance_pct,
+      entered_by_user_id: state.userId
+    };
+    try {
+      const exist = state.existing[id];
+      if (exist) {
+        await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&product_id=eq.${id}&snapshot_date=eq.${date}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+        });
+      } else {
+        await sb("inventory_snapshots", {
+          method: "POST", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+        });
+      }
+      done++;
+    } catch (e) { failed++; }
+    btn.textContent = `Saving ${done + failed}/${ids.length}…`;
+  }
+  btn.textContent = `Save Counts (0)`;
+  btn.disabled = false;
+  state.dirty = {};
+  updateSaveBar();
+  await loadAll();
+  if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
+}
+document.getElementById("btn-save-all").addEventListener("click", saveAllCounts);
+
+document.getElementById("search-items").addEventListener("input", renderItemList);
+document.getElementById("filter-category").addEventListener("change", renderItemList);
+document.getElementById("filter-moq").addEventListener("change", renderItemList);
+
+loadNames();
+</script>
+
+</body>
+</html>

@@ -176,6 +176,13 @@
   </div>
 
   <div class="card">
+    <h2>Reorder Alerts</h2>
+    <div id="reorder-list"><div class="spinner-note">Loading…</div></div>
+    <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="stock-count.html">Go to Stock Count</a>
+    <div class="hint" style="margin-top:8px;">Based on the most recent physical count per item vs. its MOQ Setup threshold. An item with a threshold but no count yet can't be checked — it shows up as "not yet counted" instead of being silently skipped.</div>
+  </div>
+
+  <div class="card">
     <h2>Vendor Payables (All-Time)</h2>
     <div id="payables-list"><div class="spinner-note">Loading…</div></div>
     <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="vendor-payment.html">Record a Vendor Payment</a>
@@ -362,7 +369,44 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts()]);
+}
+
+async function loadReorderAlerts() {
+  const wrap = document.getElementById("reorder-list");
+  let products = [], snaps = [];
+  try {
+    products = await sb(`products?active=eq.true&min_stock_level=not.is.null&select=id,name,unit,min_stock_level,reorder_qty`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+  try {
+    snaps = await sb(`inventory_snapshots?location_id=eq.${state.locationId}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc`);
+  } catch (e) { snaps = []; }
+
+  const latest = {};
+  snaps.forEach(s => { if (!latest[s.product_id]) latest[s.product_id] = s; });
+
+  const flagged = [];
+  let uncounted = 0;
+  products.forEach(p => {
+    const snap = latest[p.id];
+    if (!snap) { uncounted++; return; }
+    if (Number(snap.closing_qty) <= Number(p.min_stock_level)) {
+      flagged.push({ name: p.name, unit: p.unit || "", onHand: Number(snap.closing_qty), min: Number(p.min_stock_level), reorder: p.reorder_qty });
+    }
+  });
+  flagged.sort((a, b) => (a.onHand / (a.min || 1)) - (b.onHand / (b.min || 1)));
+
+  if (!products.length) {
+    wrap.innerHTML = '<div class="empty-note">No items have an MOQ threshold set yet — see MOQ Setup.</div>';
+    return;
+  }
+  const uncountedNote = uncounted ? `<div class="hint" style="margin-top:6px;">${uncounted} item(s) with a threshold haven't been physically counted yet, so they can't be checked.</div>` : "";
+  if (!flagged.length) {
+    wrap.innerHTML = `<div class="empty-note">Nothing below its minimum stock level right now.</div>` + uncountedNote;
+    return;
+  }
+  wrap.innerHTML = flagged.map(f => `
+    <div class="channel-row"><span>${f.name}</span><span class="amt">${f.onHand} / min ${f.min} ${f.unit}${f.reorder ? " — order " + f.reorder : ""}</span></div>`).join("") + uncountedNote;
 }
 
 async function loadPayrollPayable() {
@@ -611,7 +655,7 @@ function openMasterFile() {
     masterFileSection("Inventory & Items", [
       { href: "item-master.html", label: "Item Master — add, edit, retire items" },
       { href: "moq-setup.html", label: "MOQ Setup — set min stock level & reorder qty per item" },
-      { label: "Items needing reorder (per MOQ) — thresholds now settable; live alerts need stock-on-hand counts next" }
+      { href: "stock-count.html", label: "Stock Count — physical counts, feeds the Reorder Alerts card" }
     ]) +
     masterFileSection("Purchasing & Payables", [
       { href: "goods-receipt.html", label: "Goods Receipt" },
