@@ -333,8 +333,36 @@ async function loadVendors() {
       opt.textContent = v.name;
       sel.appendChild(opt);
     });
+    const addOpt = document.createElement("option");
+    addOpt.value = "__add_new__";
+    addOpt.textContent = "+ Add New Vendor…";
+    sel.appendChild(addOpt);
   } catch (e) { /* non-fatal */ }
 }
+
+async function handleVendorAddNew(e) {
+  if (e.target.value !== "__add_new__") return;
+  const name = (prompt("New vendor name:") || "").trim();
+  if (!name) { e.target.selectedIndex = 0; return; }
+  try {
+    const inserted = await sb("vendors", {
+      method: "POST",
+      headers: { "Prefer": "return=representation" },
+      body: JSON.stringify({ org_id: "00000000-0000-0000-0000-000000000001", name: name, active: true })
+    });
+    const newId = inserted && inserted[0] ? inserted[0].id : null;
+    const addOpt = e.target.querySelector('option[value="__add_new__"]');
+    const opt = document.createElement("option");
+    opt.value = newId;
+    opt.textContent = name;
+    e.target.insertBefore(opt, addOpt);
+    e.target.value = newId;
+  } catch (err) {
+    alert("Could not add vendor: " + err.message);
+    e.target.selectedIndex = 0;
+  }
+}
+document.getElementById("f-vendor").addEventListener("change", handleVendorAddNew);
 
 async function loadProducts() {
   try {
