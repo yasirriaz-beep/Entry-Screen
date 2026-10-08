@@ -183,6 +183,13 @@
   </div>
 
   <div class="card">
+    <h2>Payroll Payable (All-Time)</h2>
+    <div id="payroll-payable-list"><div class="spinner-note">Loading…</div></div>
+    <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="payroll-entry.html">Go to Payroll</a>
+    <div class="hint" style="margin-top:8px;">Accrues the moment a month's attendance/days-worked is entered — that's salary earned, whether or not it's been paid out yet. Advances (paid ~20th, logged via Expense Entry against the employee) reduce it automatically; the final settlement (paid ~7th of the next month, recorded on the Payroll screen) clears it.</div>
+  </div>
+
+  <div class="card">
     <h2>Awaiting Your Authorization</h2>
     <div id="demand-wrap"><div class="spinner-note">Loading…</div></div>
   </div>
@@ -355,7 +362,29 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable()]);
+}
+
+async function loadPayrollPayable() {
+  const wrap = document.getElementById("payroll-payable-list");
+  let rows = [];
+  try {
+    rows = await sb(`payroll_entries?location_id=eq.${state.locationId}&select=net_salary,paid_amount,employees(name)`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+
+  const owed = {};
+  rows.forEach(r => {
+    const name = r.employees ? r.employees.name : "Unknown";
+    const outstanding = (Number(r.net_salary) || 0) - (Number(r.paid_amount) || 0);
+    owed[name] = (owed[name] || 0) + outstanding;
+  });
+  const balances = Object.entries(owed).map(([name, balance]) => ({ name, balance })).filter(b => b.balance > 0.01).sort((a, b) => b.balance - a.balance);
+
+  if (!balances.length) { wrap.innerHTML = '<div class="empty-note">Nothing owed — every entered month is fully settled.</div>'; return; }
+  const total = balances.reduce((s, b) => s + b.balance, 0);
+  wrap.innerHTML = balances.map(b => `
+    <div class="channel-row"><span>${b.name}</span><span class="amt">${fmtMoney(b.balance)}</span></div>`).join("") +
+    `<div class="drawer-total" style="margin-top:6px;"><span>Total owed</span><span>${fmtMoney(total)}</span></div>`;
 }
 
 async function loadPayables() {

@@ -326,9 +326,10 @@ function buildDetail(detail, e, existing, advance) {
       <label>Net Salary</label>
       <div class="readout p-net-readout">PKR 0</div>
     </div>
+    <div class="hint" style="margin-bottom:10px;">Salary earned above is owed the moment you save this — it's a Payroll Payable until paid. The advance is handled separately (log it in Expense Entry against this employee around the 20th; it shows up above automatically). Record the final settlement below once it's actually paid, usually around the 7th of the following month.</div>
     <div class="row2 field">
-      <div><label>Paid Amount (PKR)</label><input type="number" class="p-paid" step="any" placeholder="0" value="${paidAmount != null ? paidAmount : ""}"></div>
-      <div><label>Paid Date</label><input type="date" class="p-paid-date" value="${paidDate || ""}"></div>
+      <div><label>Final Settlement Paid (PKR)</label><input type="number" class="p-paid" step="any" placeholder="0" value="${paidAmount != null ? paidAmount : ""}"></div>
+      <div><label>Settlement Date</label><input type="date" class="p-paid-date" value="${paidDate || ""}"></div>
     </div>
     <button type="button" class="btn-primary btn-sm p-save-btn" style="width:100%;">Save Payroll Entry</button>
   `;
