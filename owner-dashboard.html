@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FNK Owner Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  h2 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.1rem; margin: 0 0 12px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .controls-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .controls-row > div { flex: 1; min-width: 150px; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+  .seg button { flex: 1; background: var(--field-bg); color: var(--ink); border-radius: 0; font-size: 0.85rem; padding: 10px 8px; border-right: 1px solid var(--border); }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--accent); color: var(--accent-ink); }
+  .kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 480px) { .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
+  .kpi { background: var(--field-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; min-width: 0; }
+  .kpi .kpi-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); font-weight: 600; }
+  .kpi .kpi-value { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.3rem; margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
+  .kpi.net-pos .kpi-value { color: var(--ok); }
+  .kpi.net-neg .kpi-value { color: var(--err); }
+  .channel-row { display: flex; justify-content: space-between; font-size: 0.88rem; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .channel-row:last-child { border-bottom: none; }
+  .channel-row .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .alert-row { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--field-bg); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .alert-row .alert-title { font-weight: 600; font-size: 0.9rem; }
+  .alert-row .alert-sub { font-size: 0.78rem; color: var(--ink-soft); margin-top: 2px; }
+  .pill-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill-warn { background: var(--warn-bg); color: var(--warn); }
+  .pill-err { background: var(--err-bg); color: var(--err); }
+  .pill-ok { background: var(--ok-bg); color: var(--ok); }
+  .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
+  .spinner-note { font-size: 0.85rem; color: var(--ink-soft); }
+  .exp-row { display: flex; justify-content: space-between; font-size: 0.86rem; padding: 7px 0; border-bottom: 1px solid var(--border); gap: 10px; }
+  .exp-row:last-child { border-bottom: none; }
+  .exp-row .exp-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .exp-row .exp-sub { font-size: 0.74rem; color: var(--ink-soft); }
+  .exp-row .exp-amt { font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<h1>FNK Owner Dashboard</h1>
+<div class="sub">Cross-location snapshot — owner access only</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="controls-row">
+    <div>
+      <label>Location</label>
+      <select id="loc-select"></select>
+    </div>
+    <div>
+      <label>Range</label>
+      <div class="seg" id="range-seg">
+        <button type="button" data-range="today" class="active">Today</button>
+        <button type="button" data-range="week">This Week</button>
+        <button type="button" data-range="month">This Month</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 id="kpi-heading">Today — Snapshot</h2>
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Sales</div><div class="kpi-value" id="kpi-sales">—</div></div>
+      <div class="kpi"><div class="kpi-label">Expenses</div><div class="kpi-value" id="kpi-expenses">—</div></div>
+      <div class="kpi"><div class="kpi-label">Purchases</div><div class="kpi-value" id="kpi-purchases">—</div></div>
+      <div class="kpi" id="kpi-net-card"><div class="kpi-label">Net</div><div class="kpi-value" id="kpi-net">—</div></div>
+    </div>
+    <div class="hint" style="margin-top:10px;">Net = Sales − Expenses − Purchases, for the selected location &amp; range.</div>
+  </div>
+
+  <div class="card">
+    <h2>Sales by Channel</h2>
+    <div id="channel-list"><div class="spinner-note">Loading…</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Needs Your Attention</h2>
+    <div id="attention-list"><div class="spinner-note">Loading…</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Largest Expenses</h2>
+    <div id="top-expenses"><div class="spinner-note">Loading…</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Open Audit Alerts</h2>
+    <div id="alerts-list"><div class="spinner-note">Loading…</div></div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const DASHBOARD_ROLES = ["owner"];
+const ROLE_LABELS = { owner: "Director" };
+
+let state = { userId: null, userName: null, locationId: null, range: "today", locations: [] };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function fmtMoney(n) {
+  const v = Number(n) || 0;
+  return "PKR " + v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function dateNDaysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function rangeDates() {
+  const today = todayStr();
+  if (state.range === "today") return { from: today, to: today, label: "Today" };
+  if (state.range === "week") return { from: dateNDaysAgo(6), to: today, label: "This Week" };
+  return { from: dateNDaysAgo(29), to: today, label: "This Month" };
+}
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?role=in.(${DASHBOARD_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No owner-level user found.</div>';
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+async function loadLocations() {
+  try {
+    state.locations = await sb(`locations?active=eq.true&select=id,code,name,is_hub&order=code`);
+  } catch (e) { state.locations = []; }
+  const sel = document.getElementById("loc-select");
+  sel.innerHTML = "";
+  state.locations.forEach(l => {
+    const opt = document.createElement("option");
+    opt.value = l.id;
+    opt.textContent = l.name + (l.is_hub ? " (Hub)" : "");
+    sel.appendChild(opt);
+  });
+  const gulberg = state.locations.find(l => l.code === "C-5");
+  state.locationId = gulberg ? gulberg.id : (state.locations[0] ? state.locations[0].id : null);
+  sel.value = state.locationId || "";
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(async () => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    await loadLocations();
+    await refreshAll();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+document.getElementById("loc-select").addEventListener("change", (e) => {
+  state.locationId = e.target.value;
+  refreshAll();
+});
+
+document.querySelectorAll("#range-seg button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#range-seg button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    state.range = btn.dataset.range;
+    refreshAll();
+  });
+});
+
+async function refreshAll() {
+  await Promise.all([loadKpis(), loadAttention(), loadAlerts()]);
+}
+
+async function loadKpis() {
+  const { from, to, label } = rangeDates();
+  document.getElementById("kpi-heading").textContent = label + " — Snapshot";
+
+  let sales = [], expenses = [], purchases = [];
+  try {
+    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale`);
+  } catch (e) {}
+  try {
+    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date`);
+  } catch (e) {}
+  try {
+    purchases = await sb(`purchases?location_id=eq.${state.locationId}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=amount`);
+  } catch (e) {}
+
+  const totalSales = sales.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
+  const totalExpenses = expenses.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const totalPurchases = purchases.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const net = totalSales - totalExpenses - totalPurchases;
+
+  document.getElementById("kpi-sales").textContent = fmtMoney(totalSales);
+  document.getElementById("kpi-expenses").textContent = fmtMoney(totalExpenses);
+  document.getElementById("kpi-purchases").textContent = fmtMoney(totalPurchases);
+  document.getElementById("kpi-net").textContent = fmtMoney(net);
+  const netCard = document.getElementById("kpi-net-card");
+  netCard.classList.remove("net-pos", "net-neg");
+  netCard.classList.add(net >= 0 ? "net-pos" : "net-neg");
+
+  renderChannels(sales);
+  renderTopExpenses(expenses);
+}
+
+function renderChannels(sales) {
+  const wrap = document.getElementById("channel-list");
+  if (!sales.length) { wrap.innerHTML = '<div class="empty-note">No sales recorded for this range yet.</div>'; return; }
+  const totals = { dine_in_amount: 0, takeaway_amount: 0, delivery_amount: 0, third_party_amount: 0, bakery_sale: 0 };
+  sales.forEach(r => { Object.keys(totals).forEach(k => { totals[k] += Number(r[k]) || 0; }); });
+  const labels = { dine_in_amount: "Dine-in", takeaway_amount: "Takeaway", delivery_amount: "Delivery", third_party_amount: "Third-party (Food Panda etc.)", bakery_sale: "Bakery" };
+  wrap.innerHTML = Object.keys(labels).map(k =>
+    `<div class="channel-row"><span>${labels[k]}</span><span class="amt">${fmtMoney(totals[k])}</span></div>`
+  ).join("");
+}
+
+function renderTopExpenses(expenses) {
+  const wrap = document.getElementById("top-expenses");
+  if (!expenses.length) { wrap.innerHTML = '<div class="empty-note">No expenses recorded for this range.</div>'; return; }
+  const top = [...expenses].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0)).slice(0, 5);
+  wrap.innerHTML = top.map(e => `
+    <div class="exp-row">
+      <div>
+        <div class="exp-main">${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}</div>
+        <div class="exp-sub">${e.expense_date}${e.detail ? " · " + e.detail : ""}</div>
+      </div>
+      <div class="exp-amt">${fmtMoney(e.amount)}</div>
+    </div>`).join("");
+}
+
+async function loadAttention() {
+  const wrap = document.getElementById("attention-list");
+  let demand = [], authorized = [];
+  try {
+    demand = await sb(`purchase_orders?location_id=eq.${state.locationId}&status=eq.Demand&select=id,qty_requested,unit,requested_at,products(name)&order=requested_at.asc`);
+  } catch (e) {}
+  try {
+    authorized = await sb(`purchase_orders?location_id=eq.${state.locationId}&status=eq.Authorized&select=id,qty_requested,unit,authorized_at,products(name)&order=authorized_at.asc`);
+  } catch (e) {}
+
+  const rows = [];
+  if (demand.length) rows.push({ title: `${demand.length} purchase ${demand.length === 1 ? "request" : "requests"} awaiting your authorization`, sub: demand.slice(0, 3).map(d => d.products?.name).filter(Boolean).join(", ") + (demand.length > 3 ? "…" : ""), pill: "pill-warn", pillText: "Authorize" });
+  if (authorized.length) rows.push({ title: `${authorized.length} authorized ${authorized.length === 1 ? "order" : "orders"} awaiting purchasing to place`, sub: authorized.slice(0, 3).map(d => d.products?.name).filter(Boolean).join(", ") + (authorized.length > 3 ? "…" : ""), pill: "pill-ok", pillText: "Ordered soon" });
+
+  if (!rows.length) { wrap.innerHTML = '<div class="empty-note">Nothing pending — purchase order pipeline is clear.</div>'; return; }
+  wrap.innerHTML = rows.map(r => `
+    <div class="alert-row">
+      <div>
+        <div class="alert-title">${r.title}</div>
+        <div class="alert-sub">${r.sub || ""}</div>
+      </div>
+      <span class="pill-badge ${r.pill}">${r.pillText}</span>
+    </div>`).join("");
+}
+
+async function loadAlerts() {
+  const wrap = document.getElementById("alerts-list");
+  let alerts = [];
+  try {
+    alerts = await sb(`audit_alerts?location_id=eq.${state.locationId}&status=eq.open&select=id,alert_type,severity,title,body,created_at&order=created_at.desc`);
+  } catch (e) {}
+  if (!alerts.length) { wrap.innerHTML = '<div class="empty-note">No open audit alerts for this location.</div>'; return; }
+  wrap.innerHTML = alerts.map(a => `
+    <div class="alert-row">
+      <div>
+        <div class="alert-title">${a.title || a.alert_type}</div>
+        <div class="alert-sub">${a.body || ""}</div>
+      </div>
+      <span class="pill-badge ${a.severity === "high" ? "pill-err" : "pill-warn"}">${a.severity || "alert"}</span>
+    </div>`).join("");
+}
+
+loadNames();
+</script>
+
+</body>
+</html>
