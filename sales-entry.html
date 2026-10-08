@@ -236,7 +236,7 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
 
   const whoId = document.getElementById("whoSelect").value || null;
   const saleDate = document.getElementById("dateInput").value;
-  const dow = new Date(saleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" });
+  const dow = new Date(saleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
 
   const payload = {
     location_id: locationId,
