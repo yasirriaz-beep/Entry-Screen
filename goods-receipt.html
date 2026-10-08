@@ -107,6 +107,12 @@
   <div class="card">
     <div id="po-context-banner"></div>
 
+    <div class="field">
+      <label>Scan Receipt Photo (optional)</label>
+      <input type="file" id="f-receipt-photo" accept="image/*" capture="environment">
+      <div class="hint" id="scan-status">Snap or upload a photo of the invoice/delivery note to pre-fill the fields below.</div>
+    </div>
+
     <div class="field" id="block-item-pick" hidden>
       <label>Item Code / Name</label>
       <input type="text" id="f-item-search" placeholder="Start typing an item name...">
@@ -186,9 +192,11 @@ let state = {
   userId: null,
   userName: null,
   products: [],
+  vendors: [],
   mode: null,       // 'po' | 'adhoc'
   pos: [],
-  selectedPO: null  // the PO row, if mode === 'po'
+  selectedPO: null, // the PO row, if mode === 'po'
+  receiptPhotoPath: null
 };
 
 async function sb(path, opts = {}) {
@@ -254,6 +262,7 @@ async function loadProducts() {
 async function loadVendors() {
   try {
     const rows = await sb(`vendors?active=eq.true&select=id,name&order=name`);
+    state.vendors = rows;
     const sel = document.getElementById("f-vendor");
     rows.forEach(v => {
       const opt = document.createElement("option");
@@ -279,6 +288,7 @@ async function handleVendorAddNew(e) {
       body: JSON.stringify({ org_id: "00000000-0000-0000-0000-000000000001", name: name, active: true })
     });
     const newId = inserted && inserted[0] ? inserted[0].id : null;
+    state.vendors.push({ id: newId, name: name });
     const addOpt = e.target.querySelector('option[value="__add_new__"]');
     const opt = document.createElement("option");
     opt.value = newId;
@@ -291,6 +301,107 @@ async function handleVendorAddNew(e) {
   }
 }
 document.getElementById("f-vendor").addEventListener("change", handleVendorAddNew);
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadReceiptPhoto(file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${LOCATION_ID}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/receipts/${path}`, {
+    method: "POST",
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": file.type || "image/jpeg"
+    },
+    body: file
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${t}`);
+  }
+  return path;
+}
+
+function findVendorIdByName(name) {
+  if (!name) return null;
+  const n = name.trim().toUpperCase();
+  if (!n) return null;
+  const exact = state.vendors.find(v => v.name.toUpperCase() === n);
+  if (exact) return exact.id;
+  const partial = state.vendors.find(v => v.name.toUpperCase().includes(n) || n.includes(v.name.toUpperCase()));
+  return partial ? partial.id : null;
+}
+
+function findProductIdByName(name) {
+  if (!name) return null;
+  const n = name.trim().toUpperCase();
+  if (!n) return null;
+  const exact = state.products.find(p => p.name.toUpperCase() === n);
+  if (exact) return exact.id;
+  const partial = state.products.find(p => n.includes(p.name.toUpperCase()) || p.name.toUpperCase().includes(n));
+  return partial ? partial.id : null;
+}
+
+async function handleReceiptPhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById("scan-status");
+  statusEl.textContent = "Uploading & scanning…";
+  try {
+    const [path, base64] = await Promise.all([
+      uploadReceiptPhoto(file),
+      fileToBase64(file)
+    ]);
+    state.receiptPhotoPath = path;
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-receipt`, {
+      method: "POST",
+      headers: {
+        "apikey": ANON_KEY,
+        "Authorization": `Bearer ${ANON_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ image_base64: base64, media_type: file.type || "image/jpeg" })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !data.extracted) {
+      statusEl.textContent = "Photo saved, but couldn't read it automatically — fill in the fields below.";
+      return;
+    }
+    const ex = data.extracted;
+    if (ex.invoice_number) document.getElementById("f-inv").value = ex.invoice_number;
+    const vId = findVendorIdByName(ex.vendor_name);
+    if (vId) document.getElementById("f-vendor").value = vId;
+    const firstItem = (ex.items || [])[0];
+    if (firstItem) {
+      if (firstItem.qty != null) document.getElementById("f-qty").value = firstItem.qty;
+      if (firstItem.rate != null) document.getElementById("f-rate").value = firstItem.rate;
+      if (state.mode === "adhoc") {
+        const pId = findProductIdByName(firstItem.name);
+        if (pId) {
+          document.getElementById("f-item-select").value = pId;
+          onItemSelected();
+        }
+      }
+    }
+    recalcAmount();
+    const extraLines = (ex.items || []).length > 1
+      ? ` (+${ex.items.length - 1} more line${ex.items.length > 2 ? "s" : ""} on this receipt — enter those separately)`
+      : "";
+    statusEl.innerHTML = `<span style="color:var(--ok)">Scanned${ex.vendor_name ? ": " + ex.vendor_name : ""}${extraLines}. Check every field before saving.</span>`;
+  } catch (err) {
+    statusEl.textContent = "Couldn't scan automatically (" + err.message + ") — the photo is still saved; fill in the fields below.";
+  }
+}
+document.getElementById("f-receipt-photo").addEventListener("change", handleReceiptPhoto);
 
 async function loadOpenPOs() {
   try {
@@ -336,6 +447,9 @@ function enterForm() {
   document.getElementById("f-notes").value = "";
   document.getElementById("f-payment-status").value = "credit";
   document.getElementById("variance-hint").innerHTML = "";
+  document.getElementById("f-receipt-photo").value = "";
+  document.getElementById("scan-status").textContent = "Snap or upload a photo of the invoice/delivery note to pre-fill the fields below.";
+  state.receiptPhotoPath = null;
 
   if (state.mode === "po" && state.selectedPO) {
     const po = state.selectedPO;
@@ -441,7 +555,8 @@ async function saveReceipt() {
     notes: notes,
     entered_by_user_id: state.userId,
     po_id: poId,
-    variance_note: variance
+    variance_note: variance,
+    receipt_photo_path: state.receiptPhotoPath
   };
 
   const btn = document.getElementById("btn-save");
