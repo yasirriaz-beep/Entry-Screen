@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Vendor Payments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 120px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .balance-row { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--field-bg); display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; }
+  .balance-row:hover { border-color: var(--accent); }
+  .balance-row .v-name { font-weight: 600; font-size: 0.9rem; }
+  .balance-row .v-amt { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--warn); }
+  .balance-total { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 0 0; margin-top: 4px; border-top: 2px solid var(--border); font-family: 'Zilla Slab', Georgia, serif; }
+  .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
+  .selected-balance { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 13px; font-size: 0.88rem; margin-top: -4px; margin-bottom: 14px; font-weight: 600; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Vendor Payments</h1>
+<div class="sub">Record what's actually been paid out against vendor payables</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="card">
+    <div class="step-label">Outstanding Balances</div>
+    <div id="balance-list"><div class="hint">Loading…</div></div>
+    <div id="balance-total-wrap" hidden><div class="balance-total"><span>Total owed</span><span id="balance-total"></span></div></div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Record a Payment</div>
+    <div class="field">
+      <label>Vendor</label>
+      <select id="f-vendor"><option value="">Select vendor…</option></select>
+    </div>
+    <div id="selected-balance" class="selected-balance" hidden></div>
+    <div class="row2 field">
+      <div>
+        <label>Amount Paid (PKR)</label>
+        <input type="number" id="f-amount" min="0" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Date</label>
+        <input type="date" id="f-date">
+      </div>
+    </div>
+    <div class="field">
+      <label>Method</label>
+      <select id="f-method">
+        <option value="cash">Cash</option>
+        <option value="bank">Bank Transfer</option>
+        <option value="cheque">Cheque</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="f-notes" rows="2" placeholder="e.g. invoice numbers settled"></textarea>
+    </div>
+    <button class="btn-primary" id="btn-save" type="button">Save Payment</button>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;">Payment recorded</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub"></div>
+  <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">Record Another</button>
+</div>
+
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const PAYMENT_ROLES = ["cash_expense", "owner"];
+
+const ROLE_LABELS = { cash_expense: "Cashier", owner: "Director" };
+
+let state = { userId: null, userName: null, vendors: [], balances: {} };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function fmtMoney(n) {
+  return "PKR " + Math.round(Number(n) || 0).toLocaleString();
+}
+
+async function loadNames() {
+  try {
+    const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=in.(${PAYMENT_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
+    const grid = document.getElementById("name-grid");
+    grid.innerHTML = "";
+    rows.forEach(u => {
+      const label = ROLE_LABELS[u.role] || u.name;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = label;
+      pill.onclick = () => selectUser(u.id, label, pill);
+      grid.appendChild(pill);
+    });
+    if (rows.length === 0) grid.innerHTML = '<div class="hint">No authorized user found for vendor payments.</div>';
+  } catch (e) {
+    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(id, name, pillEl) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    document.getElementById("f-date").value = todayStr();
+    loadBalances();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+async function loadBalances() {
+  const list = document.getElementById("balance-list");
+  let vendors = [], purchases = [], payments = [];
+  try { vendors = await sb(`vendors?active=eq.true&select=id,name&order=name`); } catch (e) {}
+  try { purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&select=vendor_id,amount`); } catch (e) {}
+  try { payments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&select=vendor_id,amount`); } catch (e) {}
+
+  const owed = {}, paid = {};
+  purchases.forEach(p => { if (p.vendor_id) owed[p.vendor_id] = (owed[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+  payments.forEach(p => { if (p.vendor_id) paid[p.vendor_id] = (paid[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+
+  state.vendors = vendors;
+  state.balances = {};
+  let total = 0;
+  vendors.forEach(v => {
+    const bal = (owed[v.id] || 0) - (paid[v.id] || 0);
+    state.balances[v.id] = bal;
+    if (bal > 0.01) total += bal;
+  });
+
+  const owing = vendors.filter(v => state.balances[v.id] > 0.01).sort((a, b) => state.balances[b.id] - state.balances[a.id]);
+  if (!owing.length) {
+    list.innerHTML = '<div class="empty-note">No outstanding balances against any vendor right now.</div>';
+    document.getElementById("balance-total-wrap").hidden = true;
+  } else {
+    list.innerHTML = owing.map(v => `
+      <div class="balance-row" data-vendor="${v.id}">
+        <span class="v-name">${v.name}</span>
+        <span class="v-amt">${fmtMoney(state.balances[v.id])}</span>
+      </div>`).join("");
+    document.querySelectorAll(".balance-row").forEach(row => {
+      row.addEventListener("click", () => {
+        document.getElementById("f-vendor").value = row.dataset.vendor;
+        updateSelectedBalance();
+        document.getElementById("f-amount").focus();
+      });
+    });
+    document.getElementById("balance-total").textContent = fmtMoney(total);
+    document.getElementById("balance-total-wrap").hidden = false;
+  }
+
+  populateVendorSelect();
+}
+
+function populateVendorSelect() {
+  const sel = document.getElementById("f-vendor");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Select vendor…</option>' +
+    state.vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join("");
+  sel.value = current;
+}
+
+function updateSelectedBalance() {
+  const vendorId = document.getElementById("f-vendor").value;
+  const box = document.getElementById("selected-balance");
+  if (!vendorId) { box.hidden = true; return; }
+  const bal = state.balances[vendorId] || 0;
+  box.hidden = false;
+  box.textContent = bal > 0.01
+    ? `Currently owed: ${fmtMoney(bal)}`
+    : "No outstanding balance on file for this vendor.";
+}
+document.getElementById("f-vendor").addEventListener("change", updateSelectedBalance);
+
+async function savePayment() {
+  const vendorId = document.getElementById("f-vendor").value;
+  const amount = parseFloat(document.getElementById("f-amount").value) || 0;
+  const date = document.getElementById("f-date").value;
+  const method = document.getElementById("f-method").value;
+  const notes = document.getElementById("f-notes").value.trim() || null;
+
+  if (!vendorId) return alert("Select a vendor.");
+  if (!amount || amount <= 0) return alert("Enter an amount greater than zero.");
+
+  const btn = document.getElementById("btn-save");
+  btn.disabled = true;
+  try {
+    await sb("vendor_payments", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        org_id: "00000000-0000-0000-0000-000000000001",
+        location_id: LOCATION_ID,
+        vendor_id: vendorId,
+        amount: amount,
+        payment_date: date,
+        method: method,
+        notes: notes,
+        paid_by: state.userId
+      })
+    });
+    const vendorName = (state.vendors.find(v => v.id === vendorId) || {}).name || "Vendor";
+    document.getElementById("panel-main").hidden = true;
+    document.getElementById("success-sub").textContent = `${fmtMoney(amount)} to ${vendorName} on ${date}.`;
+    document.getElementById("step-success").hidden = false;
+  } catch (e) {
+    alert("Couldn't save payment: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btn-save").addEventListener("click", savePayment);
+
+document.getElementById("btn-success-ok").addEventListener("click", async () => {
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-amount").value = "";
+  document.getElementById("f-notes").value = "";
+  document.getElementById("f-vendor").value = "";
+  document.getElementById("f-date").value = todayStr();
+  document.getElementById("selected-balance").hidden = true;
+  await loadBalances();
+});
+
+loadNames();
+</script>
+
+</body>
+</html>

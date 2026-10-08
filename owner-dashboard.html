@@ -176,6 +176,13 @@
   </div>
 
   <div class="card">
+    <h2>Vendor Payables (All-Time)</h2>
+    <div id="payables-list"><div class="spinner-note">Loading…</div></div>
+    <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="vendor-payment.html">Record a Vendor Payment</a>
+    <div class="hint" style="margin-top:8px;">Not scoped to the Today/Week/Month range above — a payable from last month is still owed today. = Σ credit purchases − Σ payments recorded, per vendor.</div>
+  </div>
+
+  <div class="card">
     <h2>Awaiting Your Authorization</h2>
     <div id="demand-wrap"><div class="spinner-note">Loading…</div></div>
   </div>
@@ -348,7 +355,27 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables()]);
+}
+
+async function loadPayables() {
+  const wrap = document.getElementById("payables-list");
+  let vendors = [], purchases = [], payments = [];
+  try { vendors = await sb(`vendors?active=eq.true&select=id,name&order=name`); } catch (e) {}
+  try { purchases = await sb(`purchases?location_id=eq.${state.locationId}&payment_status=eq.credit&select=vendor_id,amount`); } catch (e) {}
+  try { payments = await sb(`vendor_payments?location_id=eq.${state.locationId}&select=vendor_id,amount`); } catch (e) {}
+
+  const owed = {}, paid = {};
+  purchases.forEach(p => { if (p.vendor_id) owed[p.vendor_id] = (owed[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+  payments.forEach(p => { if (p.vendor_id) paid[p.vendor_id] = (paid[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+
+  state.vendorBalances = vendors.map(v => ({ name: v.name, balance: (owed[v.id] || 0) - (paid[v.id] || 0) })).filter(v => v.balance > 0.01).sort((a, b) => b.balance - a.balance);
+
+  if (!state.vendorBalances.length) { wrap.innerHTML = '<div class="empty-note">No outstanding balance against any vendor.</div>'; return; }
+  const total = state.vendorBalances.reduce((s, v) => s + v.balance, 0);
+  wrap.innerHTML = state.vendorBalances.map(v => `
+    <div class="channel-row"><span>${v.name}</span><span class="amt">${fmtMoney(v.balance)}</span></div>`).join("") +
+    `<div class="drawer-total" style="margin-top:6px;"><span>Total owed</span><span>${fmtMoney(total)}</span></div>`;
 }
 
 async function loadKpis() {
@@ -559,7 +586,7 @@ function openMasterFile() {
     masterFileSection("Purchasing & Payables", [
       { href: "goods-receipt.html", label: "Goods Receipt" },
       { href: "purchase-order.html", label: "Purchase Orders (Demand → Authorize → Order)" },
-      { label: "Vendor payables ledger — table exists, not populated yet" }
+      { href: "vendor-payment.html", label: "Vendor Payables — balances & record a payment" }
     ]) +
     masterFileSection("Daily Entry Screens", [
       { href: "sales-entry.html", label: "Sales Entry" },
