@@ -87,6 +87,8 @@
     <div class="summary-row" id="summary-row"></div>
   </div>
 
+  <div id="lock-banner" class="hint" style="display:none; background:var(--err-bg); color:var(--err); border:1px solid var(--err); border-radius:10px; padding:10px 12px; margin-bottom:14px;"></div>
+
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
       <div class="step-label" style="margin-bottom:0;">Mark Attendance</div>
@@ -108,13 +110,24 @@ const ATTENDANCE_ROLES = ["director", "shift_manager"];
 const ROLE_LABELS = { director: "Director", shift_manager: "Shift Manager" };
 const STATUSES = [
   { value: "Present", label: "Present", cls: "active-present" },
-  { value: "Half Day", label: "Half", cls: "active-half" },
   { value: "Absent", label: "Absent", cls: "active-absent" },
-  { value: "Leave", label: "Leave", cls: "active-leave" },
-  { value: "Off", label: "Off", cls: "active-off" }
+  { value: "Weekly Off", label: "Weekly Off", cls: "active-off" },
+  { value: "Half Day", label: "Half", cls: "active-half" }
 ];
 
-let state = { userId: null, userName: null, employees: [], marks: {} };
+let state = { userId: null, userName: null, userRole: null, employees: [], marks: {} };
+
+function weekRangeFor(dateStr) {
+  // Monday-to-Sunday week containing dateStr, used to enforce one Weekly Off per week.
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0 = Sun .. 6 = Sat
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(dt); monday.setUTCDate(dt.getUTCDate() + mondayOffset);
+  const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
+  const fmt = (x) => x.toISOString().slice(0, 10);
+  return { from: fmt(monday), to: fmt(sunday) };
+}
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -161,7 +174,7 @@ async function loadNames() {
       pill.type = "button";
       pill.className = "name-pill";
       pill.textContent = label;
-      pill.onclick = () => selectUser(u.id, label, pill);
+      pill.onclick = () => selectUser(u.id, label, pill, u.role);
       grid.appendChild(pill);
     });
     if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with attendance access found.</div>';
@@ -170,11 +183,12 @@ async function loadNames() {
   }
 }
 
-function selectUser(id, name, pillEl) {
+function selectUser(id, name, pillEl, role) {
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
   pillEl.classList.add("selected");
   state.userId = id;
   state.userName = name;
+  state.userRole = role;
   setTimeout(() => {
     document.getElementById("step-name").hidden = true;
     document.getElementById("panel-main").hidden = false;
@@ -211,9 +225,23 @@ async function loadMarksForDate() {
   const date = document.getElementById("f-date").value || todayStr();
   state.marks = {};
   try {
-    const rows = await sb(`attendance_entries?location_id=eq.${LOCATION_ID}&attendance_date=eq.${date}&select=id,employee_id,status`);
-    rows.forEach(r => { state.marks[r.employee_id] = { id: r.id, status: r.status }; });
+    const rows = await sb(`attendance_entries?location_id=eq.${LOCATION_ID}&attendance_date=eq.${date}&select=id,employee_id,status,notes`);
+    rows.forEach(r => { state.marks[r.employee_id] = { id: r.id, status: r.status, note: r.notes }; });
   } catch (e) { /* none yet */ }
+
+  const isToday = date === todayStr();
+  state.locked = !isToday && state.userRole !== "director";
+  const banner = document.getElementById("lock-banner");
+  const bulkBtn = document.getElementById("btn-mark-all-present");
+  if (state.locked) {
+    banner.style.display = "block";
+    banner.textContent = `This date has closed — only the Director can make changes here. (${state.userName || "You"} can still edit today, ${todayStr()}.)`;
+    bulkBtn.disabled = true;
+  } else {
+    banner.style.display = "none";
+    bulkBtn.disabled = !isToday;
+  }
+
   renderEmpList();
 }
 
@@ -248,6 +276,7 @@ function renderEmpList() {
       lastDept = dept;
     }
     const mark = state.marks[e.id];
+    const noteVal = (mark && mark.note) ? mark.note.replace(/"/g, "&quot;") : "";
     const row = document.createElement("div");
     row.className = "emp-row";
     row.innerHTML = `
@@ -257,18 +286,39 @@ function renderEmpList() {
       </div>
       <div class="status-btns">
         ${STATUSES.map(s => `<button type="button" class="status-btn" data-status="${s.value}">${s.label}</button>`).join("")}
-      </div>`;
+      </div>
+      <input type="text" class="note-input" placeholder="${mark ? "Note (optional)" : "Mark a status first to add a note"}" value="${noteVal}" ${!mark || state.locked ? "disabled" : ""} style="flex:1 1 100%; margin-top:6px; padding:7px 10px; font-size:0.82rem;">`;
     row.querySelectorAll(".status-btn").forEach(btn => {
       const s = STATUSES.find(x => x.value === btn.dataset.status);
       if (mark && mark.status === s.value) btn.classList.add(s.cls);
+      if (state.locked) btn.disabled = true;
       btn.addEventListener("click", () => markAttendance(e, s.value, row));
     });
+    const noteInput = row.querySelector(".note-input");
+    noteInput.addEventListener("change", () => saveNote(e, noteInput.value, noteInput));
     list.appendChild(row);
   });
 }
 
 async function markAttendance(e, status, rowEl) {
+  if (state.locked) {
+    alert("This date has closed — only the Director can make changes here.");
+    return;
+  }
   const date = document.getElementById("f-date").value || todayStr();
+
+  if (status === "Weekly Off") {
+    const { from, to } = weekRangeFor(date);
+    let conflicts = [];
+    try {
+      conflicts = await sb(`attendance_entries?employee_id=eq.${e.id}&attendance_date=gte.${from}&attendance_date=lte.${to}&attendance_date=neq.${date}&status=eq.${encodeURIComponent("Weekly Off")}&select=attendance_date`);
+    } catch (err) { /* if the check fails, don't block the save over it */ }
+    if (conflicts.length) {
+      const ok = confirm(`${e.name} already has a Weekly Off on ${conflicts[0].attendance_date} this week (${from} to ${to}). Each employee should only get one Weekly Off per week. Mark ${date} as Weekly Off anyway?`);
+      if (!ok) return;
+    }
+  }
+
   const existing = state.marks[e.id];
   const payload = {
     employee_id: e.id, location_id: LOCATION_ID, attendance_date: date,
@@ -292,15 +342,42 @@ async function markAttendance(e, status, rowEl) {
       const s = STATUSES.find(x => x.value === b.dataset.status);
       if (s.value === status) b.classList.add(s.cls);
     });
+    const noteInput = rowEl.querySelector(".note-input");
+    if (noteInput) {
+      noteInput.disabled = false;
+      noteInput.placeholder = "Note (optional)";
+    }
     renderSummary();
   } catch (err) {
-    alert("Couldn't save: " + err.message);
+    alert(err.message.includes("42501") || err.message.includes("row-level security")
+      ? "Couldn't save — this date may have just closed. Only the Director can change it now."
+      : "Couldn't save: " + err.message);
   } finally {
     rowEl.querySelectorAll(".status-btn").forEach(b => b.style.opacity = "1");
   }
 }
 
+async function saveNote(e, note, inputEl) {
+  const mark = state.marks[e.id];
+  if (!mark) return;
+  inputEl.disabled = true;
+  try {
+    await sb(`attendance_entries?id=eq.${mark.id}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ notes: note || null, updated_at: new Date().toISOString() })
+    });
+    state.marks[e.id].note = note;
+  } catch (err) {
+    alert(err.message.includes("42501") || err.message.includes("row-level security")
+      ? "Couldn't save — this date may have just closed. Only the Director can change it now."
+      : "Couldn't save note: " + err.message);
+  } finally {
+    inputEl.disabled = false;
+  }
+}
+
 document.getElementById("btn-mark-all-present").addEventListener("click", async () => {
+  if (state.locked) { alert("This date has closed — only the Director can make changes here."); return; }
   if (!confirm("Mark every employee not yet marked today as Present?")) return;
   const date = document.getElementById("f-date").value || todayStr();
   const toMark = state.employees.filter(e => !state.marks[e.id]);
