@@ -103,10 +103,9 @@
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
-const KM_ROLES = ["director", "shift_manager"];
-const ROLE_LABELS = { director: "Director", shift_manager: "Shift Manager" };
+const PAGE_KEY = "delivery_km";
 
-let state = { userId: null, userName: null, userRole: null, initials: null, riders: [], logs: {}, lastOdometer: {} };
+let state = { userId: null, userName: null, userRole: null, initials: null, managerId: null, riders: [], logs: {}, lastOdometer: {} };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -121,6 +120,23 @@ async function sb(path, opts = {}) {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
   }
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) return res.json();
@@ -145,38 +161,69 @@ function todayStr() {
 function fmtKm(n) { return (Math.round((Number(n) || 0) * 10) / 10).toLocaleString(); }
 
 async function loadNames() {
+  const grid = document.getElementById("name-grid");
+  grid.innerHTML = "";
+
   try {
-    const rows = await sb(`app_users?role=in.(${KM_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
-    const grid = document.getElementById("name-grid");
-    grid.innerHTML = "";
-    rows.forEach(u => {
-      const label = ROLE_LABELS[u.role] || u.name;
+    const directors = await sb(`app_users?role=eq.director&active=eq.true&select=id,name,role&order=name`);
+    directors.forEach(u => {
       const pill = document.createElement("button");
       pill.type = "button";
       pill.className = "name-pill";
-      pill.textContent = label;
-      pill.onclick = () => selectUser(u.id, label, pill, u.role);
+      pill.textContent = u.name;
+      pill.onclick = () => selectDirector(u.id, u.name, pill, u.role);
       grid.appendChild(pill);
     });
-    if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with KM-log access found.</div>';
-  } catch (e) {
-    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
-  }
+  } catch (e) { /* fall through — still try managers */ }
+
+  try {
+    const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
+    managers.forEach(m => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = m.name;
+      pill.onclick = () => selectManager(m.id, m.name, pill);
+      grid.appendChild(pill);
+    });
+  } catch (e) { /* fall through */ }
+
+  if (!grid.children.length) grid.innerHTML = '<div class="hint">No one with KM-log access found.</div>';
 }
 
-function selectUser(id, name, pillEl, role) {
+// Directors keep the existing no-PIN role-pill pattern: pick your name, type your initials.
+function selectDirector(id, name, pillEl, role) {
   let initials = "";
   while (!initials) {
     initials = prompt(`Enter your initials, ${name} — this is recorded on every row you log or change.`);
     if (initials === null) return;
     initials = initials.trim().toUpperCase();
   }
+  finishLogin(id, name, role, initials, null, pillEl);
+}
+
+// Named managers (Ahsan, Hamza, Aqib, Anjum, ...) authenticate with their own PIN instead of typed initials.
+function selectManager(managerId, name, pillEl) {
+  const pin = prompt(`Enter your PIN, ${name}`);
+  if (pin === null) return;
+  sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin })
+    .then(rows => {
+      const row = rows && rows[0];
+      if (!row) { alert("Incorrect PIN."); return; }
+      const initials = name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
+      finishLogin(row.app_user_id, name, row.role, initials, managerId, pillEl);
+    })
+    .catch(err => alert(err.message || "Incorrect PIN."));
+}
+
+function finishLogin(id, name, role, initials, managerId, pillEl) {
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
-  pillEl.classList.add("selected");
+  if (pillEl) pillEl.classList.add("selected");
   state.userId = id;
   state.userName = name;
   state.userRole = role;
   state.initials = initials;
+  state.managerId = managerId;
   setTimeout(() => {
     document.getElementById("step-name").hidden = true;
     document.getElementById("panel-main").hidden = false;
@@ -353,7 +400,8 @@ async function saveKmEntry(detail, r, log) {
       employee_id: r.id, location_id: LOCATION_ID, log_date: date,
       odometer_start: start, odometer_end: end, orders_delivered: orders,
       start_photo_path: startPath, end_photo_path: endPath,
-      entered_by_user_id: state.userId, entered_by_initials: state.initials
+      entered_by_user_id: state.userId, entered_by_initials: state.initials,
+      entered_by_manager_id: state.managerId
     };
 
     let saved;
