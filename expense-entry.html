@@ -170,10 +170,21 @@
 
 <div id="step-form" hidden>
   <div class="card">
-    <div class="field">
-      <label>Date</label>
-      <input type="date" id="f-date">
+    <div class="row2 field">
+      <div>
+        <label>Date</label>
+        <input type="date" id="f-date">
+      </div>
+      <div>
+        <label>Shift</label>
+        <select id="f-shift">
+          <option value="">— N/A —</option>
+          <option value="morning">Morning (9am–6pm)</option>
+          <option value="evening">Evening (6pm–3am)</option>
+        </select>
+      </div>
     </div>
+    <div class="hint" style="margin:-8px 0 14px;">Pick the shift this was spent during — it's what the till cash-recon check compares against.</div>
     <div class="field">
       <label>Category</label>
       <select id="f-category"></select>
@@ -300,6 +311,13 @@ function todayStr() {
   return d.toISOString().slice(0, 10);
 }
 
+function defaultShift() {
+  const hr = new Date().getHours();
+  // Morning 9am-6pm, Evening 6pm-3am
+  if (hr >= 9 && hr < 18) return "morning";
+  return "evening";
+}
+
 async function loadNames() {
   try {
     const rows = await sb(`app_users?location_id=eq.${LOCATION_ID}&role=in.(${EXPENSE_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
@@ -331,6 +349,7 @@ function selectUser(id, name, pillEl) {
     document.getElementById("step-name").hidden = true;
     document.getElementById("step-form").hidden = false;
     document.getElementById("f-date").value = todayStr();
+    document.getElementById("f-shift").value = defaultShift();
     loadTodayList();
   }, 150);
 }
@@ -339,16 +358,17 @@ async function loadTodayList() {
   const list = document.getElementById("today-list");
   const emptyHint = document.getElementById("today-empty");
   try {
-    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${todayStr()}&select=id,head,sub_head,amount,created_at,detail&order=created_at.desc`);
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${todayStr()}&select=id,head,sub_head,amount,created_at,detail,shift&order=created_at.desc`);
     list.innerHTML = "";
     if (!rows.length) { emptyHint.hidden = false; return; }
     emptyHint.hidden = true;
     rows.forEach(r => {
       const row = document.createElement("div");
       row.className = "po-card";
+      const shiftTag = r.shift ? ` · ${r.shift === "morning" ? "Morning" : "Evening"}` : "";
       row.innerHTML = `
         <div class="po-title">${r.head || "Expense"}${r.sub_head ? " — " + r.sub_head : ""}</div>
-        <div class="po-sub">PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${r.detail ? " · " + r.detail : ""}</div>`;
+        <div class="po-sub">PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${r.detail ? " · " + r.detail : ""}</div>`;
       list.appendChild(row);
     });
   } catch (e) { emptyHint.hidden = false; }
@@ -566,6 +586,7 @@ async function saveExpense({ status, reason }) {
   const payload = {
     location_id: LOCATION_ID,
     expense_date: date,
+    shift: document.getElementById("f-shift").value || null,
     category: cat,
     amount: amount,
     vendor_id: vendorId,
@@ -615,6 +636,7 @@ function showSuccess() {
 
 function resetForm() {
   document.getElementById("f-date").value = todayStr();
+  document.getElementById("f-shift").value = defaultShift();
   document.getElementById("f-category").selectedIndex = 0;
   document.getElementById("f-qty").value = "";
   document.getElementById("f-rate").value = "";
@@ -644,7 +666,7 @@ document.getElementById("btn-back").addEventListener("click", () => {
 document.getElementById("btn-another").addEventListener("click", resetForm);
 
 // Any field edit after a flag invalidates the previous check result.
-["f-category","f-qty","f-rate","f-amount","f-vendor","f-date","f-employee"].forEach(id => {
+["f-category","f-qty","f-rate","f-amount","f-vendor","f-date","f-shift","f-employee"].forEach(id => {
   document.getElementById(id).addEventListener("input", () => {
     if (state.pendingFlags.length) resetAiBanner();
   });
