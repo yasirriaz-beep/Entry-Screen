@@ -69,6 +69,8 @@
 <h1>Issue to Kitchen / Floor</h1>
 <div class="sub">Forks N Knives — Gulberg store room movement</div>
 
+<div id="task-banner-wrap"></div>
+
 <div id="step-name" class="card">
   <div class="step-label">Who's issuing this?</div>
   <div id="name-grid" class="name-grid"></div>
@@ -414,8 +416,20 @@ document.getElementById("btn-back").addEventListener("click", () => {
 });
 document.getElementById("btn-another").addEventListener("click", resetForm);
 
+// Store Man's own pending-tasks banner — same checklist the Owner Dashboard surfaces,
+// scoped to this location, since there's no per-person login here.
+async function loadTaskBanner(){
+  const wrap = document.getElementById("task-banner-wrap");
+  try {
+    const rows = await sb(`audit_alerts?location_id=eq.${LOCATION_ID}&status=eq.open&alert_type=eq.task_issuance_missing&select=title&order=title.asc`);
+    if (!rows.length) { wrap.innerHTML = ""; return; }
+    wrap.innerHTML = `<div class="banner banner-err"><strong>Pending for Store Man:</strong> ${rows.map(r => r.title.replace("No issuance logged - ", "")).join(", ")} — nothing logged on this screen for that date.</div>`;
+  } catch (e) { wrap.innerHTML = ""; }
+}
+
 loadNames();
 loadProducts();
+loadTaskBanner();
 </script>
 
 </body>

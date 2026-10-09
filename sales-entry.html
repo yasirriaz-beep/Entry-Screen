@@ -76,6 +76,7 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
 <p class="muted" style="margin:4px 0 18px">One entry per shift &mdash; sales by channel, then the till cash reconciliation.</p>
 
 <div id="banner" class="banner"></div>
+<div id="taskBanner" class="banner"></div>
 
 <div class="card" id="todayCard" hidden>
   <h3 style="margin:0 0 10px">Today's Entry So Far</h3>
@@ -287,6 +288,24 @@ function resetForm(){
   recalcSummary();
 }
 
+// Shift Manager's own pending-tasks banner — reflects the same checklist the Owner
+// Dashboard surfaces, scoped to this location, since there's no per-person login here.
+async function loadTaskBanner(){
+  const el = document.getElementById("taskBanner");
+  if (!locationId) { el.className = "banner"; return; }
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/audit_alerts?location_id=eq.${locationId}&status=eq.open&alert_type=eq.task_shift_close_missing&select=title&order=title.asc`,
+      { headers }
+    );
+    if (!res.ok) throw new Error(String(res.status));
+    const rows = await res.json();
+    if (!rows.length) { el.className = "banner"; return; }
+    el.innerHTML = "<strong>Pending for Shift Manager:</strong> " + rows.map(r => r.title.replace("Shift not closed - ", "")).join(", ");
+    el.className = "banner show danger";
+  } catch (e) { el.className = "banner"; }
+}
+
 async function init(){
   const dateInput = document.getElementById("dateInput");
   dateInput.value = new Date().toISOString().slice(0,10);
@@ -318,6 +337,7 @@ async function init(){
     }
     document.getElementById("continueBtn").disabled = false;
     loadShiftEntry();
+    loadTaskBanner();
   } catch (err) {
     showBanner("Could not load the name list (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations'/'app_users' allows anon SELECT if this persists.", "danger");
     document.getElementById("continueBtn").disabled = false;

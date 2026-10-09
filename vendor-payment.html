@@ -65,6 +65,8 @@
 <h1>Gulberg Vendor Payments</h1>
 <div class="sub">Record what's actually been paid out against vendor payables</div>
 
+<div id="task-banner-wrap"></div>
+
 <div id="step-name" class="card">
   <div class="step-label">Who are you?</div>
   <div id="name-grid" class="name-grid"></div>
@@ -314,7 +316,23 @@ document.getElementById("btn-success-ok").addEventListener("click", async () => 
   await loadBalances();
 });
 
+// Cash Custodian's own pending-tasks banner — same checklist the Owner Dashboard
+// surfaces, scoped to this location, since there's no per-person login here.
+async function loadTaskBanner(){
+  const wrap = document.getElementById("task-banner-wrap");
+  try {
+    const rows = await sb(`audit_alerts?location_id=eq.${LOCATION_ID}&status=eq.open&alert_type=eq.task_custodian_recon_open&select=title,body&order=title.asc`);
+    if (!rows.length) { wrap.innerHTML = ""; return; }
+    wrap.innerHTML = `<div class="card" style="background:var(--err-bg); border-color:var(--err); color:var(--err); font-size:0.88rem; line-height:1.4;">
+      <strong>Pending for Cash Custodian:</strong><br>
+      ${rows.map(r => r.title.replace("Till discrepancy unresolved - ", "")).join("<br>")}
+      — recount the till or explain the gap with Director.
+    </div>`;
+  } catch (e) { wrap.innerHTML = ""; }
+}
+
 loadNames();
+loadTaskBanner();
 </script>
 
 </body>

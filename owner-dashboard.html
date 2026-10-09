@@ -176,6 +176,12 @@
   </div>
 
   <div class="card">
+    <h2>Daily Checklist &mdash; Today</h2>
+    <div id="checklist-list"><div class="spinner-note">Loading…</div></div>
+    <div class="hint" style="margin-top:8px;">Shift Manager closes each shift's till on Sales Entry; Store Man logs Issue to Kitchen/Floor; Cash Custodian clears any till discrepancy. Not scoped to the range above — this is always today, in Gulberg's own clock. Anything still open past its deadline lands in Open Audit Alerts below too.</div>
+  </div>
+
+  <div class="card">
     <h2>Shift Cash Reconciliation</h2>
     <div id="cash-recon-list"><div class="spinner-note">Loading…</div></div>
     <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="sales-entry.html">Open Sales Entry</a>
@@ -383,7 +389,53 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyChecklist()]);
+}
+
+function pktTodayStr() {
+  // Gulberg's own calendar day, regardless of the viewer's own timezone.
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" });
+}
+
+async function loadDailyChecklist() {
+  const wrap = document.getElementById("checklist-list");
+  const today = pktTodayStr();
+
+  let sales = [], issues = [], alerts = [];
+  try {
+    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=eq.${today}&select=shift,closing_cash_till`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+  try {
+    issues = await sb(`daily_issues?location_id=eq.${state.locationId}&issue_date=eq.${today}&select=id&limit=1`);
+  } catch (e) { issues = []; }
+  try {
+    alerts = await sb(`audit_alerts?location_id=eq.${state.locationId}&status=eq.open&alert_type=in.(task_shift_close_missing,task_issuance_missing,task_custodian_recon_open,cash_recon_discrepancy)&select=alert_type,title`);
+  } catch (e) { alerts = []; }
+
+  const overdue = (type, titleFrag) => alerts.some(a => a.alert_type === type && a.title.includes(titleFrag));
+  const morningRow = sales.find(s => s.shift === "morning");
+  const eveningRow = sales.find(s => s.shift === "evening");
+  const morningClosed = !!(morningRow && morningRow.closing_cash_till != null);
+  const eveningClosed = !!(eveningRow && eveningRow.closing_cash_till != null);
+  const issuanceLogged = issues.length > 0;
+  const hasOpenDiscrepancy = alerts.some(a => a.alert_type === "cash_recon_discrepancy" && a.title.includes(today));
+
+  function row(label, owner, done, overdueFlag, dueHint) {
+    let badge, note;
+    if (done) { badge = '<span class="pill-badge pill-ok">Done</span>'; note = ""; }
+    else if (overdueFlag) { badge = '<span class="pill-badge pill-err">Overdue</span>'; note = dueHint; }
+    else { badge = '<span class="pill-badge pill-warn">Pending</span>'; note = dueHint; }
+    return `<div class="alert-row">
+      <div><div class="alert-title">${label}</div><div class="alert-sub">${owner}${note ? " · " + note : ""}</div></div>
+      ${badge}
+    </div>`;
+  }
+
+  wrap.innerHTML =
+    row("Morning shift closed", "Shift Manager", morningClosed, overdue("task_shift_close_missing", "morning"), "Due 6:30pm") +
+    row("Evening shift closed", "Shift Manager", eveningClosed, overdue("task_shift_close_missing", "evening"), "Due 3:30am next day") +
+    row("Issuance logged", "Store Man", issuanceLogged, overdue("task_issuance_missing", today), "Due end of day") +
+    row("Till reconciled (no open discrepancy)", "Cash Custodian", !hasOpenDiscrepancy, overdue("task_custodian_recon_open", today), "Flagged 2hrs after shift close");
 }
 
 async function loadCashReconHistory() {
