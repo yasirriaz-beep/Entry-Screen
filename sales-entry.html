@@ -483,6 +483,10 @@ async function loadMorningReconCard(saleDate, shift){
 }
 
 document.getElementById("continueBtn").addEventListener("click", () => {
+  if (!document.getElementById("whoSelect").value){
+    showBanner("Please select your name under \"Entered by\" before continuing.", "danger");
+    return;
+  }
   document.getElementById("whoCard").hidden = true;
   document.getElementById("salesForm").hidden = false;
   hideBanner();
@@ -500,11 +504,19 @@ document.getElementById("custodianDirection").addEventListener("change", recalcC
 
 document.getElementById("salesForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+
+  const whoId = document.getElementById("whoSelect").value || null;
+  if (!whoId){
+    showBanner("Your name got cleared after the last save — select it again under \"Entered by\" before saving.", "danger");
+    document.getElementById("salesForm").hidden = true;
+    document.getElementById("whoCard").hidden = false;
+    return;
+  }
+
   const btn = document.getElementById("submitBtn");
   btn.disabled = true;
   btn.textContent = "Saving…";
 
-  const whoId = document.getElementById("whoSelect").value || null;
   const saleDate = document.getElementById("dateInput").value;
   const shift = document.getElementById("shiftSelect").value;
   const dow = new Date(saleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
@@ -545,11 +557,13 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
       const errText = await res.text();
       throw new Error(res.status + ": " + errText.slice(0, 200));
     }
-    showBanner("Saved — " + SHIFT_LABELS[shift] + " shift, " + saleDate + ". The form is clear for the next entry.", "success");
+    showBanner("Saved — " + SHIFT_LABELS[shift] + " shift, " + saleDate + ". You can keep adding to this same entry (e.g. closing cash later), or pick a different name to switch.", "success");
     resetForm();
     document.getElementById("salesForm").hidden = true;
     document.getElementById("whoCard").hidden = false;
-    document.getElementById("whoSelect").value = "";
+    // Deliberately NOT clearing whoSelect — clearing it here is what caused saves to
+    // silently fail with an RLS error when someone came back to add closing cash
+    // without noticing they'd need to reselect their name first.
     loadShiftEntry();
   } catch (err) {
     showBanner("Could not save: " + err.message, "danger");

@@ -76,6 +76,7 @@
   .exp-row .exp-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .exp-row .exp-sub { font-size: 0.74rem; color: var(--ink-soft); }
   .exp-row .exp-amt { font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
+  .btn-delete-row { background: transparent; border: none; color: var(--err); font-size: 0.95rem; padding: 2px 4px 2px 10px; cursor: pointer; flex-shrink: 0; }
   .demand-row { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--field-bg); display: flex; align-items: center; gap: 10px; }
   .demand-row input[type="checkbox"] { width: auto; flex-shrink: 0; height: 18px; accent-color: var(--accent); }
   .demand-row .demand-main { flex: 1; min-width: 0; }
@@ -432,7 +433,7 @@ async function loadDailyChecklist() {
   }
 
   wrap.innerHTML =
-    row("Morning shift closed", "Shift Manager", morningClosed, overdue("task_shift_close_missing", today + " morning"), "Due 6:30pm") +
+    row("Morning shift closed", "Shift Manager", morningClosed, overdue("task_shift_close_missing", today + " morning"), "Due 7:30pm") +
     row("Evening shift closed", "Shift Manager", eveningClosed, overdue("task_shift_close_missing", today + " evening"), "Due 3:30am next day") +
     row("Issuance logged", "Store Man", issuanceLogged, overdue("task_issuance_missing", today), "Due end of day") +
     row("Till reconciled (no open discrepancy)", "Cash Custodian", !hasOpenDiscrepancy, overdue("task_custodian_recon_open", today), "Flagged 2hrs after shift close");
@@ -618,7 +619,7 @@ async function loadKpis() {
 
   let sales = [], expenses = [], purchases = [], issues = [];
   try {
-    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount&order=sale_date.desc`);
+    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=id,shift,sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount&order=sale_date.desc`);
   } catch (e) {}
   try {
     expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date&order=expense_date.desc`);
@@ -688,9 +689,42 @@ function renderRelatedLinks(key) {
     ${links.map(l => `<a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:6px;" href="${l.href}">${l.label}</a>`).join("")}`;
 }
 
-function drawerRow(main, sub, amt) {
-  return `<div class="exp-row"><div><div class="exp-main">${main}</div><div class="exp-sub">${sub || ""}</div></div><div class="exp-amt">${amt}</div></div>`;
+function drawerRow(main, sub, amt, delSpec) {
+  const delBtn = delSpec
+    ? `<button type="button" class="btn-delete-row" data-table="${delSpec.table}" data-id="${delSpec.id}" title="Delete (Director PIN required)">🗑</button>`
+    : "";
+  return `<div class="exp-row"><div><div class="exp-main">${main}</div><div class="exp-sub">${sub || ""}</div></div><div class="exp-amt">${amt}</div>${delBtn}</div>`;
 }
+
+// Director-only delete, gated on a PIN checked server-side (app_secrets is unreadable
+// over the API — only the delete_record() function can verify it). Works from any
+// drawer row that was given a delSpec. Snapshots the row to deleted_records_log before
+// removing it, so a mistaken delete can still be traced.
+document.getElementById("drawer-body").addEventListener("click", async (e) => {
+  const btn = e.target.closest(".btn-delete-row");
+  if (!btn) return;
+  const table = btn.dataset.table;
+  const id = btn.dataset.id;
+  const row = btn.closest(".exp-row");
+  const label = row ? row.querySelector(".exp-main")?.textContent : "this record";
+  const pin = prompt(`Enter Director PIN to permanently delete:\n${label}`);
+  if (pin === null || pin === "") return;
+  btn.disabled = true;
+  try {
+    const res = await sb(`rpc/delete_record`, {
+      method: "POST",
+      body: JSON.stringify({ p_table: table, p_id: id, p_pin: pin })
+    });
+    if (row) row.remove();
+    await refreshAll();
+  } catch (err) {
+    let msg = err.message || String(err);
+    const m = msg.match(/"message":"([^"]+)"/);
+    if (m) msg = m[1];
+    alert("Couldn't delete: " + msg);
+    btn.disabled = false;
+  }
+});
 
 function openDrawer(title, sub, bodyHtml) {
   document.getElementById("drawer-title").textContent = title;
@@ -714,21 +748,21 @@ function showDetail(key) {
   if (key === "sales") {
     const rows = state.salesRows;
     const body = rows.length
-      ? rows.map(r => drawerRow(r.sale_date, `Dine-in ${fmtMoney(r.dine_in_amount)} · Takeaway ${fmtMoney(r.takeaway_amount)} · Delivery ${fmtMoney(r.delivery_amount)} · 3rd-party ${fmtMoney(r.third_party_amount)}${Number(r.bakery_sale) ? " · Bakery " + fmtMoney(r.bakery_sale) : ""}${Number(r.card_amount) ? " · Card " + fmtMoney(r.card_amount) : ""}`, fmtMoney(r.total_sale))).join("")
+      ? rows.map(r => drawerRow(`${r.sale_date}${r.shift ? " (" + r.shift + ")" : ""}`, `Dine-in ${fmtMoney(r.dine_in_amount)} · Takeaway ${fmtMoney(r.takeaway_amount)} · Delivery ${fmtMoney(r.delivery_amount)} · 3rd-party ${fmtMoney(r.third_party_amount)}${Number(r.bakery_sale) ? " · Bakery " + fmtMoney(r.bakery_sale) : ""}${Number(r.card_amount) ? " · Card " + fmtMoney(r.card_amount) : ""}`, fmtMoney(r.total_sale), r.id ? { table: "daily_sales", id: r.id } : null)).join("")
       : '<div class="empty-note">No sales recorded for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
     openDrawer("Sales", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("sales"));
   } else if (key === "expenses") {
     const rows = [...state.expenseRows].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
     const body = rows.length
-      ? rows.map(e => drawerRow(`${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, `${e.expense_date}${e.detail ? " · " + e.detail : ""}`, fmtMoney(e.amount))).join("")
+      ? rows.map(e => drawerRow(`${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, `${e.expense_date}${e.detail ? " · " + e.detail : ""}`, fmtMoney(e.amount), { table: "expenses", id: e.id })).join("")
       : '<div class="empty-note">No expenses recorded for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     openDrawer("Expenses", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("expenses"));
   } else if (key === "cogs") {
     const rows = state.issueRows;
     const body = rows.length
-      ? rows.map(i => drawerRow(i.products?.name || "Item", `${i.issue_date} · ${i.issued_to || "kitchen/floor"} · ${i.qty} ${i.products?.unit || ""} @ ${fmtMoney(i.rate)}`, fmtMoney(i.amount))).join("")
+      ? rows.map(i => drawerRow(i.products?.name || "Item", `${i.issue_date} · ${i.issued_to || "kitchen/floor"} · ${i.qty} ${i.products?.unit || ""} @ ${fmtMoney(i.rate)}`, fmtMoney(i.amount), { table: "daily_issues", id: i.id })).join("")
       : '<div class="empty-note">Nothing issued to kitchen/floor for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     openDrawer("Issued to Kitchen/Floor (COGS)", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cogs"));
@@ -765,7 +799,7 @@ function showDetail(key) {
   } else if (key === "payables") {
     const rows = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() === "credit");
     const body = rows.length
-      ? rows.map(p => drawerRow(p.products?.name || "Item", `${p.purchase_date} · ${p.vendors?.name || "no vendor"} · ${p.qty} ${p.unit || ""}`, fmtMoney(p.amount))).join("")
+      ? rows.map(p => drawerRow(p.products?.name || "Item", `${p.purchase_date} · ${p.vendors?.name || "no vendor"} · ${p.qty} ${p.unit || ""}`, fmtMoney(p.amount), { table: "purchases", id: p.id })).join("")
       : '<div class="empty-note">No purchases on credit for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     openDrawer("Payables Added", sub, body + (rows.length ? `<div class="drawer-total"><span>Total owed to vendors</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("payables"));
