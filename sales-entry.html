@@ -155,7 +155,7 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
         <label for="cardAmount">Card portion already included above (PKR)</label>
         <input type="number" id="cardAmount" min="0" inputmode="decimal" placeholder="0">
       </div>
-      <p class="muted" style="margin:6px 0 0">Doesn't change the total — just flags how much of it isn't cash in the till (settles to the bank later, like Food Panda).</p>
+      <p class="muted" style="margin:6px 0 0">Doesn't change the total — just flags how much of it isn't cash in the till (settles to the bank later, like Food Panda). Third Party (Careem/other) is cash in hand and is included in the till recon below.</p>
     </div>
   </div>
 
@@ -256,10 +256,10 @@ function recalcSummary(){
 }
 
 // Cash actually received in the till: the channels that land in hand, minus the card
-// portion of them. Food Panda and Third Party never touch the till — they settle
-// externally — so they're excluded entirely, not just netted out.
+// portion of them. Third Party (Careem/other) is cash in hand, confirmed 2026-10-09 —
+// included here. Food Panda still settles externally, so it's excluded entirely.
 function cashSalesTotal(){
-  return n("diAmount") + n("taAmount") + n("dlAmount") + n("bakeryAmount") - n("cardAmount");
+  return n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("bakeryAmount") - n("cardAmount");
 }
 
 function recalcCashRecon(){
@@ -435,7 +435,7 @@ async function loadMorningReconCard(saleDate, shift){
     const m = rows[0];
     const total = m.total_sale != null ? m.total_sale :
       (m.dine_in_amount + m.takeaway_amount + m.delivery_amount + m.third_party_amount + (m.food_panda_amount || 0) + m.bakery_sale);
-    const cashSales = (m.dine_in_amount || 0) + (m.takeaway_amount || 0) + (m.delivery_amount || 0) + (m.bakery_sale || 0) - (m.card_amount || 0);
+    const cashSales = (m.dine_in_amount || 0) + (m.takeaway_amount || 0) + (m.delivery_amount || 0) + (m.third_party_amount || 0) + (m.bakery_sale || 0) - (m.card_amount || 0);
     const custodian = Number(m.custodian_cash_amount) || 0;
     const opening = Number(m.opening_cash_till) || 0;
     const closing = m.closing_cash_till != null ? Number(m.closing_cash_till) : null;

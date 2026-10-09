@@ -163,16 +163,16 @@
       <div class="kpi kpi-clickable" data-detail="payables"><div class="kpi-label">Payables Added</div><div class="kpi-value" id="cash-credit">—</div></div>
       <div class="kpi kpi-clickable" id="cash-net-card" data-detail="cash-net"><div class="kpi-label">Net Cash Movement</div><div class="kpi-value" id="cash-net">—</div></div>
     </div>
-    <div class="hint" style="margin-top:10px;">Cash Collected = dine-in + takeaway + own-delivery + bakery, minus any card-paid portion. Food Panda and card payments settle later (see Receivables) — they're not cash in Zeeshan's hand today. Cash Paid Out = expenses + any purchase actually paid in cash (rare — most purchases go to Payables instead, see below).</div>
+    <div class="hint" style="margin-top:10px;">Cash Collected = dine-in + takeaway + own-delivery + Third Party (Careem/other) + bakery, minus any card-paid portion. Food Panda and card payments settle later (see Receivables) — they're not cash in Zeeshan's hand today. Cash Paid Out = expenses + any purchase actually paid in cash (rare — most purchases go to Payables instead, see below).</div>
   </div>
 
   <div class="card">
     <h2>Receivables</h2>
     <div class="kpi-grid" style="grid-template-columns: repeat(2, 1fr) !important;">
-      <div class="kpi kpi-clickable" data-detail="receivable-fp"><div class="kpi-label">Food Panda / 3rd-Party</div><div class="kpi-value" id="rec-fp">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="receivable-fp"><div class="kpi-label">Food Panda</div><div class="kpi-value" id="rec-fp">—</div></div>
       <div class="kpi kpi-clickable" data-detail="receivable-card"><div class="kpi-label">Card Payments</div><div class="kpi-value" id="rec-card">—</div></div>
     </div>
-    <div class="hint" style="margin-top:10px;">Money the business has earned but hasn't physically received yet — settles to the bank later rather than into Zeeshan's cash box.</div>
+    <div class="hint" style="margin-top:10px;">Money the business has earned but hasn't physically received yet — settles to the bank later rather than into Zeeshan's cash box. Third Party (Careem/other) is cash in hand, so it's in Cash Position above, not here.</div>
   </div>
 
   <div class="card">
@@ -566,7 +566,7 @@ async function loadKpis() {
 
   let sales = [], expenses = [], purchases = [], issues = [];
   try {
-    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale,card_amount&order=sale_date.desc`);
+    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount&order=sale_date.desc`);
   } catch (e) {}
   try {
     expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date&order=expense_date.desc`);
@@ -598,11 +598,12 @@ async function loadKpis() {
   netCard.classList.add(net >= 0 ? "net-pos" : "net-neg");
 
   // Cash position: see the card's hint for the assumptions.
-  // Cash collected = dine-in + takeaway + own-delivery + bakery, minus the card-paid slice (a receivable).
-  // Food Panda / third-party is excluded entirely — it settles later, it's never cash in hand.
-  const cashSalesBase = sales.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.bakery_sale) || 0), 0);
+  // Cash collected = dine-in + takeaway + own-delivery + third-party (Careem/other) + bakery,
+  // minus the card-paid slice (a receivable). Third Party confirmed cash-in-hand 2026-10-09.
+  // Food Panda is excluded entirely — it settles later, it's never cash in hand.
+  const cashSalesBase = sales.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.third_party_amount) || 0) + (Number(r.bakery_sale) || 0), 0);
   const cardReceivable = sales.reduce((s, r) => s + (Number(r.card_amount) || 0), 0);
-  const foodPandaReceivable = sales.reduce((s, r) => s + (Number(r.third_party_amount) || 0), 0);
+  const foodPandaReceivable = sales.reduce((s, r) => s + (Number(r.food_panda_amount) || 0), 0);
   const cashCollected = cashSalesBase - cardReceivable;
 
   // Purchases default to Payables (vendor credit) — only a purchase explicitly NOT marked "credit"
@@ -693,12 +694,12 @@ function showDetail(key) {
     const rows = state.salesRows;
     const body = rows.length
       ? rows.map(r => {
-          const base = (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.bakery_sale) || 0);
+          const base = (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.third_party_amount) || 0) + (Number(r.bakery_sale) || 0);
           const cardCut = Number(r.card_amount) || 0;
-          return drawerRow(r.sale_date, `Dine-in + Takeaway + Delivery + Bakery${cardCut ? ", minus card " + fmtMoney(cardCut) : ""} (Food Panda excluded)`, fmtMoney(base - cardCut));
+          return drawerRow(r.sale_date, `Dine-in + Takeaway + Delivery + Third Party + Bakery${cardCut ? ", minus card " + fmtMoney(cardCut) : ""} (Food Panda excluded)`, fmtMoney(base - cardCut));
         }).join("")
       : '<div class="empty-note">No sales recorded for this range.</div>';
-    const total = rows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.bakery_sale) || 0) - (Number(r.card_amount) || 0), 0);
+    const total = rows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.third_party_amount) || 0) + (Number(r.bakery_sale) || 0) - (Number(r.card_amount) || 0), 0);
     openDrawer("Cash Collected", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cash-in"));
   } else if (key === "cash-out") {
     const expRows = state.expenseRows.map(e => ({ main: `${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, sub: e.expense_date, amt: Number(e.amount) || 0 }));
@@ -717,22 +718,22 @@ function showDetail(key) {
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     openDrawer("Payables Added", sub, body + (rows.length ? `<div class="drawer-total"><span>Total owed to vendors</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("payables"));
   } else if (key === "cash-net") {
-    const cashCollected = state.salesRows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.bakery_sale) || 0) - (Number(r.card_amount) || 0), 0);
+    const cashCollected = state.salesRows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.third_party_amount) || 0) + (Number(r.bakery_sale) || 0) - (Number(r.card_amount) || 0), 0);
     const totalExpenses = state.expenseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const cashPaidPurchases = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const cashPaidOut = totalExpenses + cashPaidPurchases;
     const netCash = cashCollected - cashPaidOut;
-    const body = drawerRow("Cash Collected", "Dine-in + Takeaway + Delivery + Bakery, minus card", fmtMoney(cashCollected)) +
+    const body = drawerRow("Cash Collected", "Dine-in + Takeaway + Delivery + Third Party + Bakery, minus card", fmtMoney(cashCollected)) +
                  drawerRow("Cash Paid Out", "Expenses + cash-paid purchases", "−" + fmtMoney(cashPaidOut)) +
                  `<div class="drawer-total"><span>Net Cash Movement</span><span>${fmtMoney(netCash)}</span></div>`;
     openDrawer("Net Cash Movement", sub, body + renderRelatedLinks("cash-net"));
   } else if (key === "receivable-fp") {
-    const rows = state.salesRows.filter(r => Number(r.third_party_amount) > 0);
+    const rows = state.salesRows.filter(r => Number(r.food_panda_amount) > 0);
     const body = rows.length
-      ? rows.map(r => drawerRow(r.sale_date, "Food Panda / third-party — settles later", fmtMoney(r.third_party_amount))).join("")
-      : '<div class="empty-note">No third-party sales for this range.</div>';
-    const total = rows.reduce((s, r) => s + (Number(r.third_party_amount) || 0), 0);
-    openDrawer("Food Panda / 3rd-Party Receivable", sub, body + (rows.length ? `<div class="drawer-total"><span>Total owed to you</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("receivable-fp"));
+      ? rows.map(r => drawerRow(r.sale_date, "Food Panda — settles later", fmtMoney(r.food_panda_amount))).join("")
+      : '<div class="empty-note">No Food Panda sales for this range.</div>';
+    const total = rows.reduce((s, r) => s + (Number(r.food_panda_amount) || 0), 0);
+    openDrawer("Food Panda Receivable", sub, body + (rows.length ? `<div class="drawer-total"><span>Total owed to you</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("receivable-fp"));
   } else if (key === "receivable-card") {
     const rows = state.salesRows.filter(r => Number(r.card_amount) > 0);
     const body = rows.length
@@ -797,9 +798,9 @@ document.getElementById("btn-master-file").addEventListener("click", openMasterF
 function renderChannels(sales) {
   const wrap = document.getElementById("channel-list");
   if (!sales.length) { wrap.innerHTML = '<div class="empty-note">No sales recorded for this range yet.</div>'; return; }
-  const totals = { dine_in_amount: 0, takeaway_amount: 0, delivery_amount: 0, third_party_amount: 0, bakery_sale: 0 };
+  const totals = { dine_in_amount: 0, takeaway_amount: 0, delivery_amount: 0, third_party_amount: 0, food_panda_amount: 0, bakery_sale: 0 };
   sales.forEach(r => { Object.keys(totals).forEach(k => { totals[k] += Number(r[k]) || 0; }); });
-  const labels = { dine_in_amount: "Dine-in", takeaway_amount: "Takeaway", delivery_amount: "Delivery", third_party_amount: "Third-party (Food Panda etc.)", bakery_sale: "Bakery" };
+  const labels = { dine_in_amount: "Dine-in", takeaway_amount: "Takeaway", delivery_amount: "Delivery", third_party_amount: "Third Party (Careem/other)", food_panda_amount: "Food Panda", bakery_sale: "Bakery" };
   wrap.innerHTML = Object.keys(labels).map(k =>
     `<div class="channel-row"><span>${labels[k]}</span><span class="amt">${fmtMoney(totals[k])}</span></div>`
   ).join("");
