@@ -72,8 +72,8 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
 <body>
 
 <div class="eyebrow">Forks N Knives &middot; Gulberg</div>
-<h1>Daily Sales Entry</h1>
-<p class="muted" style="margin:4px 0 18px">Enter the day's sales by channel.</p>
+<h1>Shift Sales &amp; Cash Entry</h1>
+<p class="muted" style="margin:4px 0 18px">One entry per shift &mdash; sales by channel, then the till cash reconciliation.</p>
 
 <div id="banner" class="banner"></div>
 
@@ -92,6 +92,13 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
       <label for="dateInput">Date</label>
       <input type="date" id="dateInput">
     </div>
+  </div>
+  <div class="field" style="margin-top:12px">
+    <label for="shiftSelect">Shift</label>
+    <select id="shiftSelect">
+      <option value="morning">Morning (9:00 AM &ndash; 6:00 PM)</option>
+      <option value="evening">Evening (6:00 PM &ndash; 3:00 AM)</option>
+    </select>
   </div>
   <button class="primary" id="continueBtn" style="margin-top:14px" disabled>Continue</button>
 </div>
@@ -143,7 +150,44 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
         <label for="cardAmount">Card portion already included above (PKR)</label>
         <input type="number" id="cardAmount" min="0" inputmode="decimal" placeholder="0">
       </div>
-      <p class="muted" style="margin:6px 0 0">Doesn't change the total — just flags how much of it isn't cash in Zeeshan's hand (settles to the bank later, like Food Panda).</p>
+      <p class="muted" style="margin:6px 0 0">Doesn't change the total — just flags how much of it isn't cash in the till (settles to the bank later, like Food Panda).</p>
+    </div>
+  </div>
+
+  <div class="card" id="cashCard">
+    <h3 style="margin:0 0 4px">Till Cash Reconciliation</h3>
+    <p class="muted" style="margin:0 0 14px">Standard float is PKR 40,000. Opening carries straight from the previous shift's physical close — it's locked here.</p>
+    <div class="row2">
+      <div class="field">
+        <label for="openingCashDisplay">Opening cash in till</label>
+        <input type="text" id="openingCashDisplay" value="&mdash;" disabled>
+      </div>
+      <div class="field">
+        <label for="cashSalesDisplay">Cash sales this shift</label>
+        <input type="text" id="cashSalesDisplay" value="PKR 0" disabled>
+      </div>
+    </div>
+    <div class="row2" style="margin-top:10px">
+      <div class="field">
+        <label for="custodianDirection">Cash custodian</label>
+        <select id="custodianDirection">
+          <option value="given">Gave cash to till</option>
+          <option value="picked">Picked cash up from till</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="custodianAmount">Amount (PKR)</label>
+        <input type="number" id="custodianAmount" min="0" inputmode="decimal" placeholder="0">
+      </div>
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label for="closingCash">Closing cash in till (physical count)</label>
+      <input type="number" id="closingCash" min="0" inputmode="decimal" placeholder="0">
+    </div>
+    <div class="field" style="margin-top:12px;background:var(--surface-2);border-radius:9px;padding:12px">
+      <label style="margin-bottom:2px">Implied cash expenses this shift</label>
+      <div class="num" id="impliedExpenses" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
+      <p class="muted" style="margin:6px 0 0;font-size:.78rem">Opening + Cash Sales + Custodian &minus; Closing. Should match what Cash Custodian recorded as cash expenses for this shift — if it doesn't, recount before saving.</p>
     </div>
   </div>
 
@@ -173,6 +217,8 @@ const headers = {
 };
 
 let locationId = null;
+let openingCashTill = 0;   // carried from the previous shift; display-only, server computes the real value on save
+let existingEntryId = null; // set when this shift already has a row today, so closing-cash edits patch it
 
 const ROLE_LABELS = {
   cash_custodian: "Cash Custodian",
@@ -201,11 +247,38 @@ function recalcSummary(){
   const amount = n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("fpAmount") + n("bakeryAmount");
   document.getElementById("sumCovers").textContent = covers.toLocaleString();
   document.getElementById("sumAmount").textContent = "PKR " + Math.round(amount).toLocaleString();
+  recalcCashRecon();
+}
+
+// Cash actually received in the till: the channels that land in hand, minus the card
+// portion of them. Food Panda and Third Party never touch the till — they settle
+// externally — so they're excluded entirely, not just netted out.
+function cashSalesTotal(){
+  return n("diAmount") + n("taAmount") + n("dlAmount") + n("bakeryAmount") - n("cardAmount");
+}
+
+function recalcCashRecon(){
+  const cashSales = cashSalesTotal();
+  document.getElementById("cashSalesDisplay").value = "PKR " + Math.round(cashSales).toLocaleString();
+
+  const direction = document.getElementById("custodianDirection").value;
+  const custodianRaw = n("custodianAmount");
+  const custodianSigned = direction === "picked" ? -custodianRaw : custodianRaw;
+
+  const closingEntered = document.getElementById("closingCash").value !== "";
+  const closing = n("closingCash");
+  const implied = openingCashTill + cashSales + custodianSigned - closing;
+
+  const impliedEl = document.getElementById("impliedExpenses");
+  impliedEl.textContent = closingEntered ? "PKR " + Math.round(implied).toLocaleString() : "PKR 0";
+  impliedEl.style.color = closingEntered && implied < 0 ? "var(--danger)" : "";
 }
 
 function resetForm(){
-  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount"]
+  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount","custodianAmount","closingCash"]
     .forEach(id => document.getElementById(id).value = "");
+  document.getElementById("custodianDirection").value = "given";
+  existingEntryId = null;
   recalcSummary();
 }
 
@@ -239,7 +312,7 @@ async function init(){
         users.map(u => `<option value="${u.id}">${ROLE_LABELS[u.role] || u.name}</option>`).join("");
     }
     document.getElementById("continueBtn").disabled = false;
-    loadTodayEntry();
+    loadShiftEntry();
   } catch (err) {
     showBanner("Could not load the name list (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations'/'app_users' allows anon SELECT if this persists.", "danger");
     document.getElementById("continueBtn").disabled = false;
@@ -248,45 +321,106 @@ async function init(){
   }
 }
 
-async function loadTodayEntry(){
-  const todayCard = document.getElementById("todayCard");
-  const body = document.getElementById("todayBody");
-  if (!locationId) { todayCard.hidden = true; return; }
-  const saleDate = document.getElementById("dateInput").value;
+const SHIFT_ORDER = { morning: 0, evening: 1 };
+const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
+
+// Mirrors the DB trigger's ordering so the shift manager sees the right opening balance
+// before they've saved anything: most recent (sale_date, shift) strictly before this one.
+async function fetchOpeningCash(saleDate, shift){
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&select=dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,created_at`,
+      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&select=sale_date,shift,closing_cash_till&order=sale_date.desc&limit=20`,
       { headers }
     );
     if (!res.ok) throw new Error(String(res.status));
     const rows = await res.json();
-    if (!rows.length) { todayCard.hidden = true; return; }
-    const r = rows[0];
-    const total = r.total_sale != null ? r.total_sale : (r.dine_in_amount + r.takeaway_amount + r.delivery_amount + r.third_party_amount + (r.food_panda_amount || 0) + r.bakery_sale);
-    body.innerHTML = `
-      Dine-in: PKR ${Math.round(r.dine_in_amount || 0).toLocaleString()} (${r.dine_in_covers || 0} covers) &middot;
-      Takeaway: PKR ${Math.round(r.takeaway_amount || 0).toLocaleString()} &middot;
-      Delivery: PKR ${Math.round(r.delivery_amount || 0).toLocaleString()} &middot;
-      Third Party: PKR ${Math.round(r.third_party_amount || 0).toLocaleString()} &middot;
-      Food Panda: PKR ${Math.round(r.food_panda_amount || 0).toLocaleString()} &middot;
-      Bakery: PKR ${Math.round(r.bakery_sale || 0).toLocaleString()}${r.card_amount ? " &middot; Card: PKR " + Math.round(r.card_amount).toLocaleString() : ""}<br>
-      <strong>Total so far: PKR ${Math.round(total).toLocaleString()}</strong>
-      — saving again for today updates this same record.`;
-    todayCard.hidden = false;
+    const cur = [saleDate, SHIFT_ORDER[shift]];
+    const prior = rows
+      .map(r => ({ key: [r.sale_date, SHIFT_ORDER[r.shift]], closing: r.closing_cash_till }))
+      .filter(r => r.key[0] < cur[0] || (r.key[0] === cur[0] && r.key[1] < cur[1]))
+      .sort((a, b) => (a.key[0] < b.key[0] ? 1 : a.key[0] > b.key[0] ? -1 : b.key[1] - a.key[1]));
+    return prior.length && prior[0].closing != null ? Number(prior[0].closing) : 40000;
   } catch (e) {
+    return 40000;
+  }
+}
+
+async function loadShiftEntry(){
+  const todayCard = document.getElementById("todayCard");
+  const body = document.getElementById("todayBody");
+  if (!locationId) { todayCard.hidden = true; return; }
+  const saleDate = document.getElementById("dateInput").value;
+  const shift = document.getElementById("shiftSelect").value;
+
+  let existing = null;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.${shift}` +
+      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount`,
+      { headers }
+    );
+    if (res.ok) {
+      const rows = await res.json();
+      if (rows.length) existing = rows[0];
+    }
+  } catch (e) { /* fall through */ }
+
+  if (existing) {
+    existingEntryId = existing.id;
+    openingCashTill = Number(existing.opening_cash_till) || 0;
+    document.getElementById("diCovers").value = existing.dine_in_covers || "";
+    document.getElementById("diAmount").value = existing.dine_in_amount || "";
+    document.getElementById("taCovers").value = existing.takeaway_covers || "";
+    document.getElementById("taAmount").value = existing.takeaway_amount || "";
+    document.getElementById("dlCovers").value = existing.delivery_covers || "";
+    document.getElementById("dlAmount").value = existing.delivery_amount || "";
+    document.getElementById("tpCovers").value = existing.third_party_covers || "";
+    document.getElementById("tpAmount").value = existing.third_party_amount || "";
+    document.getElementById("fpCovers").value = existing.food_panda_covers || "";
+    document.getElementById("fpAmount").value = existing.food_panda_amount || "";
+    document.getElementById("bakeryAmount").value = existing.bakery_sale || "";
+    document.getElementById("cardAmount").value = existing.card_amount || "";
+    const custodian = Number(existing.custodian_cash_amount) || 0;
+    document.getElementById("custodianDirection").value = custodian < 0 ? "picked" : "given";
+    document.getElementById("custodianAmount").value = custodian ? Math.abs(custodian) : "";
+    document.getElementById("closingCash").value = existing.closing_cash_till != null ? existing.closing_cash_till : "";
+
+    const total = existing.total_sale != null ? existing.total_sale : (existing.dine_in_amount + existing.takeaway_amount + existing.delivery_amount + existing.third_party_amount + (existing.food_panda_amount || 0) + existing.bakery_sale);
+    body.innerHTML = `
+      ${SHIFT_LABELS[shift]} shift &middot; Dine-in: PKR ${Math.round(existing.dine_in_amount || 0).toLocaleString()} &middot;
+      Takeaway: PKR ${Math.round(existing.takeaway_amount || 0).toLocaleString()} &middot;
+      Delivery: PKR ${Math.round(existing.delivery_amount || 0).toLocaleString()} &middot;
+      Third Party: PKR ${Math.round(existing.third_party_amount || 0).toLocaleString()} &middot;
+      Food Panda: PKR ${Math.round(existing.food_panda_amount || 0).toLocaleString()} &middot;
+      Bakery: PKR ${Math.round(existing.bakery_sale || 0).toLocaleString()}<br>
+      <strong>Total so far: PKR ${Math.round(total).toLocaleString()}</strong>
+      — saving again for this shift updates this same record.`;
+    todayCard.hidden = false;
+  } else {
+    existingEntryId = null;
+    openingCashTill = await fetchOpeningCash(saleDate, shift);
     todayCard.hidden = true;
   }
+
+  document.getElementById("openingCashDisplay").value = "PKR " + Math.round(openingCashTill).toLocaleString();
+  recalcSummary();
 }
 
 document.getElementById("continueBtn").addEventListener("click", () => {
   document.getElementById("whoCard").hidden = true;
   document.getElementById("salesForm").hidden = false;
   hideBanner();
-  loadTodayEntry();
+  loadShiftEntry();
 });
+document.getElementById("shiftSelect").addEventListener("change", loadShiftEntry);
+document.getElementById("dateInput").addEventListener("change", loadShiftEntry);
 
 ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount"]
   .forEach(id => document.getElementById(id).addEventListener("input", recalcSummary));
+
+["cardAmount","custodianAmount","closingCash"]
+  .forEach(id => document.getElementById(id).addEventListener("input", recalcCashRecon));
+document.getElementById("custodianDirection").addEventListener("change", recalcCashRecon);
 
 document.getElementById("salesForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -296,11 +430,17 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
 
   const whoId = document.getElementById("whoSelect").value || null;
   const saleDate = document.getElementById("dateInput").value;
+  const shift = document.getElementById("shiftSelect").value;
   const dow = new Date(saleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
+
+  const direction = document.getElementById("custodianDirection").value;
+  const custodianSigned = direction === "picked" ? -n("custodianAmount") : n("custodianAmount");
+  const closingEntered = document.getElementById("closingCash").value !== "";
 
   const payload = {
     location_id: locationId,
     sale_date: saleDate,
+    shift: shift,
     day_of_week: dow,
     dine_in_covers: Math.round(n("diCovers")),
     dine_in_amount: n("diAmount"),
@@ -314,11 +454,13 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
     food_panda_amount: n("fpAmount"),
     bakery_sale: n("bakeryAmount"),
     card_amount: n("cardAmount"),
+    custodian_cash_amount: custodianSigned,
+    closing_cash_till: closingEntered ? n("closingCash") : null,
     entered_by_user_id: whoId,
   };
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_sales?on_conflict=location_id,sale_date`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_sales?on_conflict=location_id,sale_date,shift`, {
       method: "POST",
       headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(payload),
@@ -327,12 +469,12 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
       const errText = await res.text();
       throw new Error(res.status + ": " + errText.slice(0, 200));
     }
-    showBanner("Saved — " + saleDate + ". The form is clear for the next entry.", "success");
+    showBanner("Saved — " + SHIFT_LABELS[shift] + " shift, " + saleDate + ". The form is clear for the next entry.", "success");
     resetForm();
     document.getElementById("salesForm").hidden = true;
     document.getElementById("whoCard").hidden = false;
     document.getElementById("whoSelect").value = "";
-    loadTodayEntry();
+    loadShiftEntry();
   } catch (err) {
     showBanner("Could not save: " + err.message, "danger");
   } finally {
