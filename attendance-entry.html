@@ -115,7 +115,7 @@ const STATUSES = [
   { value: "Half Day", label: "Half", cls: "active-half" }
 ];
 
-let state = { userId: null, userName: null, userRole: null, employees: [], marks: {} };
+let state = { userId: null, userName: null, userRole: null, initials: null, employees: [], marks: {} };
 
 function weekRangeFor(dateStr) {
   // Monday-to-Sunday week containing dateStr, used to enforce one Weekly Off per week.
@@ -184,11 +184,19 @@ async function loadNames() {
 }
 
 function selectUser(id, name, pillEl, role) {
+  let initials = "";
+  while (!initials) {
+    initials = prompt(`Enter your initials, ${name} — this is recorded on every row you mark or change.`);
+    if (initials === null) return; // they backed out; stay on the role picker
+    initials = initials.trim().toUpperCase();
+  }
+
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
   pillEl.classList.add("selected");
   state.userId = id;
   state.userName = name;
   state.userRole = role;
+  state.initials = initials;
   setTimeout(() => {
     document.getElementById("step-name").hidden = true;
     document.getElementById("panel-main").hidden = false;
@@ -225,8 +233,8 @@ async function loadMarksForDate() {
   const date = document.getElementById("f-date").value || todayStr();
   state.marks = {};
   try {
-    const rows = await sb(`attendance_entries?location_id=eq.${LOCATION_ID}&attendance_date=eq.${date}&select=id,employee_id,status,notes`);
-    rows.forEach(r => { state.marks[r.employee_id] = { id: r.id, status: r.status, note: r.notes }; });
+    const rows = await sb(`attendance_entries?location_id=eq.${LOCATION_ID}&attendance_date=eq.${date}&select=id,employee_id,status,notes,entered_by_initials`);
+    rows.forEach(r => { state.marks[r.employee_id] = { id: r.id, status: r.status, note: r.notes, initials: r.entered_by_initials }; });
   } catch (e) { /* none yet */ }
 
   const isToday = date === todayStr();
@@ -282,7 +290,7 @@ function renderEmpList() {
     row.innerHTML = `
       <div class="emp-name-wrap">
         <div class="emp-title">${e.name}</div>
-        <div class="emp-sub">${e.designation || "—"}</div>
+        <div class="emp-sub">${e.designation || "—"}${mark && mark.initials ? " · marked by " + mark.initials : ""}</div>
       </div>
       <div class="status-btns">
         ${STATUSES.map(s => `<button type="button" class="status-btn" data-status="${s.value}">${s.label}</button>`).join("")}
@@ -322,7 +330,7 @@ async function markAttendance(e, status, rowEl) {
   const existing = state.marks[e.id];
   const payload = {
     employee_id: e.id, location_id: LOCATION_ID, attendance_date: date,
-    status, entered_by_user_id: state.userId, updated_at: new Date().toISOString()
+    status, entered_by_user_id: state.userId, entered_by_initials: state.initials, updated_at: new Date().toISOString()
   };
   rowEl.querySelectorAll(".status-btn").forEach(b => b.style.opacity = "0.5");
   try {
@@ -330,12 +338,12 @@ async function markAttendance(e, status, rowEl) {
       await sb(`attendance_entries?id=eq.${existing.id}`, {
         method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
       });
-      state.marks[e.id] = { id: existing.id, status };
+      state.marks[e.id] = { id: existing.id, status, note: existing.note, initials: state.initials };
     } else {
       const inserted = await sb("attendance_entries", {
         method: "POST", headers: { "Prefer": "return=representation" }, body: JSON.stringify(payload)
       });
-      state.marks[e.id] = { id: inserted[0].id, status };
+      state.marks[e.id] = { id: inserted[0].id, status, initials: state.initials };
     }
     rowEl.querySelectorAll(".status-btn").forEach(b => {
       b.className = "status-btn";
@@ -347,6 +355,8 @@ async function markAttendance(e, status, rowEl) {
       noteInput.disabled = false;
       noteInput.placeholder = "Note (optional)";
     }
+    const subEl = rowEl.querySelector(".emp-sub");
+    if (subEl) subEl.textContent = subEl.textContent.replace(/ · marked by .*$/, "") + " · marked by " + state.initials;
     renderSummary();
   } catch (err) {
     alert(err.message.includes("42501") || err.message.includes("row-level security")
@@ -364,9 +374,12 @@ async function saveNote(e, note, inputEl) {
   try {
     await sb(`attendance_entries?id=eq.${mark.id}`, {
       method: "PATCH", headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify({ notes: note || null, updated_at: new Date().toISOString() })
+      body: JSON.stringify({ notes: note || null, entered_by_user_id: state.userId, entered_by_initials: state.initials, updated_at: new Date().toISOString() })
     });
     state.marks[e.id].note = note;
+    state.marks[e.id].initials = state.initials;
+    const subEl = inputEl.closest(".emp-row")?.querySelector(".emp-sub");
+    if (subEl) subEl.textContent = subEl.textContent.replace(/ · marked by .*$/, "") + " · marked by " + state.initials;
   } catch (err) {
     alert(err.message.includes("42501") || err.message.includes("row-level security")
       ? "Couldn't save — this date may have just closed. Only the Director can change it now."
@@ -386,7 +399,7 @@ document.getElementById("btn-mark-all-present").addEventListener("click", async 
   try {
     const payload = toMark.map(e => ({
       employee_id: e.id, location_id: LOCATION_ID, attendance_date: date,
-      status: "Present", entered_by_user_id: state.userId
+      status: "Present", entered_by_user_id: state.userId, entered_by_initials: state.initials
     }));
     for (let i = 0; i < payload.length; i += 20) {
       await sb("attendance_entries", {
