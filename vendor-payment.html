@@ -153,7 +153,18 @@ async function sb(path, opts = {}) {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  // Gulberg's business day: before 9:00am PKT still counts as the previous
+  // calendar day, since the restaurant runs past midnight and does not
+  // really "end" until the early-morning close.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
 }
 
 function fmtMoney(n) {

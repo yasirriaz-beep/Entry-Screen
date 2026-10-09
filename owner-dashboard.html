@@ -300,14 +300,19 @@ function fmtMoney(n) {
 }
 
 function todayStr() {
-  const d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  // Gulberg's business day, not the viewer's own browser date — so this reads
+  // the same whether you're looking at the dashboard from the store or from
+  // Dallas. Before 9:00am PKT still counts as the previous calendar day,
+  // since the restaurant runs past midnight and doesn't really "end" until
+  // the early-morning close.
+  return pktTodayStr();
 }
 
 function dateNDaysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const base = todayStr().split("-").map(Number);
+  const d = new Date(Date.UTC(base[0], base[1] - 1, base[2]));
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0");
 }
 
 function rangeDates() {
@@ -394,8 +399,19 @@ async function refreshAll() {
 }
 
 function pktTodayStr() {
-  // Gulberg's own calendar day, regardless of the viewer's own timezone.
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" });
+  // Gulberg's business day, regardless of the viewer's own timezone: before
+  // 9:00am PKT still counts as the previous calendar day, since the
+  // restaurant runs past midnight and doesn't really "end" until the
+  // early-morning close.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
 }
 
 async function loadDailyChecklist() {
@@ -489,9 +505,8 @@ async function loadCashReconHistory() {
 
 async function loadVarianceSummary() {
   const wrap = document.getElementById("variance-summary-list");
-  const to = new Date().toISOString().slice(0, 10);
-  const fromD = new Date(); fromD.setDate(fromD.getDate() - 6);
-  const from = fromD.toISOString().slice(0, 10);
+  const to = todayStr();
+  const from = dateNDaysAgo(6);
 
   let items = [], entries = [], batches = [], lines = [];
   try {
