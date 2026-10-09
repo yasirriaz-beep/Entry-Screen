@@ -48,15 +48,24 @@
   .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
   .filter-row > * { flex: 1; min-width: 140px; }
   .progress-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; margin-right: 6px; }
-  .item-row { display: grid; grid-template-columns: 1fr 100px 100px; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
+  .table-scroll { overflow-x: auto; }
+  .base-grid { min-width: 560px; }
+  .item-row { display: grid; grid-template-columns: 1fr 62px 62px 62px 66px 92px; gap: 6px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
   .item-row:last-child { border-bottom: none; }
   .item-name { font-size: 0.88rem; min-width: 0; }
   .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
   .item-row input { padding: 7px 8px; font-size: 0.85rem; text-align: right; }
   .item-row input.dirty { border-color: var(--accent); background: var(--warn-bg); }
-  .expected-val { font-size: 0.82rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-  .col-header { display: grid; grid-template-columns: 1fr 100px 100px; gap: 8px; font-size: 0.7rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .expected-val, .num-val { font-size: 0.8rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .num-val.end-val { color: var(--ink); font-weight: 600; }
+  .col-header { display: grid; grid-template-columns: 1fr 62px 62px 62px 66px 92px; gap: 6px; font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .col-header > div { text-align: right; }
+  .col-header > div:first-child { text-align: left; }
   .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .cadence-banner { border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-bottom: 14px; }
+  .cadence-ok { background: var(--ok-bg); color: var(--ok); }
+  .cadence-warn { background: var(--warn-bg); color: var(--warn); }
+  .cadence-err { background: var(--err-bg); color: var(--err); }
   .sticky-save { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
   .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
   .variance-tag { font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-left: 4px; }
@@ -67,7 +76,7 @@
 <body>
 
 <h1>Gulberg Stock Count</h1>
-<div class="sub">Physical count — compares against what purchases minus issues would predict</div>
+<div class="sub">Beginning + Add (purchases) − Sub (issuance) = Ending — checked against physical count</div>
 
 <div id="step-name" class="card">
   <div class="step-label">Who are you?</div>
@@ -75,6 +84,8 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div id="cadence-banner" hidden></div>
 
   <div class="card">
     <div class="step-label">Count Date</div>
@@ -94,12 +105,19 @@
   </div>
 
   <div class="card">
-    <div class="col-header">
-      <div>Item</div>
-      <div style="text-align:right;">Expected</div>
-      <div style="text-align:right;">Counted</div>
+    <div class="table-scroll">
+      <div class="base-grid">
+        <div class="col-header">
+          <div>Item</div>
+          <div>Beg</div>
+          <div>Add</div>
+          <div>Sub</div>
+          <div>End</div>
+          <div>Count</div>
+        </div>
+        <div id="item-list"></div>
+      </div>
     </div>
-    <div id="item-list"></div>
     <div class="hint" id="item-list-empty" hidden>No items match.</div>
   </div>
 
@@ -118,11 +136,17 @@ const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const PAGE_KEY = "stock_count";
 
 let state = {
-  userId: null, userName: null, managerId: null,
+  userId: null, userName: null, managerId: null, userRole: null,
   products: [], purchases: [], issues: [], snapshots: [],
   existing: {}, // product_id -> snapshot row for the chosen date
   dirty: {}
 };
+
+// Cadence rule Yasir asked for: Store Person checks the physical balance every
+// 2 days; Auditor checks it biweekly (14 days). This only flags based on the
+// most recent count logged for this location across ANY item - it's a
+// reminder, not an access block (nothing here prevents counting early or late).
+const CADENCE_DAYS = { store_man: 2, auditor: 14 };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -209,6 +233,7 @@ function selectUser(managerId, name, pillEl) {
       state.userId = row.app_user_id;
       state.userName = name;
       state.managerId = managerId;
+      state.userRole = row.role;
       setTimeout(() => {
         document.getElementById("step-name").hidden = true;
         document.getElementById("panel-main").hidden = false;
@@ -221,9 +246,11 @@ function selectUser(managerId, name, pillEl) {
 
 function backToNames() {
   state.userId = null;
+  state.userRole = null;
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
   document.getElementById("panel-main").hidden = true;
   document.getElementById("step-name").hidden = false;
+  document.getElementById("cadence-banner").hidden = true;
 }
 document.getElementById("btn-back").addEventListener("click", backToNames);
 document.getElementById("f-date").addEventListener("change", loadAll);
@@ -252,6 +279,38 @@ async function loadAll() {
 
   computeExistingForDate();
   renderItemList();
+  renderCadenceBanner();
+}
+
+function renderCadenceBanner() {
+  const el = document.getElementById("cadence-banner");
+  const requiredDays = CADENCE_DAYS[state.userRole];
+  if (!requiredDays) { el.hidden = true; return; }
+
+  const allDates = state.snapshots.map(s => s.snapshot_date).sort();
+  const lastDate = allDates.length ? allDates[allDates.length - 1] : null;
+  const today = todayStr();
+  const daysSince = lastDate
+    ? Math.round((Date.parse(today) - Date.parse(lastDate)) / 86400000)
+    : null;
+
+  const roleLabel = state.userRole === "store_man" ? "Store Person" : "Auditor";
+  const cadenceLabel = state.userRole === "store_man" ? "every 2 days" : "biweekly (every 14 days)";
+
+  el.hidden = false;
+  if (daysSince === null) {
+    el.className = "cadence-banner cadence-err";
+    el.textContent = `${roleLabel}: no physical count has ever been logged for this location. A count is required ${cadenceLabel}.`;
+  } else if (daysSince > requiredDays) {
+    el.className = "cadence-banner cadence-err";
+    el.textContent = `${roleLabel}: overdue — last physical count was ${daysSince} day${daysSince === 1 ? "" : "s"} ago (required ${cadenceLabel}).`;
+  } else if (daysSince === requiredDays) {
+    el.className = "cadence-banner cadence-warn";
+    el.textContent = `${roleLabel}: due today — last physical count was ${daysSince} day${daysSince === 1 ? "" : "s"} ago (required ${cadenceLabel}).`;
+  } else {
+    el.className = "cadence-banner cadence-ok";
+    el.textContent = `${roleLabel}: on track — last physical count was ${daysSince} day${daysSince === 1 ? "" : "s"} ago (required ${cadenceLabel}).`;
+  }
 }
 
 function computeExistingForDate() {
@@ -314,7 +373,7 @@ function renderItemList() {
     }
     const exist = state.existing[p.id];
     const dirtyVal = state.dirty[p.id];
-    const { expected } = expectedQty(p.id, date);
+    const { opening, purchasesQty, issuesQty, expected } = expectedQty(p.id, date);
     const countedVal = dirtyVal != null ? dirtyVal : (exist ? exist.closing_qty : "");
 
     let varianceTag = "";
@@ -329,9 +388,13 @@ function renderItemList() {
     row.className = "item-row";
     row.innerHTML = `
       <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
-      <div class="expected-val">${fmtQty(expected)}</div>
-      <div style="display:flex; align-items:center; gap:4px;">
+      <div class="num-val">${fmtQty(opening)}</div>
+      <div class="num-val">+${fmtQty(purchasesQty)}</div>
+      <div class="num-val">-${fmtQty(issuesQty)}</div>
+      <div class="num-val end-val">${fmtQty(expected)}</div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
         <input type="number" class="i-count" step="any" value="${countedVal}" placeholder="—">
+        ${varianceTag}
       </div>
     `;
     const countInput = row.querySelector(".i-count");
