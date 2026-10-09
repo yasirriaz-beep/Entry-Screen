@@ -44,6 +44,15 @@ Front-end pages: `role-select.html` is the entry point (picks a name, stores
 `cash-custodian-home.html` / `auditor-home.html` each list only that role's screens.
 `index.html` just redirects to `role-select.html`.
 
+**2026-10-09 update — this role model is now a coarse layer, not the login itself.** Every
+entry screen's "who are you?" step was migrated from a role-pill (pick your shared role,
+no further check) to per-individual name + PIN, so that e.g. the four humans sharing the
+`S.Manager` row are now distinguishable. The `app_users.role` values and the whole
+permission table above are unchanged and still what RLS actually checks — the PIN layer
+just resolves "which real person is this" down to the right `app_users.id`/`role` before
+handing off to the same code paths described here. Full detail, the new tables/RPCs, and
+the per-screen access matrix: see `ACCESS_CONTROL_AND_PIN_SYSTEM.md` in this same folder.
+
 ## Drinks/Bakery usage entry — Added/Closing split (2026-10-08)
 
 Yasir's words: "any number that was input by store man as issuance would be added in the
