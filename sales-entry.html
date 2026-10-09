@@ -82,6 +82,11 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
   <div id="todayBody" class="muted"></div>
 </div>
 
+<div class="card" id="morningCard" hidden>
+  <h3 style="margin:0 0 10px">Morning Shift &mdash; for reconciliation</h3>
+  <div id="morningBody" class="muted"></div>
+</div>
+
 <div class="card" id="whoCard">
   <div class="who-row">
     <div class="field">
@@ -404,6 +409,57 @@ async function loadShiftEntry(){
 
   document.getElementById("openingCashDisplay").value = "PKR " + Math.round(openingCashTill).toLocaleString();
   recalcSummary();
+  loadMorningReconCard(saleDate, shift);
+}
+
+// When closing the evening shift, show the morning shift's numbers alongside so the
+// evening manager can reconcile the day as a whole, not just their own half of it.
+async function loadMorningReconCard(saleDate, shift){
+  const card = document.getElementById("morningCard");
+  const body = document.getElementById("morningBody");
+  if (shift !== "evening" || !locationId) { card.hidden = true; return; }
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.morning` +
+      `&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount`,
+      { headers }
+    );
+    if (!res.ok) throw new Error(String(res.status));
+    const rows = await res.json();
+    if (!rows.length) {
+      body.innerHTML = "Morning shift hasn't been entered yet for " + saleDate + ".";
+      card.hidden = false;
+      return;
+    }
+    const m = rows[0];
+    const total = m.total_sale != null ? m.total_sale :
+      (m.dine_in_amount + m.takeaway_amount + m.delivery_amount + m.third_party_amount + (m.food_panda_amount || 0) + m.bakery_sale);
+    const cashSales = (m.dine_in_amount || 0) + (m.takeaway_amount || 0) + (m.delivery_amount || 0) + (m.bakery_sale || 0) - (m.card_amount || 0);
+    const custodian = Number(m.custodian_cash_amount) || 0;
+    const opening = Number(m.opening_cash_till) || 0;
+    const closing = m.closing_cash_till != null ? Number(m.closing_cash_till) : null;
+    const implied = closing != null ? (opening + cashSales + custodian - closing) : null;
+
+    body.innerHTML = `
+      Dine-in: PKR ${Math.round(m.dine_in_amount || 0).toLocaleString()} &middot;
+      Takeaway: PKR ${Math.round(m.takeaway_amount || 0).toLocaleString()} &middot;
+      Delivery: PKR ${Math.round(m.delivery_amount || 0).toLocaleString()} &middot;
+      Third Party: PKR ${Math.round(m.third_party_amount || 0).toLocaleString()} &middot;
+      Food Panda: PKR ${Math.round(m.food_panda_amount || 0).toLocaleString()} &middot;
+      Bakery: PKR ${Math.round(m.bakery_sale || 0).toLocaleString()}<br>
+      <strong>Morning total: PKR ${Math.round(total).toLocaleString()}</strong><br><br>
+      Opening till: PKR ${Math.round(opening).toLocaleString()} &middot;
+      Cash sales: PKR ${Math.round(cashSales).toLocaleString()} &middot;
+      Custodian: ${custodian >= 0 ? "+" : ""}PKR ${Math.round(custodian).toLocaleString()} &middot;
+      Closing till: ${closing != null ? "PKR " + Math.round(closing).toLocaleString() : "not yet entered"}<br>
+      ${implied != null ? `<strong>Morning implied cash expenses: PKR ${Math.round(implied).toLocaleString()}</strong>` : ""}
+      ${closing == null ? "<span style=\"color:var(--danger)\">Morning hasn't closed their till yet &mdash; your evening opening balance may still change.</span>" : ""}`;
+    card.hidden = false;
+  } catch (e) {
+    body.innerHTML = "Couldn't load morning shift (" + e.message + ").";
+    card.hidden = false;
+  }
 }
 
 document.getElementById("continueBtn").addEventListener("click", () => {
