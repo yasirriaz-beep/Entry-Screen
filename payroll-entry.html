@@ -65,6 +65,26 @@
   .pill-ok { background: var(--ok-bg); color: var(--ok); }
   .pill-warn { background: var(--warn-bg); color: var(--warn); }
   .advance-note { font-size: 0.8rem; background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+
+  .sheet-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table.sheet { border-collapse: collapse; width: 100%; min-width: 980px; font-size: 0.86rem; }
+  table.sheet th, table.sheet td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  table.sheet th:first-child, table.sheet td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+  table.sheet thead th { background: var(--field-bg); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); font-weight: 700; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
+  table.sheet thead th:first-child { z-index: 2; }
+  table.sheet tbody tr:hover td { background: var(--field-bg); }
+  table.sheet .dept-row td { background: var(--border); color: var(--ink); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.03em; text-align: left; position: static; }
+  table.sheet .cell-input { width: 84px; text-align: right; padding: 5px 6px; font-size: 0.85rem; border-radius: 6px; }
+  table.sheet .emp-name { font-weight: 600; }
+  table.sheet .emp-sub2 { font-size: 0.72rem; color: var(--ink-soft); font-weight: 400; }
+  table.sheet .col-final { font-weight: 700; font-variant-numeric: tabular-nums; }
+  table.sheet .col-minus { color: var(--err); }
+  table.sheet .col-plus { color: var(--ok); }
+  table.sheet .row-dirty td { background: var(--warn-bg); }
+  table.sheet .btn-row-save { padding: 5px 9px; font-size: 0.72rem; border-radius: 6px; }
+  .settle-strip { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 6px; }
+  .settle-strip input { width: 100px; }
+  .settle-strip input[type="date"] { width: 128px; }
 </style>
 </head>
 <body>
@@ -97,7 +117,28 @@
   <div class="card">
     <div class="step-label">Employees</div>
     <input type="text" id="search-emp" placeholder="Search by name...">
-    <div id="emp-list" style="margin-top:12px;"></div>
+    <div class="hint" style="margin-top:8px;">Click any row to expand it and record the final settlement once it's actually paid. Edited cells turn amber until you hit Save for that row.</div>
+    <div class="sheet-wrap" style="margin-top:12px;">
+      <table class="sheet" id="sheet-table">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Base Salary</th>
+            <th>Days Worked</th>
+            <th>Accrued Salary</th>
+            <th>Advance (−)</th>
+            <th>KM (+)</th>
+            <th>Bonus (+)</th>
+            <th>Phone (+)</th>
+            <th>Loan (−)</th>
+            <th>Final Payable</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="sheet-body"></tbody>
+      </table>
+    </div>
     <div class="hint" id="emp-list-empty" hidden>No active employees found.</div>
   </div>
 
@@ -233,7 +274,7 @@ async function loadEntriesAndAdvances() {
   try {
     const rows = await sb(`attendance_entries?location_id=eq.${LOCATION_ID}&attendance_date=gte.${start}&attendance_date=lte.${end}&select=employee_id,status`);
     rows.forEach(r => {
-      if (!state.attendance[r.employee_id]) state.attendance[r.employee_id] = { Present: 0, "Half Day": 0, Absent: 0, Leave: 0, Off: 0 };
+      if (!state.attendance[r.employee_id]) state.attendance[r.employee_id] = { Present: 0, "Half Day": 0, Absent: 0, "Weekly Off": 0, Leave: 0, Off: 0 };
       if (state.attendance[r.employee_id][r.status] != null) state.attendance[r.employee_id][r.status]++;
     });
   } catch (e) { /* none yet */ }
@@ -258,10 +299,10 @@ function renderSummary() {
 
 function renderEmpList() {
   const search = document.getElementById("search-emp").value.trim().toUpperCase();
-  const list = document.getElementById("emp-list");
+  const body = document.getElementById("sheet-body");
   const emptyHint = document.getElementById("emp-list-empty");
   const rows = state.employees.filter(e => !search || e.name.toUpperCase().includes(search));
-  list.innerHTML = "";
+  body.innerHTML = "";
   if (!rows.length) { emptyHint.hidden = false; return; }
   emptyHint.hidden = true;
 
@@ -269,44 +310,20 @@ function renderEmpList() {
   rows.forEach(e => {
     const dept = e.department || "Unassigned";
     if (dept !== lastDept) {
-      const header = document.createElement("div");
-      header.className = "dept-header";
-      header.textContent = dept;
-      list.appendChild(header);
+      const deptRow = document.createElement("tr");
+      deptRow.className = "dept-row";
+      deptRow.innerHTML = `<td colspan="12">${dept}</td>`;
+      body.appendChild(deptRow);
       lastDept = dept;
     }
-    const existing = state.entries[e.id];
-    const advance = state.advances[e.id] || { total: 0, count: 0 };
-    const attendance = state.attendance[e.id] || null;
-    const net = existing ? Number(existing.net_salary) || 0 : null;
-    const isPaid = existing && existing.paid_amount != null && Number(existing.paid_amount) > 0;
-
-    const row = document.createElement("div");
-    row.className = "emp-row";
-    row.innerHTML = `
-      <div class="emp-top">
-        <div>
-          <span class="emp-title">${e.name}</span>
-          <div class="emp-sub">${e.designation || "—"} · ${fmtMoney(e.monthly_salary)}/mo${net !== null ? " · Net " + fmtMoney(net) : ""}</div>
-        </div>
-        ${existing ? `<span class="pill-badge ${isPaid ? "pill-ok" : "pill-warn"}">${isPaid ? "Paid" : "Pending"}</span>` : ""}
-      </div>
-      <div class="emp-detail" hidden></div>`;
-    const detail = row.querySelector(".emp-detail");
-    row.querySelector(".emp-top").addEventListener("click", () => {
-      const willOpen = detail.hidden;
-      document.querySelectorAll("#emp-list .emp-detail").forEach(d => { if (d !== detail) d.hidden = true; });
-      detail.hidden = !detail.hidden;
-      if (willOpen && !detail.dataset.built) {
-        buildDetail(detail, e, existing, advance, attendance);
-        detail.dataset.built = "1";
-      }
-    });
-    list.appendChild(row);
+    body.appendChild(buildSheetRow(e));
   });
 }
 
-function buildDetail(detail, e, existing, advance, attendance) {
+function buildSheetRow(e) {
+  const existing = state.entries[e.id];
+  const advance = state.advances[e.id] || { total: 0, count: 0 };
+  const attendance = state.attendance[e.id] || null;
   const perDayRate = (Number(e.monthly_salary) || 0) / 26;
   const attendanceDays = daysWorkedFromAttendance(attendance);
   const daysWorked = existing ? Number(existing.days_worked) : (attendanceDays !== null ? attendanceDays : 26);
@@ -320,90 +337,121 @@ function buildDetail(detail, e, existing, advance, attendance) {
   const advanceDeduction = existing && existing.advance_deduction != null ? Number(existing.advance_deduction) : advance.total;
   const paidAmount = existing ? existing.paid_amount : null;
   const paidDate = existing ? existing.paid_date : null;
+  const isPaid = existing && existing.paid_amount != null && Number(existing.paid_amount) > 0;
+  const attTip = attendance
+    ? `${attendance.Present} present, ${attendance["Half Day"]} half day(s), ${attendance.Absent} absent, ${attendance["Weekly Off"] || 0} weekly off, ${(attendance.Leave || 0) + (attendance.Off || 0)} legacy leave/off`
+    : "no daily attendance marked this period — defaulted to a full month";
+  const advTip = advance.count > 0 ? `${advance.count} advance expense(s) this period totaling ${fmtMoney(advance.total)}` : "no advance expenses logged this period";
 
-  detail.innerHTML = `
-    ${attendance ? `<div class="advance-note">From daily attendance this period: ${attendance.Present} present, ${attendance["Half Day"]} half day(s), ${attendance.Absent} absent, ${attendance.Leave} leave, ${attendance.Off} off — days worked pre-filled below. Adjust if needed.</div>` : `<div class="hint" style="margin-bottom:10px;">No daily attendance marked for this employee this period yet — defaulting to a full month. Mark attendance day-by-day for a more accurate figure.</div>`}
-    <div class="row2 field">
-      <div><label>Days Worked</label><input type="number" class="p-days" step="any" value="${daysWorked}"></div>
-      <div><label>Salary Earned (PKR)</label><input type="number" class="p-salary" step="any" value="${salaryEarned}"></div>
-    </div>
-    <div class="row2 field">
-      <div><label>KM Driven</label><input type="number" class="p-km" step="any" value="${km}"></div>
-      <div><label>KM Amount (PKR)</label><input type="number" class="p-km-amount" step="any" value="${kmAmount}"></div>
-    </div>
-    <div class="row2 field">
-      <div><label>Bonus (PKR)</label><input type="number" class="p-bonus" step="any" value="${bonus}"></div>
-      <div><label>Phone Load (PKR)</label><input type="number" class="p-phone" step="any" value="${phoneLoad}"></div>
-    </div>
-    ${advance.count > 0 ? `<div class="advance-note">${advance.count} advance expense(s) this period totaling ${fmtMoney(advance.total)} — pulled in automatically below. Adjust if something shouldn't count.</div>` : ""}
-    <div class="row2 field">
-      <div><label>Advance Deduction (PKR)</label><input type="number" class="p-advance" step="any" value="${advanceDeduction}"></div>
-      <div><label>Loan Deduction (PKR)</label><input type="number" class="p-loan" step="any" value="${loanDeduction}"></div>
-    </div>
-    <div class="field">
-      <label>Net Salary</label>
-      <div class="readout p-net-readout">PKR 0</div>
-    </div>
-    <div class="hint" style="margin-bottom:10px;">Salary earned above is owed the moment you save this — it's a Payroll Payable until paid. The advance is handled separately (log it in Expense Entry against this employee around the 20th; it shows up above automatically). Record the final settlement below once it's actually paid, usually around the 7th of the following month.</div>
-    <div class="row2 field">
-      <div><label>Final Settlement Paid (PKR)</label><input type="number" class="p-paid" step="any" placeholder="0" value="${paidAmount != null ? paidAmount : ""}"></div>
-      <div><label>Settlement Date</label><input type="date" class="p-paid-date" value="${paidDate || ""}"></div>
-    </div>
-    <button type="button" class="btn-primary btn-sm p-save-btn" style="width:100%;">Save Payroll Entry</button>
+  const tr = document.createElement("tr");
+  tr.dataset.empId = e.id;
+  tr.innerHTML = `
+    <td class="emp-name">${e.name}<div class="emp-sub2">${e.designation || "—"}</div></td>
+    <td>${fmtMoney(e.monthly_salary)}</td>
+    <td><input type="number" class="cell-input p-days" step="any" value="${daysWorked}" title="${attTip}"></td>
+    <td><input type="number" class="cell-input p-salary" step="any" value="${salaryEarned}"></td>
+    <td class="col-minus"><input type="number" class="cell-input p-advance" step="any" value="${advanceDeduction}" title="${advTip}"></td>
+    <td class="col-plus"><input type="number" class="cell-input p-km-amount" step="any" value="${kmAmount}"></td>
+    <td class="col-plus"><input type="number" class="cell-input p-bonus" step="any" value="${bonus}"></td>
+    <td class="col-plus"><input type="number" class="cell-input p-phone" step="any" value="${phoneLoad}"></td>
+    <td class="col-minus"><input type="number" class="cell-input p-loan" step="any" value="${loanDeduction}"></td>
+    <td class="col-final p-net-readout">PKR 0</td>
+    <td>${existing ? `<span class="pill-badge ${isPaid ? "pill-ok" : "pill-warn"}">${isPaid ? "Paid" : "Pending"}</span>` : `<span class="pill-badge pill-warn">New</span>`}</td>
+    <td><button type="button" class="btn-row-save" style="background:var(--accent); color:var(--accent-ink); border:none;">Save</button></td>
   `;
 
+  const g = (cls) => parseFloat(tr.querySelector("." + cls).value) || 0;
   const recalc = () => {
-    const g = (sel) => parseFloat(detail.querySelector(sel).value) || 0;
-    const net = g(".p-salary") + g(".p-km-amount") + g(".p-bonus") + g(".p-phone") - g(".p-advance") - g(".p-loan");
-    detail.querySelector(".p-net-readout").textContent = fmtMoney(net);
+    const net = g("p-salary") + g("p-km-amount") + g("p-bonus") + g("p-phone") - g("p-advance") - g("p-loan");
+    tr.querySelector(".p-net-readout").textContent = fmtMoney(net);
   };
-  detail.querySelector(".p-days").addEventListener("input", () => {
-    const d = parseFloat(detail.querySelector(".p-days").value) || 0;
-    detail.querySelector(".p-salary").value = Math.round(perDayRate * d * 100) / 100;
+  tr.querySelector(".p-days").addEventListener("input", () => {
+    const d = g("p-days");
+    tr.querySelector(".p-salary").value = Math.round(perDayRate * d * 100) / 100;
+    tr.classList.add("row-dirty");
     recalc();
   });
-  ["p-salary","p-km-amount","p-bonus","p-phone","p-advance","p-loan"].forEach(cls => {
-    detail.querySelector("." + cls).addEventListener("input", recalc);
+  ["p-salary", "p-km-amount", "p-bonus", "p-phone", "p-advance", "p-loan"].forEach(cls => {
+    tr.querySelector("." + cls).addEventListener("input", () => { tr.classList.add("row-dirty"); recalc(); });
   });
   recalc();
 
-  detail.querySelector(".p-save-btn").addEventListener("click", () => savePayrollEntry(e, detail, existing));
+  // Click the name to expand a settlement strip below this row (paid amount/date — recorded separately from accrual).
+  tr.querySelector(".emp-name").style.cursor = "pointer";
+  tr.querySelector(".emp-name").addEventListener("click", () => toggleSettleRow(tr, e, paidAmount, paidDate));
+
+  tr.querySelector(".btn-row-save").addEventListener("click", () => savePayrollEntry(e, tr, existing));
+
+  return tr;
 }
 
-async function savePayrollEntry(e, detail, existing) {
-  const g = (sel) => parseFloat(detail.querySelector(sel).value) || 0;
+function toggleSettleRow(tr, e, paidAmount, paidDate) {
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains("settle-row")) { next.remove(); return; }
+  document.querySelectorAll(".settle-row").forEach(r => r.remove());
+  const settleTr = document.createElement("tr");
+  settleTr.className = "settle-row";
+  settleTr.innerHTML = `<td colspan="12" style="text-align:left; background:var(--field-bg);">
+    <div class="hint">Salary earned is owed the moment you save the row above — a Payroll Payable until paid. Record the final settlement below once it's actually paid, usually around the 7th of the following month.</div>
+    <div class="settle-strip">
+      <label class="hint" style="margin:0;">Paid</label>
+      <input type="number" class="p-paid" step="any" placeholder="0" value="${paidAmount != null ? paidAmount : ""}">
+      <label class="hint" style="margin:0;">On</label>
+      <input type="date" class="p-paid-date" value="${paidDate || ""}">
+      <button type="button" class="btn-row-save settle-save" style="background:var(--accent); color:var(--accent-ink); border:none;">Save Settlement</button>
+    </div>
+  </td>`;
+  tr.after(settleTr);
+  settleTr.querySelector(".settle-save").addEventListener("click", () => saveSettlement(e, tr, settleTr));
+}
+
+async function savePayrollEntry(e, tr, existing) {
+  const g = (cls) => parseFloat(tr.querySelector("." + cls).value) || 0;
   const payload = {
     employee_id: e.id,
     location_id: LOCATION_ID,
     period_month: state.periodMonth,
-    days_worked: g(".p-days"),
-    salary_earned: g(".p-salary"),
-    km_driven: g(".p-km"),
-    km_amount: g(".p-km-amount"),
-    bonus: g(".p-bonus"),
-    phone_load: g(".p-phone"),
-    advance_deduction: g(".p-advance"),
-    loan_deduction: g(".p-loan"),
-    paid_amount: parseFloat(detail.querySelector(".p-paid").value) || null,
-    paid_date: detail.querySelector(".p-paid-date").value || null,
+    days_worked: g("p-days"),
+    salary_earned: g("p-salary"),
+    km_driven: parseFloat(tr.querySelector(".p-km")?.value) || (existing ? Number(existing.km_driven) || 0 : 0),
+    km_amount: g("p-km-amount"),
+    bonus: g("p-bonus"),
+    phone_load: g("p-phone"),
+    advance_deduction: g("p-advance"),
+    loan_deduction: g("p-loan"),
     entered_by_user_id: state.userId
   };
-  const btn = detail.querySelector(".p-save-btn");
+  const btn = tr.querySelector(".btn-row-save");
   btn.disabled = true;
   try {
     if (existing) {
-      await sb(`payroll_entries?id=eq.${existing.id}`, {
-        method: "PATCH",
-        headers: { "Prefer": "return=minimal" },
-        body: JSON.stringify(payload)
-      });
+      await sb(`payroll_entries?id=eq.${existing.id}`, { method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload) });
     } else {
-      await sb("payroll_entries", {
-        method: "POST",
-        headers: { "Prefer": "return=minimal" },
-        body: JSON.stringify(payload)
-      });
+      await sb("payroll_entries", { method: "POST", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload) });
     }
+    await loadEntriesAndAdvances();
+    renderEmpList();
+  } catch (err) {
+    alert("Couldn't save: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function saveSettlement(e, tr, settleTr) {
+  const existing = state.entries[e.id];
+  if (!existing) { alert("Save the row above first, then record the settlement."); return; }
+  const btn = settleTr.querySelector(".settle-save");
+  btn.disabled = true;
+  try {
+    await sb(`payroll_entries?id=eq.${existing.id}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        paid_amount: parseFloat(settleTr.querySelector(".p-paid").value) || null,
+        paid_date: settleTr.querySelector(".p-paid-date").value || null,
+        entered_by_user_id: state.userId
+      })
+    });
     await loadEntriesAndAdvances();
     renderEmpList();
   } catch (err) {
