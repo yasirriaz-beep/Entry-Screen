@@ -57,6 +57,12 @@
   .ack-row input { width: auto; margin-top: 2px; }
   .amount-display { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.4rem; font-weight: 600; }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .item-results { margin-top: 6px; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; max-height: 240px; overflow-y: auto; }
+  .item-result-row { padding: 11px 12px; font-size: 0.9rem; cursor: pointer; border-bottom: 1px solid var(--border); background: var(--field-bg); }
+  .item-result-row:last-child { border-bottom: none; }
+  .item-result-row:hover, .item-result-row:active { background: var(--border); }
+  .item-result-row.empty { cursor: default; color: var(--ink-soft); }
+  .item-result-row.empty:hover { background: var(--field-bg); }
   .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
   .po-card .po-title { font-weight: 600; }
   .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
@@ -85,8 +91,9 @@
 
     <div class="field">
       <label>Item Code / Name</label>
-      <input type="text" id="f-item-search" placeholder="Start typing an item name...">
-      <select id="f-item-select" style="margin-top:6px;"></select>
+      <input type="text" id="f-item-search" placeholder="Start typing an item name..." autocomplete="off">
+      <input type="hidden" id="f-item-select">
+      <div id="f-item-results" class="item-results" hidden></div>
       <div class="hint" id="item-hint"></div>
     </div>
 
@@ -232,25 +239,34 @@ async function loadProducts() {
   } catch (e) { state.products = []; }
 }
 
-function populateItemSelect(filterText) {
-  const sel = document.getElementById("f-item-select");
+function populateItemResults(filterText) {
+  const wrap = document.getElementById("f-item-results");
   const ft = (filterText || "").trim().toUpperCase();
-  const matches = ft
-    ? state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft))
-    : state.products.slice(0, 40);
-  sel.innerHTML = '<option value="">— pick an item —</option>' +
-    matches.slice(0, 60).map(p => `<option value="${p.id}">${p.code || "?"} — ${p.name}</option>`).join("");
+  // Typing anything invalidates a previous selection until a new one is made.
+  document.getElementById("f-item-select").value = "";
+  document.getElementById("item-hint").textContent = "";
+  if (!ft) { wrap.innerHTML = ""; wrap.hidden = true; return; }
+  const matches = state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft));
+  if (!matches.length) {
+    wrap.innerHTML = `<div class="item-result-row empty">No matching item</div>`;
+    wrap.hidden = false;
+    return;
+  }
+  wrap.innerHTML = matches.slice(0, 20).map(p =>
+    `<div class="item-result-row" data-id="${p.id}">${p.code || "?"} — ${p.name}</div>`
+  ).join("");
+  wrap.hidden = false;
 }
 
-function onItemSelected() {
-  const sel = document.getElementById("f-item-select");
-  const p = state.products.find(x => x.id === sel.value);
-  if (p) {
-    document.getElementById("f-rate").value = p.current_rate || "";
-    document.getElementById("item-hint").textContent = `Unit: ${p.unit || "—"} · Last rate on file: PKR ${p.current_rate || 0}`;
-  } else {
-    document.getElementById("item-hint").textContent = "";
-  }
+function selectItem(id) {
+  const p = state.products.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById("f-item-select").value = id;
+  document.getElementById("f-item-search").value = `${p.code || "?"} — ${p.name}`;
+  document.getElementById("f-item-results").innerHTML = "";
+  document.getElementById("f-item-results").hidden = true;
+  document.getElementById("f-rate").value = p.current_rate || "";
+  document.getElementById("item-hint").textContent = `Unit: ${p.unit || "—"} · Last rate on file: PKR ${p.current_rate || 0}`;
   resetAiBanner();
   recalcAmount();
 }
@@ -384,7 +400,9 @@ function showSuccess() {
 function resetForm() {
   document.getElementById("f-date").value = todayStr();
   document.getElementById("f-item-search").value = "";
-  populateItemSelect("");
+  document.getElementById("f-item-select").value = "";
+  document.getElementById("f-item-results").innerHTML = "";
+  document.getElementById("f-item-results").hidden = true;
   document.getElementById("f-qty").value = "";
   document.getElementById("f-rate").value = "";
   document.getElementById("item-hint").textContent = "";
@@ -407,8 +425,28 @@ document.querySelectorAll(".dest-pill").forEach(btn => {
 
 document.getElementById("f-qty").addEventListener("input", () => { resetAiBanner(); recalcAmount(); });
 document.getElementById("f-rate").addEventListener("input", recalcAmount);
-document.getElementById("f-item-search").addEventListener("input", (e) => populateItemSelect(e.target.value));
-document.getElementById("f-item-select").addEventListener("change", onItemSelected);
+document.getElementById("f-item-search").addEventListener("input", (e) => populateItemResults(e.target.value));
+document.getElementById("f-item-search").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const rows = document.querySelectorAll("#f-item-results .item-result-row[data-id]");
+    if (rows.length === 1) selectItem(rows[0].dataset.id);
+  }
+});
+document.getElementById("f-item-search").addEventListener("focus", () => {
+  const search = document.getElementById("f-item-search");
+  if (search.value && !document.getElementById("f-item-select").value) {
+    populateItemResults(search.value);
+  }
+});
+document.getElementById("f-item-search").addEventListener("blur", () => {
+  setTimeout(() => { document.getElementById("f-item-results").hidden = true; }, 150);
+});
+document.getElementById("f-item-results").addEventListener("mousedown", (e) => {
+  // mousedown (not click) so it fires before the search input's blur handler hides the list
+  const row = e.target.closest(".item-result-row[data-id]");
+  if (row) selectItem(row.dataset.id);
+});
 document.getElementById("btn-check").addEventListener("click", runCheckAndMaybeSave);
 document.getElementById("btn-back").addEventListener("click", () => {
   document.getElementById("step-form").hidden = true;
