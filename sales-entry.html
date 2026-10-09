@@ -221,18 +221,27 @@ const headers = {
   "Authorization": "Bearer " + ANON_KEY,
   "Content-Type": "application/json",
 };
+const PAGE_KEY = "sales_entry";
 
 let locationId = null;
 let openingCashTill = 0;   // carried from the previous shift; display-only, server computes the real value on save
 let existingEntryId = null; // set when this shift already has a row today, so closing-cash edits patch it
+let resolvedUserId = null;   // the real app_users.id, set only after the chosen manager's PIN verifies
+let resolvedManagerId = null;
 
-const ROLE_LABELS = {
-  cash_custodian: "Cash Custodian",
-  auditor: "Auditor",
-  director: "Director",
-  shift_manager: "Shift Manager",
-  store_man: "Store Man"
-};
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST", headers, body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
 
 function showBanner(msg, kind){
   const b = document.getElementById("banner");
@@ -335,20 +344,15 @@ async function init(){
     if (!locs.length) throw new Error("No location matching '" + LOCATION_NAME_HINT + "' found");
     locationId = locs[0].id;
 
-    const userRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/app_users?location_id=eq.${locationId}&active=eq.true&role=eq.shift_manager&select=id,name,role&order=name.asc`,
-      { headers }
-    );
-    if (!userRes.ok) throw new Error("app_users " + userRes.status);
-    const users = await userRes.json();
+    const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
 
     const sel = document.getElementById("whoSelect");
     sel.innerHTML = "";
-    if (!users.length){
-      sel.innerHTML = '<option value="">No active users found for this location</option>';
+    if (!managers.length){
+      sel.innerHTML = '<option value="">No one with sales-entry access found</option>';
     } else {
-      sel.innerHTML = '<option value="">Select your role&hellip;</option>' +
-        users.map(u => `<option value="${u.id}">${ROLE_LABELS[u.role] || u.name}</option>`).join("");
+      sel.innerHTML = '<option value="">Select your name&hellip;</option>' +
+        managers.map(m => `<option value="${m.id}">${m.name}</option>`).join("");
     }
     document.getElementById("continueBtn").disabled = false;
     loadShiftEntry();
@@ -497,9 +501,23 @@ async function loadMorningReconCard(saleDate, shift){
   }
 }
 
-document.getElementById("continueBtn").addEventListener("click", () => {
-  if (!document.getElementById("whoSelect").value){
+document.getElementById("continueBtn").addEventListener("click", async () => {
+  const managerId = document.getElementById("whoSelect").value;
+  const managerName = document.getElementById("whoSelect").selectedOptions[0]?.textContent || "";
+  if (!managerId){
     showBanner("Please select your name under \"Entered by\" before continuing.", "danger");
+    return;
+  }
+  const pin = prompt(`Enter your PIN, ${managerName}`);
+  if (pin === null) return;
+  try {
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) { showBanner("Incorrect PIN.", "danger"); return; }
+    resolvedUserId = row.app_user_id;
+    resolvedManagerId = managerId;
+  } catch (e) {
+    showBanner(e.message || "Incorrect PIN.", "danger");
     return;
   }
   document.getElementById("whoCard").hidden = true;
@@ -520,7 +538,7 @@ document.getElementById("custodianDirection").addEventListener("change", recalcC
 document.getElementById("salesForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const whoId = document.getElementById("whoSelect").value || null;
+  const whoId = resolvedUserId;
   if (!whoId){
     showBanner("Your name got cleared after the last save — select it again under \"Entered by\" before saving.", "danger");
     document.getElementById("salesForm").hidden = true;
@@ -560,6 +578,7 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
     custodian_cash_amount: custodianSigned,
     closing_cash_till: closingEntered ? n("closingCash") : null,
     entered_by_user_id: whoId,
+    entered_by_manager_id: resolvedManagerId,
   };
 
   try {

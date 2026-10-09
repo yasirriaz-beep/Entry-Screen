@@ -211,18 +211,6 @@ async function loadNames() {
   grid.innerHTML = "";
 
   try {
-    const directors = await sb(`app_users?role=eq.director&active=eq.true&select=id,name,role&order=name`);
-    directors.forEach(u => {
-      const pill = document.createElement("button");
-      pill.type = "button";
-      pill.className = "name-pill";
-      pill.textContent = u.name;
-      pill.onclick = () => selectUser(u.id, u.name, pill, null);
-      grid.appendChild(pill);
-    });
-  } catch (e) { /* fall through — still try managers */ }
-
-  try {
     const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
     managers.forEach(m => {
       const pill = document.createElement("button");
@@ -237,7 +225,7 @@ async function loadNames() {
   if (!grid.children.length) grid.innerHTML = '<div class="hint">No one with payroll access found.</div>';
 }
 
-// Named managers (e.g. Zeeshan) authenticate with their own PIN instead of the plain name-pill pattern.
+// Everyone, Directors included, now authenticates with their own PIN.
 function selectManager(managerId, name, pillEl) {
   const pin = prompt(`Enter your PIN, ${name}`);
   if (pin === null) return;

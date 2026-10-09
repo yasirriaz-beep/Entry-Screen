@@ -138,10 +138,9 @@ const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const ORG_ID = "00000000-0000-0000-0000-000000000001";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
-const EMPLOYEE_MASTER_ROLES = ["director"];
-const ROLE_LABELS = { director: "Director" };
+const PAGE_KEY = "employee_master";
 
-let state = { userId: null, userName: null, employees: [] };
+let state = { userId: null, userName: null, managerId: null, employees: [] };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -162,36 +161,60 @@ async function sb(path, opts = {}) {
   return null;
 }
 
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
 async function loadNames() {
+  const grid = document.getElementById("name-grid");
+  grid.innerHTML = "";
   try {
-    const rows = await sb(`app_users?role=in.(${EMPLOYEE_MASTER_ROLES.join(",")})&active=eq.true&select=id,name,role&order=name`);
-    const grid = document.getElementById("name-grid");
-    grid.innerHTML = "";
-    rows.forEach(u => {
-      const label = ROLE_LABELS[u.role] || u.name;
+    const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
+    managers.forEach(m => {
       const pill = document.createElement("button");
       pill.type = "button";
       pill.className = "name-pill";
-      pill.textContent = label;
-      pill.onclick = () => selectUser(u.id, label, pill);
+      pill.textContent = m.name;
+      pill.onclick = () => selectUser(m.id, m.name, pill);
       grid.appendChild(pill);
     });
-    if (rows.length === 0) grid.innerHTML = '<div class="hint">No one with employee-master access found.</div>';
+    if (!managers.length) grid.innerHTML = '<div class="hint">No one with employee-master access found.</div>';
   } catch (e) {
-    document.getElementById("name-grid").innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+    grid.innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
   }
 }
 
-function selectUser(id, name, pillEl) {
-  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
-  pillEl.classList.add("selected");
-  state.userId = id;
-  state.userName = name;
-  setTimeout(() => {
-    document.getElementById("step-name").hidden = true;
-    document.getElementById("panel-main").hidden = false;
-    loadEmployees();
-  }, 150);
+function selectUser(managerId, name, pillEl) {
+  const pin = prompt(`Enter your PIN, ${name}`);
+  if (pin === null) return;
+  sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin })
+    .then(rows => {
+      const row = rows && rows[0];
+      if (!row) { alert("Incorrect PIN."); return; }
+      document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+      pillEl.classList.add("selected");
+      state.userId = row.app_user_id;
+      state.userName = name;
+      state.managerId = managerId;
+      setTimeout(() => {
+        document.getElementById("step-name").hidden = true;
+        document.getElementById("panel-main").hidden = false;
+        loadEmployees();
+      }, 150);
+    })
+    .catch(err => alert(err.message || "Incorrect PIN."));
 }
 
 function backToNames() {
