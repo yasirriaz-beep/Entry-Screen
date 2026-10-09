@@ -432,8 +432,8 @@ async function loadDailyChecklist() {
   }
 
   wrap.innerHTML =
-    row("Morning shift closed", "Shift Manager", morningClosed, overdue("task_shift_close_missing", "morning"), "Due 6:30pm") +
-    row("Evening shift closed", "Shift Manager", eveningClosed, overdue("task_shift_close_missing", "evening"), "Due 3:30am next day") +
+    row("Morning shift closed", "Shift Manager", morningClosed, overdue("task_shift_close_missing", today + " morning"), "Due 6:30pm") +
+    row("Evening shift closed", "Shift Manager", eveningClosed, overdue("task_shift_close_missing", today + " evening"), "Due 3:30am next day") +
     row("Issuance logged", "Store Man", issuanceLogged, overdue("task_issuance_missing", today), "Due end of day") +
     row("Till reconciled (no open discrepancy)", "Cash Custodian", !hasOpenDiscrepancy, overdue("task_custodian_recon_open", today), "Flagged 2hrs after shift close");
 }
