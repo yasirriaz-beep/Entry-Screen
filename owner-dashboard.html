@@ -190,6 +190,13 @@
   </div>
 
   <div class="card">
+    <h2>Flagged Delivery KM</h2>
+    <div id="flagged-km-list"><div class="spinner-note">Loading…</div></div>
+    <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="delivery-km-entry.html">Open Delivery KM Log</a>
+    <div class="hint" style="margin-top:8px;">A day's KM or KM-per-order that's over 60% above that rider's own 30-day average gets flagged here automatically — it still counts toward payroll, this is just for review. Not scoped to the range above — shows the last 30 days.</div>
+  </div>
+
+  <div class="card">
     <h2>Reorder Alerts</h2>
     <div id="reorder-list"><div class="spinner-note">Loading…</div></div>
     <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="stock-count.html">Go to Stock Count</a>
@@ -395,7 +402,26 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyChecklist()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyChecklist(), loadFlaggedKm()]);
+}
+
+async function loadFlaggedKm() {
+  const wrap = document.getElementById("flagged-km-list");
+  const since = dateNDaysAgo(29);
+  let rows = [];
+  try {
+    rows = await sb(`delivery_km_log?location_id=eq.${state.locationId}&flagged=eq.true&log_date=gte.${since}&select=log_date,km_driven,orders_delivered,flag_reason,entered_by_initials,employees(name)&order=log_date.desc`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+  if (!rows.length) { wrap.innerHTML = '<div class="empty-note">No flagged KM entries in the last 30 days.</div>'; return; }
+  wrap.innerHTML = rows.map(r => `
+    <div class="alert-row">
+      <div>
+        <div class="alert-title">${r.employees?.name || "Rider"} — ${r.log_date}</div>
+        <div class="alert-sub">${Math.round((r.km_driven || 0) * 10) / 10} km · ${r.orders_delivered} order(s)${r.entered_by_initials ? " · logged by " + r.entered_by_initials : ""}</div>
+        <div class="alert-sub" style="color:var(--err);">${r.flag_reason || ""}</div>
+      </div>
+      <span class="pill-badge pill-err">Flagged</span>
+    </div>`).join("");
 }
 
 function pktTodayStr() {

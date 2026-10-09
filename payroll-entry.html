@@ -233,9 +233,17 @@ document.getElementById("btn-back").addEventListener("click", backToNames);
 document.getElementById("f-period").addEventListener("change", loadAll);
 
 async function loadAll() {
+  await loadKmRate();
   await loadEmployees();
   await loadEntriesAndAdvances();
   renderEmpList();
+}
+
+async function loadKmRate() {
+  try {
+    const rows = await sb(`payroll_settings?key=eq.km_rate_pkr&select=value`);
+    state.kmRatePkr = rows.length ? Number(rows[0].value) : 0;
+  } catch (e) { state.kmRatePkr = 0; }
 }
 
 async function loadEmployees() {
@@ -277,6 +285,20 @@ async function loadEntriesAndAdvances() {
       if (!state.attendance[r.employee_id]) state.attendance[r.employee_id] = { Present: 0, "Half Day": 0, Absent: 0, "Weekly Off": 0, Leave: 0, Off: 0 };
       if (state.attendance[r.employee_id][r.status] != null) state.attendance[r.employee_id][r.status]++;
     });
+  } catch (e) { /* none yet */ }
+
+  // Delivery KM logged this period, per rider — multiplied by the flat rate for the suggested KM amount.
+  state.km = {};
+  try {
+    const rate = Number(state.kmRatePkr) || 0;
+    const rows = await sb(`delivery_km_log?location_id=eq.${LOCATION_ID}&log_date=gte.${start}&log_date=lte.${end}&select=employee_id,km_driven,orders_delivered,flagged`);
+    rows.forEach(r => {
+      if (!state.km[r.employee_id]) state.km[r.employee_id] = { totalKm: 0, orders: 0, flaggedCount: 0 };
+      state.km[r.employee_id].totalKm += Number(r.km_driven) || 0;
+      state.km[r.employee_id].orders += Number(r.orders_delivered) || 0;
+      if (r.flagged) state.km[r.employee_id].flaggedCount += 1;
+    });
+    Object.values(state.km).forEach(k => { k.amount = Math.round(k.totalKm * rate); });
   } catch (e) { /* none yet */ }
 
   renderSummary();
@@ -328,8 +350,10 @@ function buildSheetRow(e) {
   const attendanceDays = daysWorkedFromAttendance(attendance);
   const daysWorked = existing ? Number(existing.days_worked) : (attendanceDays !== null ? attendanceDays : 26);
   const salaryEarned = existing ? Number(existing.salary_earned) : Math.round(perDayRate * daysWorked * 100) / 100;
-  const km = existing ? Number(existing.km_driven) || 0 : 0;
-  const kmAmount = existing ? Number(existing.km_amount) || 0 : 0;
+  const kmInfo = state.km[e.id] || { totalKm: 0, orders: 0, amount: 0, flaggedCount: 0 };
+  const km = existing ? Number(existing.km_driven) || 0 : kmInfo.totalKm;
+  // KM amount: prefer what's already saved on the entry; otherwise default to this period's logged KM × the flat rate.
+  const kmAmount = existing && existing.km_amount != null ? Number(existing.km_amount) : kmInfo.amount;
   const bonus = existing ? Number(existing.bonus) || 0 : 0;
   const phoneLoad = existing ? Number(existing.phone_load) || 0 : 0;
   const loanDeduction = existing ? Number(existing.loan_deduction) || 0 : 0;
@@ -342,16 +366,20 @@ function buildSheetRow(e) {
     ? `${attendance.Present} present, ${attendance["Half Day"]} half day(s), ${attendance.Absent} absent, ${attendance["Weekly Off"] || 0} weekly off, ${(attendance.Leave || 0) + (attendance.Off || 0)} legacy leave/off`
     : "no daily attendance marked this period — defaulted to a full month";
   const advTip = advance.count > 0 ? `${advance.count} advance expense(s) this period totaling ${fmtMoney(advance.total)}` : "no advance expenses logged this period";
+  const kmTip = kmInfo.totalKm > 0
+    ? `${Math.round(kmInfo.totalKm * 10) / 10} km logged this period across ${kmInfo.orders} order(s) @ PKR ${state.kmRatePkr}/km${kmInfo.flaggedCount ? " — " + kmInfo.flaggedCount + " day(s) flagged for review" : ""}`
+    : "no delivery KM logged this period";
 
   const tr = document.createElement("tr");
   tr.dataset.empId = e.id;
+  tr.dataset.km = km;
   tr.innerHTML = `
     <td class="emp-name">${e.name}<div class="emp-sub2">${e.designation || "—"}</div></td>
     <td>${fmtMoney(e.monthly_salary)}</td>
     <td><input type="number" class="cell-input p-days" step="any" value="${daysWorked}" title="${attTip}"></td>
     <td><input type="number" class="cell-input p-salary" step="any" value="${salaryEarned}"></td>
     <td class="col-minus"><input type="number" class="cell-input p-advance" step="any" value="${advanceDeduction}" title="${advTip}"></td>
-    <td class="col-plus"><input type="number" class="cell-input p-km-amount" step="any" value="${kmAmount}"></td>
+    <td class="col-plus"><input type="number" class="cell-input p-km-amount" step="any" value="${kmAmount}" title="${kmTip}">${kmInfo.flaggedCount ? ` <span class="pill-badge pill-warn" style="padding:2px 6px;">⚠</span>` : ""}</td>
     <td class="col-plus"><input type="number" class="cell-input p-bonus" step="any" value="${bonus}"></td>
     <td class="col-plus"><input type="number" class="cell-input p-phone" step="any" value="${phoneLoad}"></td>
     <td class="col-minus"><input type="number" class="cell-input p-loan" step="any" value="${loanDeduction}"></td>
@@ -413,7 +441,7 @@ async function savePayrollEntry(e, tr, existing) {
     period_month: state.periodMonth,
     days_worked: g("p-days"),
     salary_earned: g("p-salary"),
-    km_driven: parseFloat(tr.querySelector(".p-km")?.value) || (existing ? Number(existing.km_driven) || 0 : 0),
+    km_driven: parseFloat(tr.dataset.km) || 0,
     km_amount: g("p-km-amount"),
     bonus: g("p-bonus"),
     phone_load: g("p-phone"),
