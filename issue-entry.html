@@ -68,6 +68,13 @@
   .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
   .success-wrap { text-align: center; padding: 48px 16px; }
   .success-wrap .check { font-size: 2.6rem; }
+  .sheet-row { border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 8px; background: var(--field-bg); }
+  .sheet-row .sr-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .sheet-row .sr-top input[type="checkbox"] { width: auto; }
+  .sheet-row .sr-orig { font-size: 0.72rem; color: var(--ink-soft); margin-top: 4px; }
+  .sheet-row select.sr-product { margin-bottom: 8px; }
+  .sheet-row.unmatched { border-color: var(--warn); }
+  .sheet-row.unmatched .sr-top { color: var(--warn); }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -95,6 +102,24 @@
 </div>
 
 <div id="step-form" hidden>
+  <div class="card">
+    <div class="step-label">Scan Stock Sheet (optional)</div>
+    <div class="field">
+      <label>Photo of the filled sheet</label>
+      <input type="file" id="f-sheet-photo" accept="image/*" capture="environment">
+      <div class="hint" id="sheet-scan-status"></div>
+    </div>
+    <div id="sheet-review" hidden>
+      <div class="field">
+        <label>Sheet Date</label>
+        <input type="date" id="sheet-date">
+      </div>
+      <div id="sheet-review-rows"></div>
+      <div class="hint" id="sheet-review-hint" style="margin:8px 0;">Check every line before saving — product matches and quantities are guesses from the photo.</div>
+      <button type="button" class="btn-primary" id="btn-save-sheet">Save All Checked Lines</button>
+    </div>
+  </div>
+
   <div class="card">
     <div class="field">
       <label>Date</label>
@@ -285,6 +310,188 @@ async function loadProducts() {
     state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
   } catch (e) { state.products = []; }
 }
+
+/* ---------- SCAN STOCK SHEET ---------- */
+
+const KNOWN_DESTINATIONS = ["FOH", "BOH", "DEL"];
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadSheetPhoto(file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${LOCATION_ID}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/stock-sheets/${path}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": file.type || "image/jpeg" },
+    body: file
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${t}`);
+  }
+  return path;
+}
+
+function findProductMatch(name, rowId) {
+  if (!name && !rowId) return null;
+  const n = (name || "").trim().toUpperCase();
+  if (rowId) {
+    const byCode = state.products.find(p => (p.code || "").toUpperCase() === rowId.toUpperCase());
+    if (byCode) return byCode;
+  }
+  const exact = state.products.find(p => p.name.toUpperCase() === n);
+  if (exact) return exact;
+  const partial = state.products.find(p => n && (n.includes(p.name.toUpperCase()) || p.name.toUpperCase().includes(n)));
+  return partial || null;
+}
+
+state.sheetLines = [];
+
+async function handleStockSheetPhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById("sheet-scan-status");
+  statusEl.textContent = "Uploading & reading…";
+  try {
+    const [, base64] = await Promise.all([uploadSheetPhoto(file), fileToBase64(file)]);
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-stock-sheet`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ image_base64: base64, media_type: file.type || "image/jpeg" })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !data.extracted) {
+      statusEl.textContent = "Couldn't read the sheet automatically — enter items below one at a time instead.";
+      return;
+    }
+    const ex = data.extracted;
+    document.getElementById("sheet-date").value = ex.sheet_date || todayStr();
+
+    // Flatten: one line per (row, destination) where a qty was actually written in.
+    const lines = [];
+    (ex.rows || []).forEach(r => {
+      (r.issues || []).forEach(iss => {
+        if (iss.qty == null || iss.qty === 0) return;
+        const match = findProductMatch(r.product_name, r.row_id);
+        lines.push({
+          rowId: r.row_id || "",
+          origName: r.product_name || "",
+          destination: (iss.destination || "").toUpperCase(),
+          qty: iss.qty,
+          productId: match ? match.id : "",
+          rate: match ? (match.current_rate || 0) : 0,
+          unit: match ? match.unit : (r.unit || "")
+        });
+      });
+    });
+
+    if (!lines.length) {
+      statusEl.textContent = "Scanned, but no issue quantities were found on this sheet.";
+      return;
+    }
+    state.sheetLines = lines;
+    renderSheetReview();
+    statusEl.innerHTML = `<span style="color:var(--ok)">Found ${lines.length} line(s) with quantities issued. Review before saving.</span>`;
+  } catch (err) {
+    statusEl.textContent = "Couldn't scan automatically (" + err.message + ") — enter items below one at a time instead.";
+  }
+}
+document.getElementById("f-sheet-photo").addEventListener("change", handleStockSheetPhoto);
+
+function renderSheetReview() {
+  const wrap = document.getElementById("sheet-review-rows");
+  wrap.innerHTML = "";
+  state.sheetLines.forEach((line, idx) => {
+    const row = document.createElement("div");
+    const isUnmatched = !line.productId || !KNOWN_DESTINATIONS.includes(line.destination);
+    row.className = "sheet-row" + (isUnmatched ? " unmatched" : "");
+    const options = state.products.map(p => `<option value="${p.id}" ${p.id === line.productId ? "selected" : ""}>${p.code ? p.code + " — " : ""}${p.name}</option>`).join("");
+    const destOptions = KNOWN_DESTINATIONS.map(d => `<option value="${d}" ${d === line.destination ? "selected" : ""}>${d}</option>`).join("");
+    row.innerHTML = `
+      <div class="sr-top">
+        <input type="checkbox" class="sr-include" checked>
+        <strong>${line.origName || "(unnamed)"}</strong>${line.rowId ? ` <span class="sr-orig">· ${line.rowId}</span>` : ""}
+        ${isUnmatched ? `<span class="sr-orig" style="color:var(--warn)">— check this one</span>` : ""}
+      </div>
+      <select class="sr-product">${line.productId ? "" : `<option value="">— pick product —</option>`}${options}</select>
+      <div class="row2" style="margin-top:6px;">
+        <div>
+          <label>Issued To</label>
+          <select class="sr-dest">${line.destination && !KNOWN_DESTINATIONS.includes(line.destination) ? `<option value="${line.destination}" selected>${line.destination} (not postable)</option>` : ""}${destOptions}</select>
+        </div>
+        <div>
+          <label>Qty</label>
+          <input type="number" class="sr-qty" step="any" value="${line.qty}">
+        </div>
+      </div>`;
+    row.querySelector(".sr-product").addEventListener("change", (e) => {
+      line.productId = e.target.value;
+      const p = state.products.find(x => x.id === e.target.value);
+      line.rate = p ? (p.current_rate || 0) : 0;
+      line.unit = p ? p.unit : line.unit;
+      row.classList.toggle("unmatched", !line.productId || !KNOWN_DESTINATIONS.includes(line.destination));
+    });
+    row.querySelector(".sr-dest").addEventListener("change", (e) => {
+      line.destination = e.target.value;
+      row.classList.toggle("unmatched", !line.productId || !KNOWN_DESTINATIONS.includes(line.destination));
+    });
+    row.querySelector(".sr-qty").addEventListener("input", (e) => { line.qty = parseFloat(e.target.value) || 0; });
+    row.querySelector(".sr-include").addEventListener("change", (e) => { line.included = e.target.checked; });
+    line.included = true;
+    line._rowEl = row;
+    wrap.appendChild(row);
+  });
+  document.getElementById("sheet-review").hidden = false;
+}
+
+async function saveSheetLines() {
+  const date = document.getElementById("sheet-date").value || todayStr();
+  const btn = document.getElementById("btn-save-sheet");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  let saved = 0, skipped = 0, failed = 0;
+  for (const line of state.sheetLines) {
+    const checkbox = line._rowEl && line._rowEl.querySelector(".sr-include");
+    if (!checkbox || !checkbox.checked) { skipped++; continue; }
+    if (!line.productId || !KNOWN_DESTINATIONS.includes(line.destination) || !line.qty || line.qty <= 0) { skipped++; continue; }
+    try {
+      await sb("daily_issues", {
+        method: "POST",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          location_id: LOCATION_ID,
+          product_id: line.productId,
+          issue_date: date,
+          issued_to: line.destination,
+          qty: line.qty,
+          rate: line.rate || 0,
+          amount: line.qty * (line.rate || 0),
+          entered_by_user_id: state.userId,
+          entered_by_manager_id: state.managerId
+        })
+      });
+      saved++;
+    } catch (e) { failed++; }
+  }
+  btn.disabled = false;
+  btn.textContent = "Save All Checked Lines";
+  alert(`Saved ${saved} line(s).${skipped ? ` Skipped ${skipped} (unchecked or incomplete).` : ""}${failed ? ` ${failed} failed.` : ""}`);
+  if (saved) {
+    document.getElementById("sheet-review").hidden = true;
+    document.getElementById("f-sheet-photo").value = "";
+    document.getElementById("sheet-scan-status").textContent = "";
+    state.sheetLines = [];
+    loadTodayList();
+  }
+}
+document.getElementById("btn-save-sheet").addEventListener("click", saveSheetLines);
 
 function populateItemResults(filterText) {
   const wrap = document.getElementById("f-item-results");
