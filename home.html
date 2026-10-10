@@ -58,6 +58,7 @@
   .page-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--field-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; text-decoration: none; color: var(--ink); }
   .page-link:hover { border-color: var(--accent); }
   .page-link .arrow { color: var(--ink-soft); }
+  .view-only-badge { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--warn, #a3650a); background: var(--warn-bg, #fdf1dd); border-radius: 999px; padding: 2px 7px; margin-left: 6px; }
   .empty-hint { color: var(--ink-soft); font-size: 0.88rem; padding: 10px 2px; }
 </style>
 </head>
@@ -178,13 +179,14 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    const pages = await sbRpc("list_pages_for_manager", { p_manager_id: match.id });
+    const pageRows = await sbRpc("list_pages_for_manager_v2", { p_manager_id: match.id });
     session = {
       managerId: match.id,
       userId: row.app_user_id,
       userName: match.name,
       role: row.role,
-      pages: pages || [],
+      pages: (pageRows || []).map((r) => r.page_key),
+      viewOnlyPages: (pageRows || []).filter((r) => r.view_only).map((r) => r.page_key),
       loginAt: new Date().toISOString(),
     };
     FNKSession.set(session);
@@ -249,7 +251,8 @@ function renderPages(visibleSections) {
     const a = document.createElement("a");
     a.className = "page-link";
     a.href = p.url;
-    a.innerHTML = `<span>${p.label}</span><span class="arrow">&rarr;</span>`;
+    const viewOnly = FNKSession.isViewOnly(session, p.key);
+    a.innerHTML = `<span>${p.label}${viewOnly ? ' <span class="view-only-badge">view only</span>' : ""}</span><span class="arrow">&rarr;</span>`;
     grid.appendChild(a);
   });
 }

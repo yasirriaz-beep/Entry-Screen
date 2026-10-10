@@ -52,6 +52,9 @@
   .access-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
   .access-chip { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 0.82rem; cursor: pointer; background: var(--surface); }
   .access-chip.granted { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+  .chip-label { cursor: pointer; }
+  .view-only-toggle { font-size: 0.7rem; margin-left: 8px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
+  .view-only-toggle.on { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
   .mgr-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
   .banner { border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; margin-bottom: 14px; line-height: 1.4; }
   .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
@@ -223,7 +226,7 @@ async function unlock() {
   if (!pin) { statusEl.textContent = "Enter the Owner PIN."; return; }
   statusEl.textContent = "Checking…";
   try {
-    const rows = await sbRpc("admin_list_managers_v2", { p_owner_pin: pin });
+    const rows = await sbRpc("admin_list_managers_v3", { p_owner_pin: pin });
     state.ownerPin = pin;
     state.managers = rows || [];
     document.getElementById("step-pin").hidden = true;
@@ -245,7 +248,7 @@ async function loadAppUsers() {
 }
 
 async function refreshManagers() {
-  state.managers = await sbRpc("admin_list_managers_v2", { p_owner_pin: state.ownerPin });
+  state.managers = await sbRpc("admin_list_managers_v3", { p_owner_pin: state.ownerPin });
   renderManagers();
 }
 
@@ -260,9 +263,14 @@ function renderManagers() {
     const row = document.createElement("div");
     row.className = "mgr-row";
     const accessChips = PAGE_KEYS.map(pk => {
-      const granted = !!m.page_access[pk.key];
+      const entry = m.page_access[pk.key];
+      const granted = !!(entry && entry.granted);
+      const viewOnly = !!(entry && entry.view_only);
+      const viewToggle = granted
+        ? `<span class="view-only-toggle ${viewOnly ? "on" : ""}" data-manager="${m.id}" data-page="${pk.key}" data-view-only="${viewOnly}" title="${viewOnly ? "View only - click to allow editing" : "Can edit - click to make view only"}">${viewOnly ? "👁 view only" : "edit"}</span>`
+        : "";
       return `<div class="access-chip ${granted ? "granted" : ""}" data-manager="${m.id}" data-page="${pk.key}" data-granted="${granted}">
-        ${granted ? "✓ " : ""}${pk.label}
+        <span class="chip-label">${granted ? "✓ " : ""}${pk.label}</span>${viewToggle}
       </div>`;
     }).join("");
     row.innerHTML = `
@@ -281,7 +289,10 @@ function renderManagers() {
       </div>
     `;
     row.querySelectorAll(".access-chip").forEach(chip => {
-      chip.addEventListener("click", () => toggleAccess(chip));
+      chip.querySelector(".chip-label").addEventListener("click", () => toggleAccess(chip));
+    });
+    row.querySelectorAll(".view-only-toggle").forEach(toggle => {
+      toggle.addEventListener("click", (e) => { e.stopPropagation(); toggleViewOnly(toggle); });
     });
     row.querySelector(".mgr-set-pin").addEventListener("click", () => setPin(m));
     row.querySelector(".mgr-set-code").addEventListener("click", () => setCode(m));
@@ -295,13 +306,30 @@ async function toggleAccess(chip) {
   const page = chip.dataset.page;
   const currentlyGranted = chip.dataset.granted === "true";
   const next = !currentlyGranted;
+  const viewOnlyToggle = chip.querySelector(".view-only-toggle");
+  const currentViewOnly = viewOnlyToggle ? viewOnlyToggle.dataset.viewOnly === "true" : false;
   chip.style.opacity = "0.5";
   try {
-    await sbRpc("admin_set_page_access", { p_owner_pin: state.ownerPin, p_manager_id: managerId, p_page_key: page, p_granted: next });
+    await sbRpc("admin_set_page_access_v2", { p_owner_pin: state.ownerPin, p_manager_id: managerId, p_page_key: page, p_granted: next, p_view_only: next ? currentViewOnly : false });
     await refreshManagers();
   } catch (e) {
     alert("Couldn't update access: " + e.message);
     chip.style.opacity = "1";
+  }
+}
+
+async function toggleViewOnly(toggle) {
+  const managerId = toggle.dataset.manager;
+  const page = toggle.dataset.page;
+  const currentlyViewOnly = toggle.dataset.viewOnly === "true";
+  const next = !currentlyViewOnly;
+  toggle.style.opacity = "0.5";
+  try {
+    await sbRpc("admin_set_page_access_v2", { p_owner_pin: state.ownerPin, p_manager_id: managerId, p_page_key: page, p_granted: true, p_view_only: next });
+    await refreshManagers();
+  } catch (e) {
+    alert("Couldn't update: " + e.message);
+    toggle.style.opacity = "1";
   }
 }
 

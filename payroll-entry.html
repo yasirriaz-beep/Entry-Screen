@@ -232,7 +232,7 @@ async function doLogin(e) {
   errEl.hidden = true;
   submitBtn.disabled = true;
   try {
-    const managers = await sbRpc("list_managers_for_page_with_code", { p_page_key: PAGE_KEY });
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
     const match = managers.find(m => m.login_code === typedCode);
     if (!match) throw new Error("no match");
 
@@ -240,10 +240,11 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
           selectUser(row.app_user_id, match.name, null, match.id);
     nameInput.value = "";
     pinInput.value = "";
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -543,6 +544,7 @@ document.getElementById("search-emp").addEventListener("input", renderEmpList);
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 

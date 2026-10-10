@@ -201,6 +201,7 @@ async function doLogin(e) {
           afterLogin(row.app_user_id, match.name, match.id, row.role);
     nameInput.value = "";
     pinInput.value = "";
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -329,6 +330,7 @@ function renderRows() {
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 
