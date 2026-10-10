@@ -246,6 +246,12 @@
       <textarea id="f-detail" rows="2" placeholder="Short description"></textarea>
     </div>
 
+    <div class="field">
+      <label>Receipt Photo (optional)</label>
+      <input type="file" id="f-receipt-photo" accept="image/*,.pdf" capture="environment">
+      <div class="hint" id="receipt-status"></div>
+    </div>
+
     <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:4px;">
       <span class="hint">Total</span>
       <span class="amount-display" id="total-display">PKR 0</span>
@@ -619,6 +625,40 @@ async function runCheckAndMaybeSave() {
   }
 }
 
+async function uploadReceiptPhoto(file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${LOCATION_ID}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/receipts/${path}`, {
+    method: "POST",
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": file.type || "image/jpeg"
+    },
+    body: file
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${t}`);
+  }
+  return path;
+}
+
+async function handleReceiptPhotoChange(e) {
+  const file = e.target.files[0];
+  const statusEl = document.getElementById("receipt-status");
+  if (!file) { state.receiptPhotoPath = null; statusEl.textContent = ""; return; }
+  statusEl.textContent = "Uploading…";
+  try {
+    state.receiptPhotoPath = await uploadReceiptPhoto(file);
+    statusEl.textContent = "Receipt attached.";
+  } catch (err) {
+    state.receiptPhotoPath = null;
+    statusEl.textContent = "Couldn't upload (" + err.message + ") — you can still save without it.";
+  }
+}
+document.getElementById("f-receipt-photo").addEventListener("change", handleReceiptPhotoChange);
+
 async function saveExpense({ status, reason }) {
   const cat = document.getElementById("f-category").value;
   const amount = recalcAmount();
@@ -638,7 +678,8 @@ async function saveExpense({ status, reason }) {
     entered_by_user_id: state.userId,
     entered_by_manager_id: state.managerId,
     ai_check_status: status,
-    ai_check_reason: reason
+    ai_check_reason: reason,
+    receipt_photo_path: state.receiptPhotoPath || null
   };
 
   if (cat === ITEM_CODE_CATEGORY) {
@@ -691,6 +732,9 @@ function resetForm() {
   document.getElementById("f-employee").selectedIndex = 0;
   document.getElementById("f-detail").value = "";
   document.getElementById("f-item-search").value = "";
+  document.getElementById("f-receipt-photo").value = "";
+  document.getElementById("receipt-status").textContent = "";
+  state.receiptPhotoPath = null;
   onCategoryChange();
   document.getElementById("step-success").hidden = true;
   document.getElementById("step-form").hidden = false;
