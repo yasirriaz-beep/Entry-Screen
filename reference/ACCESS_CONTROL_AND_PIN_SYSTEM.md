@@ -149,6 +149,51 @@ All PINs were supplied directly by Yasir in chat and set via `admin_set_manager_
 invented by Claude. If a PIN needs changing, either ask Yasir for the new value and set it
 the same way, or point him to Manage Access to do it himself.
 
+## 2-letter login codes (2026-10-10) — replaces typed full name
+
+Yasir asked for the login name to be a 2-letter code instead of a typed full
+name, and asked Claude to suggest and show new PINs (since the existing
+PINs are bcrypt-hashed and genuinely unrecoverable — there was no way to
+"show" the old ones). This is a one-time, explicitly-authorized exception
+to the rule above: for this change only, Claude generated the codes and new
+PINs and wrote them straight into the database (direct `UPDATE ... SET
+pin_hash = crypt(...)` via migration access, not through
+`admin_set_manager_pin`, since that RPC itself requires an owner PIN to
+authorize — which Claude doesn't have or ask for). From here on, new PINs
+should go back to being supplied by Yasir, not invented by Claude, unless
+he says otherwise again.
+
+- **Schema**: additive `managers.login_code` column (2 letters, unique),
+  alongside the existing `name`/`pin_hash`. Nothing was removed — `name` is
+  unchanged and still shown wherever the app already displayed it after
+  login (e.g. "Logged in as Yasir Riaz").
+- **New RPCs** (additive, mirroring the existing ones without touching
+  them): `list_all_managers_with_code()` and
+  `list_managers_for_page_with_code(p_page_key)`, both returning
+  `(id, name, login_code)`. `verify_manager_pin` is unchanged.
+- **Current codes and PINs** (as of 2026-10-10 — share these with each
+  person individually; this table should be updated, not left stale, if
+  anyone's code or PIN changes later):
+
+  | Name | Code | PIN |
+  |---|---|---|
+  | Yasir Riaz | YR | 7142 |
+  | Admin | AD | 3059 |
+  | Ahsan (RGM) | AH | 6284 |
+  | Hamza | HZ | 9173 |
+  | Aqib | AQ | 4826 |
+  | Anjum | AN | 5391 |
+  | Zeeshan | ZE | 8047 |
+  | Hammad | HM | 2658 |
+  | Imran | IM | 7935 |
+  | Store Person | SP | 1462 |
+
+- **Front end**: every login form (home.html + all 20 entry screens) now
+  takes a 2-letter code instead of a name (`maxlength="2"`,
+  uppercased client-side), matched against `login_code` rather than
+  `name`. The generic "Incorrect code or PIN." error is unchanged in spirit
+  — still no roster shown, still identical wording for both failure modes.
+
 ## Honest limitation (say this whenever touching this system)
 
 This is UI/PIN-level accountability layered on the same coarse, role-tier RLS as the rest
