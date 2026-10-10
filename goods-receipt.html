@@ -151,6 +151,12 @@
     </div>
 
     <div class="field">
+      <label>Date Received</label>
+      <input type="date" id="f-date">
+      <div class="hint">Defaults to today — change it to log a receipt for an earlier day.</div>
+    </div>
+
+    <div class="field">
       <label>Invoice / Delivery Note #</label>
       <input type="text" id="f-inv" placeholder="Optional">
     </div>
@@ -304,6 +310,7 @@ function afterLogin(userId, name, managerId, role) {
   state.managerId = managerId;
   document.getElementById("step-name").hidden = true;
   document.getElementById("step-mode").hidden = false;
+  document.getElementById("f-date").value = todayStr();
 }
 
 async function loadProducts() {
@@ -620,7 +627,7 @@ async function saveReceipt() {
     product_id: productId,
     vendor_id: vendorId,
     inv_number: invNumber,
-    purchase_date: todayStr(),
+    purchase_date: document.getElementById("f-date").value || todayStr(),
     unit: unit,
     rate: rate,
     qty: qty,
