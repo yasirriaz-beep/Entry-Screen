@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Cash Reconciliation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input[readonly], input:disabled { opacity: 0.75; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .total-line { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--border); }
+  .total-line .lbl { font-size: 0.82rem; color: var(--ink-soft); }
+  .total-line .num { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.2rem; font-weight: 600; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+  .badge-draft { background: var(--warn-bg); color: var(--warn); }
+  .badge-submitted { background: var(--ok-bg); color: var(--ok); }
+  .badge-locked { background: var(--err-bg); color: var(--err); }
+  .hist-row { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--field-bg); cursor: pointer; }
+  .hist-row .hr-top { display: flex; justify-content: space-between; font-size: 0.88rem; }
+  .hist-detail { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; font-size: 0.82rem; }
+  .hist-detail div { margin-bottom: 3px; }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Cash Reconciliation</h1>
+<div class="sub">Till handover → Zeeshan's safe, carried day to day</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who's entering this?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="field" style="max-width:220px;">
+    <label>Date</label>
+    <input type="date" id="f-date">
+  </div>
+
+  <div class="banner banner-warn" id="status-banner" hidden></div>
+
+  <div class="card">
+    <div class="step-label">Opening <span id="status-badge"></span></div>
+    <div class="field">
+      <label>Opening Petty Cash (from previous day's ending cash)</label>
+      <input type="number" id="f-opening" step="any">
+      <div class="hint" id="opening-hint"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Cash Received</div>
+    <div class="field">
+      <label>Gulberg — handed to safe today (auto, from till recon)</label>
+      <input type="number" id="f-gulberg-received" readonly>
+    </div>
+    <div class="field">
+      <label>Other Locations — cash received (enter manually for now)</label>
+      <input type="number" id="f-other-received" step="any" placeholder="0">
+    </div>
+    <div class="field">
+      <label>Other Locations — notes (optional breakdown)</label>
+      <textarea id="f-other-notes" rows="2" placeholder="e.g. Susan 323,587 / Green Avenue 72,460 / Bakery 225,426"></textarea>
+    </div>
+    <div class="total-line"><span class="lbl">Total Cash</span><span class="num" id="total-cash-display">PKR 0</span></div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Expenses Paid From Safe</div>
+    <div class="field">
+      <label>Cash Expenses (vendors, salaries, etc. paid by you in cash)</label>
+      <input type="number" id="f-expenses" step="any" placeholder="0">
+    </div>
+    <div class="total-line"><span class="lbl">Ending Cash</span><span class="num" id="ending-cash-display">PKR 0</span></div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Ending Split (must add up to Ending Cash)</div>
+    <div class="row2 field">
+      <div>
+        <label>Cash in Hand</label>
+        <input type="number" id="f-cash-in-hand" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Jazz Cash</label>
+        <input type="number" id="f-jazz-cash" step="any" placeholder="0">
+      </div>
+    </div>
+    <div class="hint" id="split-hint"></div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="f-notes" rows="2" placeholder="Optional"></textarea>
+    </div>
+  </div>
+
+  <button class="btn-primary" id="btn-save-draft" type="button">Save Draft</button>
+  <button class="btn-primary" id="btn-submit" type="button" style="margin-top:10px;">Submit Day's Reconciliation</button>
+  <div id="director-controls" hidden style="display:flex; gap:8px; margin-top:10px;">
+    <button class="btn-sm" id="btn-lock" type="button" style="flex:1; background:var(--err); color:#fff;">Lock Day (Owner PIN)</button>
+    <button class="btn-sm" id="btn-unlock" type="button" style="flex:1; background:transparent; border:1px solid var(--border); color:var(--ink);" hidden>Unlock (Owner PIN)</button>
+  </div>
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+
+  <div class="card" style="margin-top:18px;">
+    <div class="step-label">History</div>
+    <div id="history-list"></div>
+    <div class="hint" id="history-empty" hidden>No entries yet.</div>
+  </div>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const GULBERG_ID = "10000000-0000-0000-0000-000000000005";
+const PAGE_KEY = "cash_reconciliation";
+
+let state = { userId: null, userName: null, managerId: null, role: null, currentRow: null };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function fmtMoney(n) {
+  return "PKR " + Math.round(Number(n) || 0).toLocaleString();
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  state.role = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("director-controls").hidden = (role !== "director");
+  document.getElementById("f-date").value = todayStr();
+  loadDay(todayStr());
+  loadHistory();
+}
+
+function backToNames() {
+  state.userId = null;
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+function recalc() {
+  const opening = parseFloat(document.getElementById("f-opening").value) || 0;
+  const gulberg = parseFloat(document.getElementById("f-gulberg-received").value) || 0;
+  const other = parseFloat(document.getElementById("f-other-received").value) || 0;
+  const expenses = parseFloat(document.getElementById("f-expenses").value) || 0;
+  const total = opening + gulberg + other;
+  const ending = total - expenses;
+  document.getElementById("total-cash-display").textContent = fmtMoney(total);
+  document.getElementById("ending-cash-display").textContent = fmtMoney(ending);
+
+  const cashInHand = parseFloat(document.getElementById("f-cash-in-hand").value) || 0;
+  const jazzCash = parseFloat(document.getElementById("f-jazz-cash").value) || 0;
+  const splitHint = document.getElementById("split-hint");
+  const diff = Math.round((ending - cashInHand - jazzCash) * 100) / 100;
+  if (diff !== 0 && (document.getElementById("f-cash-in-hand").value !== "" || document.getElementById("f-jazz-cash").value !== "")) {
+    splitHint.textContent = `Doesn't add up yet — off by ${fmtMoney(Math.abs(diff))}.`;
+    splitHint.style.color = "var(--err)";
+  } else {
+    splitHint.textContent = "";
+  }
+  return { opening, gulberg, other, expenses, total, ending, cashInHand, jazzCash, diff };
+}
+["f-opening","f-other-received","f-expenses","f-cash-in-hand","f-jazz-cash"].forEach(id => {
+  document.getElementById(id).addEventListener("input", recalc);
+});
+
+async function fetchGulbergReceived(dateStr) {
+  try {
+    const rows = await sb(`daily_sales?location_id=eq.${GULBERG_ID}&sale_date=eq.${dateStr}&select=custodian_cash_amount`);
+    const net = (rows || []).reduce((s, r) => s - (Number(r.custodian_cash_amount) || 0), 0);
+    return Math.max(0, Math.round(net * 100) / 100);
+  } catch (e) { return 0; }
+}
+
+async function fetchPreviousEnding(dateStr) {
+  try {
+    const rows = await sb(`cash_safe_ledger?ledger_date=lt.${dateStr}&select=ledger_date,ending_cash&order=ledger_date.desc&limit=1`);
+    return rows && rows[0] ? Number(rows[0].ending_cash) || 0 : 0;
+  } catch (e) { return 0; }
+}
+
+function applyLockState(row) {
+  const isLocked = row && row.status === "locked";
+  const fields = ["f-opening","f-other-received","f-other-notes","f-expenses","f-cash-in-hand","f-jazz-cash","f-notes"];
+  fields.forEach(id => document.getElementById(id).disabled = isLocked);
+  document.getElementById("btn-save-draft").disabled = isLocked;
+  document.getElementById("btn-submit").disabled = isLocked;
+  const banner = document.getElementById("status-banner");
+  const badge = document.getElementById("status-badge");
+  if (!row) { banner.hidden = true; badge.innerHTML = ""; return; }
+  const labels = { draft: ["badge-draft","Draft"], submitted: ["badge-submitted","Submitted"], locked: ["badge-locked","Locked"] };
+  const [cls, label] = labels[row.status] || ["badge-draft", row.status];
+  badge.innerHTML = `<span class="badge ${cls}">${label}</span>`;
+  if (row.status === "locked") {
+    banner.hidden = false;
+    banner.textContent = "This day is locked. Only the owner PIN can reopen it for edits.";
+  } else {
+    banner.hidden = true;
+  }
+  if (state.role === "director") {
+    document.getElementById("btn-lock").hidden = isLocked;
+    document.getElementById("btn-unlock").hidden = !isLocked;
+  }
+}
+
+async function loadDay(dateStr) {
+  const rows = await sb(`cash_safe_ledger?ledger_date=eq.${dateStr}&select=*`);
+  const gulbergReceived = await fetchGulbergReceived(dateStr);
+  document.getElementById("f-gulberg-received").value = gulbergReceived;
+
+  if (rows && rows[0]) {
+    state.currentRow = rows[0];
+    const r = rows[0];
+    document.getElementById("f-opening").value = r.opening_petty_cash;
+    document.getElementById("f-other-received").value = r.other_locations_cash_received;
+    document.getElementById("f-other-notes").value = r.other_locations_notes || "";
+    document.getElementById("f-expenses").value = r.cash_expenses;
+    document.getElementById("f-cash-in-hand").value = r.cash_in_hand != null ? r.cash_in_hand : "";
+    document.getElementById("f-jazz-cash").value = r.jazz_cash != null ? r.jazz_cash : "";
+    document.getElementById("f-notes").value = r.notes || "";
+    document.getElementById("opening-hint").textContent = "Loaded from today's saved entry.";
+  } else {
+    state.currentRow = null;
+    const prevEnding = await fetchPreviousEnding(dateStr);
+    document.getElementById("f-opening").value = prevEnding;
+    document.getElementById("f-other-received").value = "";
+    document.getElementById("f-other-notes").value = "";
+    document.getElementById("f-expenses").value = "";
+    document.getElementById("f-cash-in-hand").value = "";
+    document.getElementById("f-jazz-cash").value = "";
+    document.getElementById("f-notes").value = "";
+    document.getElementById("opening-hint").textContent = prevEnding
+      ? "Carried from the previous day's ending cash — override if it's wrong."
+      : "No previous entry found — enter the actual petty cash on hand.";
+  }
+  applyLockState(state.currentRow);
+  recalc();
+}
+document.getElementById("f-date").addEventListener("change", (e) => loadDay(e.target.value));
+
+async function saveDay(status) {
+  const dateStr = document.getElementById("f-date").value;
+  const calc = recalc();
+
+  if (status === "submitted" && (document.getElementById("f-cash-in-hand").value === "" || document.getElementById("f-jazz-cash").value === "")) {
+    return alert("Enter the Cash in Hand / Jazz Cash split before submitting.");
+  }
+  if (status === "submitted" && calc.diff !== 0) {
+    return alert(`Cash in Hand + Jazz Cash must equal Ending Cash. Off by ${fmtMoney(Math.abs(calc.diff))}.`);
+  }
+
+  const payload = {
+    ledger_date: dateStr,
+    opening_petty_cash: calc.opening,
+    gulberg_cash_received: calc.gulberg,
+    other_locations_cash_received: calc.other,
+    other_locations_notes: document.getElementById("f-other-notes").value || null,
+    cash_expenses: calc.expenses,
+    cash_in_hand: document.getElementById("f-cash-in-hand").value !== "" ? calc.cashInHand : null,
+    jazz_cash: document.getElementById("f-jazz-cash").value !== "" ? calc.jazzCash : null,
+    notes: document.getElementById("f-notes").value || null,
+    status: status,
+    updated_by_user_id: state.userId
+  };
+  if (status === "submitted") payload.submitted_at = new Date().toISOString();
+
+  try {
+    if (state.currentRow) {
+      await sb(`cash_safe_ledger?id=eq.${state.currentRow.id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      payload.entered_by_user_id = state.userId;
+      await sb("cash_safe_ledger", {
+        method: "POST",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(payload)
+      });
+    }
+    await loadDay(dateStr);
+    await loadHistory();
+    alert(status === "submitted" ? "Submitted." : "Draft saved.");
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  }
+}
+document.getElementById("btn-save-draft").addEventListener("click", () => saveDay("draft"));
+document.getElementById("btn-submit").addEventListener("click", () => saveDay("submitted"));
+
+async function lockDay() {
+  const pin = prompt("Owner PIN to lock this day:");
+  if (!pin) return;
+  try {
+    await sbRpc("admin_lock_cash_ledger_v1", { p_owner_pin: pin, p_ledger_date: document.getElementById("f-date").value });
+    await loadDay(document.getElementById("f-date").value);
+    await loadHistory();
+  } catch (e) { alert("Couldn't lock: " + e.message); }
+}
+async function unlockDay() {
+  const pin = prompt("Owner PIN to unlock this day:");
+  if (!pin) return;
+  try {
+    await sbRpc("admin_unlock_cash_ledger_v1", { p_owner_pin: pin, p_ledger_date: document.getElementById("f-date").value });
+    await loadDay(document.getElementById("f-date").value);
+    await loadHistory();
+  } catch (e) { alert("Couldn't unlock: " + e.message); }
+}
+document.getElementById("btn-lock").addEventListener("click", lockDay);
+document.getElementById("btn-unlock").addEventListener("click", unlockDay);
+
+async function loadHistory() {
+  const list = document.getElementById("history-list");
+  const emptyHint = document.getElementById("history-empty");
+  list.innerHTML = "";
+  try {
+    const rows = await sb(`cash_safe_ledger?select=*&order=ledger_date.desc&limit=30`);
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "hist-row";
+      const labels = { draft: "Draft", submitted: "Submitted", locked: "Locked" };
+      row.innerHTML = `
+        <div class="hr-top">
+          <strong>${r.ledger_date}</strong>
+          <span>${fmtMoney(r.ending_cash)} <span class="badge badge-${r.status}">${labels[r.status] || r.status}</span></span>
+        </div>
+        <div class="hist-detail" hidden>
+          <div>Opening Petty Cash: ${fmtMoney(r.opening_petty_cash)}</div>
+          <div>Gulberg Received: ${fmtMoney(r.gulberg_cash_received)}</div>
+          <div>Other Locations Received: ${fmtMoney(r.other_locations_cash_received)}${r.other_locations_notes ? " — " + r.other_locations_notes : ""}</div>
+          <div>Total Cash: ${fmtMoney(r.total_cash)}</div>
+          <div>Cash Expenses: ${fmtMoney(r.cash_expenses)}</div>
+          <div>Ending Cash: ${fmtMoney(r.ending_cash)}</div>
+          <div>Split: Cash in Hand ${fmtMoney(r.cash_in_hand)} / Jazz Cash ${fmtMoney(r.jazz_cash)}</div>
+          ${r.notes ? `<div>Notes: ${r.notes}</div>` : ""}
+        </div>`;
+      const detail = row.querySelector(".hist-detail");
+      row.addEventListener("click", () => { detail.hidden = !detail.hidden; });
+      list.appendChild(row);
+    });
+  } catch (e) {
+    emptyHint.hidden = false;
+    emptyHint.textContent = "Couldn't load history: " + e.message;
+  }
+}
+
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+</body>
+</html>
