@@ -68,6 +68,13 @@
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
   .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
   .btn-login:disabled { opacity: 0.6; cursor: default; }
+
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(20, 16, 12, 0.5); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  .modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; }
+  .modal-card h3 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.15rem; margin: 0 0 4px; }
+  .modal-card .hint { margin-bottom: 14px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .modal-actions button { flex: 1; margin-top: 0; }
 </style>
 </head>
 <body>
@@ -121,6 +128,20 @@
         <input type="date" id="n-hire-date">
       </div>
     </div>
+    <div class="row2 field">
+      <div>
+        <label>Hiring Manager (optional)</label>
+        <input type="text" id="n-hiring-manager" placeholder="Who hired them">
+      </div>
+      <div>
+        <label>CNIC Number (optional)</label>
+        <input type="text" id="n-cnic-number" placeholder="xxxxx-xxxxxxx-x">
+      </div>
+    </div>
+    <div class="field">
+      <label>CNIC Photo (optional)</label>
+      <input type="file" id="n-cnic-photo" accept="image/*,.pdf">
+    </div>
     <button class="btn-primary" id="btn-add-emp" type="button">Add Employee</button>
   </div>
 
@@ -143,6 +164,26 @@
   <div style="margin-top:8px; font-weight:600;" id="success-title">Saved</div>
   <div class="hint" style="margin-top:4px;" id="success-sub"></div>
   <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">OK</button>
+</div>
+
+<div id="retire-modal" class="modal-backdrop" hidden>
+  <div class="modal-card">
+    <h3>Retire <span id="retire-emp-name"></span></h3>
+    <div class="hint">Their payroll history stays intact; they just won't show up for new entries.</div>
+    <div class="field">
+      <label>Days worked this final month (optional)</label>
+      <input type="number" id="retire-days" step="any" min="0" placeholder="e.g. 12">
+      <div class="hint">If they're leaving partway through the month, this logs their last partial-month pay before they drop off the Payroll screen.</div>
+    </div>
+    <div class="field">
+      <label>Reason for leaving (optional)</label>
+      <textarea id="retire-reason" rows="3" placeholder="e.g. Resigned, moved to another city"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="btn-retire-cancel" type="button">Cancel</button>
+      <button class="btn-primary" id="btn-retire-confirm" type="button" style="background:var(--err);">Retire</button>
+    </div>
+  </div>
 </div>
 
 <script src="session.js"></script>
@@ -259,6 +300,10 @@ async function addEmployee() {
   const designation = document.getElementById("n-designation").value.trim() || null;
   const salary = parseFloat(document.getElementById("n-salary").value) || 0;
   const hireDate = document.getElementById("n-hire-date").value || null;
+  const hiringManager = document.getElementById("n-hiring-manager").value.trim() || null;
+  const cnicNumber = document.getElementById("n-cnic-number").value.trim() || null;
+  const cnicFileInput = document.getElementById("n-cnic-photo");
+  const cnicFile = cnicFileInput && cnicFileInput.files[0];
 
   if (!name) return alert("Enter the employee's name.");
   if (!salary) return alert("Enter a monthly salary.");
@@ -266,21 +311,34 @@ async function addEmployee() {
   const btn = document.getElementById("btn-add-emp");
   btn.disabled = true;
   try {
-    await sb("employees", {
+    const created = await sb("employees", {
       method: "POST",
-      headers: { "Prefer": "return=minimal" },
+      headers: { "Prefer": "return=representation" },
       body: JSON.stringify({
         org_id: ORG_ID, location_id: LOCATION_ID, name, department: dept, designation,
         employment_type: ftpt, monthly_salary: salary, hire_date: hireDate, active: true,
+        hiring_manager: hiringManager, cnic_number: cnicNumber,
         created_by: state.userId, updated_by: state.userId, updated_at: new Date().toISOString()
       })
     });
+    const newEmp = created && created[0];
+    if (cnicFile && newEmp) {
+      const path = await uploadCnicPhoto(cnicFile, newEmp.id);
+      await sb(`employees?id=eq.${newEmp.id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ cnic_photo_path: path })
+      });
+    }
     document.getElementById("n-name").value = "";
     document.getElementById("n-dept").value = "";
     document.getElementById("n-designation").value = "";
     document.getElementById("n-salary").value = "";
     document.getElementById("n-hire-date").value = "";
     document.getElementById("n-ftpt").value = "FT";
+    document.getElementById("n-hiring-manager").value = "";
+    document.getElementById("n-cnic-number").value = "";
+    if (cnicFileInput) cnicFileInput.value = "";
     showSuccess("Employee added", `${name} — ready to use on the payroll screen.`);
     await loadEmployees();
   } catch (e) {
@@ -300,7 +358,7 @@ async function loadEmployees() {
   const showRetired = document.getElementById("show-retired").checked;
   const filter = showRetired ? "" : "&active=eq.true";
   try {
-    state.employees = await sb(`employees?location_id=eq.${LOCATION_ID}&select=id,name,department,designation,employment_type,monthly_salary,active,hire_date&order=department,name${filter}`);
+    state.employees = await sb(`employees?location_id=eq.${LOCATION_ID}&select=id,name,department,designation,employment_type,monthly_salary,active,hire_date,hiring_manager,cnic_number,cnic_photo_path,location_id&order=department,name${filter}`);
   } catch (e) { state.employees = []; }
   renderEmpList();
 }
@@ -367,6 +425,21 @@ function renderEmpList() {
             </select>
           </div>
         </div>
+        <div class="row2 field">
+          <div>
+            <label>Hiring Manager</label>
+            <input type="text" class="e-hiring-manager" value="${e.hiring_manager || ""}">
+          </div>
+          <div>
+            <label>CNIC Number</label>
+            <input type="text" class="e-cnic-number" value="${e.cnic_number || ""}">
+          </div>
+        </div>
+        <div class="field">
+          <label>CNIC Photo</label>
+          <input type="file" class="e-cnic-photo" accept="image/*,.pdf">
+          ${e.cnic_photo_path ? `<div class="hint"><a href="#" class="e-cnic-view" data-path="${e.cnic_photo_path}">View current CNIC file</a> · uploading a new one replaces it</div>` : `<div class="hint">No CNIC file on record yet.</div>`}
+        </div>
         <div style="display:flex; gap:8px;">
           <button type="button" class="btn-primary btn-sm e-save-btn" style="flex:1;">Save Changes</button>
           <button type="button" class="btn-sm ${e.active ? "btn-outline-err e-retire-btn" : "btn-outline-ok e-restore-btn"}" style="flex:1;">
@@ -380,12 +453,48 @@ function renderEmpList() {
       detail.hidden = !detail.hidden;
     });
     row.querySelector(".e-save-btn").addEventListener("click", () => saveEmpEdit(e, row));
+    const cnicViewLink = row.querySelector(".e-cnic-view");
+    if (cnicViewLink) cnicViewLink.addEventListener("click", (ev) => { ev.preventDefault(); viewCnicFile(cnicViewLink.dataset.path); });
     const retireBtn = row.querySelector(".e-retire-btn");
-    if (retireBtn) retireBtn.addEventListener("click", () => setEmpActive(e, false));
+    if (retireBtn) retireBtn.addEventListener("click", () => openRetireModal(e));
     const restoreBtn = row.querySelector(".e-restore-btn");
     if (restoreBtn) restoreBtn.addEventListener("click", () => setEmpActive(e, true));
     list.appendChild(row);
   });
+}
+
+async function uploadCnicPhoto(file, employeeId) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${employeeId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/employee-docs/${path}`, {
+    method: "POST",
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": file.type || "application/octet-stream"
+    },
+    body: file
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`CNIC upload failed: ${res.status} ${t}`);
+  }
+  return path;
+}
+
+async function viewCnicFile(path) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/employee-docs/${path}`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 300 })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+  } catch (e) {
+    alert("Couldn't open CNIC file: " + e.message);
+  }
 }
 
 async function saveEmpEdit(e, rowEl) {
@@ -393,29 +502,41 @@ async function saveEmpEdit(e, rowEl) {
   const dept = rowEl.querySelector(".e-dept").value.trim() || null;
   const salary = parseFloat(rowEl.querySelector(".e-salary").value) || 0;
   const ftpt = rowEl.querySelector(".e-ftpt").value;
+  const hiringManager = rowEl.querySelector(".e-hiring-manager").value.trim() || null;
+  const cnicNumber = rowEl.querySelector(".e-cnic-number").value.trim() || null;
+  const cnicFileInput = rowEl.querySelector(".e-cnic-photo");
+  const cnicFile = cnicFileInput && cnicFileInput.files[0];
+  const saveBtn = rowEl.querySelector(".e-save-btn");
+  saveBtn.disabled = true;
   try {
+    const payload = {
+      designation, department: dept, monthly_salary: salary, employment_type: ftpt,
+      hiring_manager: hiringManager, cnic_number: cnicNumber,
+      updated_by: state.userId, updated_at: new Date().toISOString()
+    };
+    if (cnicFile) {
+      payload.cnic_photo_path = await uploadCnicPhoto(cnicFile, e.id);
+    }
     await sb(`employees?id=eq.${e.id}`, {
       method: "PATCH",
       headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify({
-        designation, department: dept, monthly_salary: salary, employment_type: ftpt,
-        updated_by: state.userId, updated_at: new Date().toISOString()
-      })
+      body: JSON.stringify(payload)
     });
     await loadEmployees();
   } catch (e2) {
     alert("Couldn't save: " + e2.message);
+  } finally {
+    saveBtn.disabled = false;
   }
 }
 
 async function setEmpActive(e, active) {
-  if (!active && !confirm(`Retire "${e.name}"? Their payroll history stays intact but they won't show up for new entries.`)) return;
+  // Used for restoring a retired employee. Retiring goes through the retire modal (openRetireModal).
   try {
     const payload = {
       active,
       updated_by: state.userId, updated_at: new Date().toISOString()
     };
-    if (!active) { payload.retired_by = state.userId; payload.retired_at = new Date().toISOString(); }
     await sb(`employees?id=eq.${e.id}`, {
       method: "PATCH",
       headers: { "Prefer": "return=minimal" },
@@ -426,6 +547,86 @@ async function setEmpActive(e, active) {
     alert("Couldn't update: " + e2.message);
   }
 }
+
+let retireTarget = null;
+
+function openRetireModal(e) {
+  retireTarget = e;
+  document.getElementById("retire-emp-name").textContent = e.name;
+  document.getElementById("retire-days").value = "";
+  document.getElementById("retire-reason").value = "";
+  document.getElementById("retire-modal").hidden = false;
+}
+
+function closeRetireModal() {
+  retireTarget = null;
+  document.getElementById("retire-modal").hidden = true;
+}
+
+async function confirmRetire() {
+  const e = retireTarget;
+  if (!e) return;
+  const daysRaw = document.getElementById("retire-days").value;
+  const days = daysRaw === "" ? null : parseFloat(daysRaw);
+  const reason = document.getElementById("retire-reason").value.trim() || null;
+  const btn = document.getElementById("btn-retire-confirm");
+  btn.disabled = true;
+  try {
+    const payload = {
+      active: false,
+      retired_by: state.userId, retired_at: new Date().toISOString(),
+      retirement_reason: reason, final_days_worked: (days !== null && !isNaN(days)) ? days : null,
+      updated_by: state.userId, updated_at: new Date().toISOString()
+    };
+    await sb(`employees?id=eq.${e.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify(payload)
+    });
+
+    if (days !== null && !isNaN(days) && days > 0) {
+      await recordFinalPayroll(e, days);
+    }
+
+    closeRetireModal();
+    await loadEmployees();
+  } catch (e2) {
+    alert("Couldn't retire employee: " + e2.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function recordFinalPayroll(e, days) {
+  const now = new Date();
+  const periodMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const perDayRate = (e.monthly_salary || 0) / 26;
+  const salaryEarned = Math.round(perDayRate * days * 100) / 100;
+
+  const existing = await sb(`payroll_entries?employee_id=eq.${e.id}&period_month=eq.${periodMonth}&select=id`);
+  const payload = {
+    employee_id: e.id, location_id: e.location_id || LOCATION_ID, period_month: periodMonth,
+    days_worked: days, salary_earned: salaryEarned, net_salary: salaryEarned,
+    attendance_source: "manual", notes: "Final partial month (recorded on retirement)",
+    entered_by_user_id: state.userId
+  };
+  if (existing && existing.length) {
+    await sb(`payroll_entries?id=eq.${existing[0].id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify(payload)
+    });
+  } else {
+    await sb("payroll_entries", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify(payload)
+    });
+  }
+}
+
+document.getElementById("btn-retire-cancel").addEventListener("click", closeRetireModal);
+document.getElementById("btn-retire-confirm").addEventListener("click", confirmRetire);
 
 document.getElementById("search-emp").addEventListener("input", renderEmpList);
 document.getElementById("show-retired").addEventListener("change", loadEmployees);
