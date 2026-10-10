@@ -93,7 +93,7 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
   <div class="who-row">
     <div class="field">
       <label for="loginName">Entered by</label>
-      <input type="text" id="loginName" placeholder="Your name" autocomplete="username">
+      <input type="text" id="loginName" placeholder="Code" autocomplete="username" maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
     </div>
     <div class="field" style="flex:0 0 150px">
       <label for="dateInput">Date</label>
@@ -104,7 +104,7 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
     <label for="loginPin">PIN</label>
     <input type="password" id="loginPin" placeholder="PIN" autocomplete="current-password" inputmode="numeric">
   </div>
-  <div class="login-error" id="login-error" hidden style="margin-top:8px">Incorrect name or PIN.</div>
+  <div class="login-error" id="login-error" hidden style="margin-top:8px">Incorrect code or PIN.</div>
   <div class="field" style="margin-top:12px">
     <label for="shiftSelect">Shift</label>
     <select id="shiftSelect">
@@ -509,18 +509,18 @@ document.getElementById("continueBtn").addEventListener("click", async () => {
   const nameInput = document.getElementById("loginName");
   const pinInput = document.getElementById("loginPin");
   const errEl = document.getElementById("login-error");
-  const typedName = nameInput.value.trim();
+  const typedCode = nameInput.value.trim().toUpperCase();
   const pin = pinInput.value;
   errEl.hidden = true;
-  if (!typedName || !pin){
-    showBanner("Enter your name and PIN under \"Entered by\" before continuing.", "danger");
+  if (!typedCode || !pin){
+    showBanner("Enter your code and PIN under \"Entered by\" before continuing.", "danger");
     return;
   }
   const btn = document.getElementById("continueBtn");
   btn.disabled = true;
   try {
-    const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
-    const match = managers.find(m => m.name.trim().toLowerCase() === typedName.toLowerCase());
+    const managers = await sbRpc("list_managers_for_page_with_code", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
     if (!match) throw new Error("no match");
     const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
     const row = rows && rows[0];
@@ -550,7 +550,7 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
 
   const whoId = resolvedUserId;
   if (!whoId){
-    showBanner("Your name got cleared after the last save — select it again under \"Entered by\" before saving.", "danger");
+    showBanner("Your login got cleared after the last save — enter your code and PIN again under \"Entered by\" before saving.", "danger");
     document.getElementById("salesForm").hidden = true;
     document.getElementById("whoCard").hidden = false;
     return;

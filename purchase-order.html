@@ -94,9 +94,9 @@
 <div id="step-name" class="card">
   <div class="step-label">Who are you?</div>
   <form id="login-form" autocomplete="on">
-    <input type="text" id="login-name" class="login-field" placeholder="Your name" autocomplete="username" required>
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
     <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
-    <div class="login-error" id="login-error" hidden>Incorrect name or PIN.</div>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
     <button type="submit" class="btn-login" id="login-submit">Log in</button>
   </form>
 </div>
@@ -220,15 +220,15 @@ async function doLogin(e) {
   const pinInput = document.getElementById("login-pin");
   const errEl = document.getElementById("login-error");
   const submitBtn = document.getElementById("login-submit");
-  const typedName = nameInput.value.trim();
+  const typedCode = nameInput.value.trim().toUpperCase();
   const pin = pinInput.value;
-  if (!typedName || !pin) return;
+  if (!typedCode || !pin) return;
 
   errEl.hidden = true;
   submitBtn.disabled = true;
   try {
-    const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
-    const match = managers.find(m => m.name.trim().toLowerCase() === typedName.toLowerCase());
+    const managers = await sbRpc("list_managers_for_page_with_code", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
     if (!match) throw new Error("no match");
 
     const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
