@@ -77,6 +77,7 @@
   .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
   .badge-demand { background: var(--warn-bg); color: var(--warn); }
   .badge-authorized { background: var(--ok-bg); color: var(--ok); }
+  .badge-overdue { background: var(--err-bg); color: var(--err); }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -138,6 +139,7 @@
 
 <!-- DIRECTOR ONLY : authorize -->
 <div id="panel-authorize" hidden>
+  <div class="banner banner-warn" id="authorize-stuck-banner" hidden></div>
   <div class="card">
     <div class="step-label">Demands Awaiting Authorization</div>
     <div id="demand-list"></div>
@@ -148,6 +150,7 @@
 
 <!-- DIRECTOR ONLY : place order -->
 <div id="panel-order" hidden>
+  <div class="banner banner-warn" id="order-stuck-banner" hidden></div>
   <div class="card">
     <div class="step-label">Authorized — Ready to Order</div>
     <div id="authorized-list"></div>
@@ -511,21 +514,38 @@ async function enterOrderPanel() {
   await loadAuthorizedList();
 }
 
+const STUCK_HOURS = 24;
+
+function updateStuckBanner(elId, rows) {
+  const banner = document.getElementById(elId);
+  if (!banner) return;
+  const now = Date.now();
+  const stuck = rows.filter(po => (now - new Date(po.authorized_at).getTime()) > STUCK_HOURS * 3600 * 1000);
+  if (!stuck.length) { banner.hidden = true; return; }
+  const names = stuck.map(po => po.products?.name || "item").slice(0, 5).join(", ");
+  banner.hidden = false;
+  banner.textContent = `⚠ ${stuck.length} item(s) authorized more than ${STUCK_HOURS}h ago still haven't been ordered: ${names}${stuck.length > 5 ? "…" : ""}`;
+}
+
 async function loadAuthorizedList() {
   const list = document.getElementById("authorized-list");
   const emptyHint = document.getElementById("authorized-empty-hint");
   list.innerHTML = "";
   try {
     const rows = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=eq.Authorized&select=id,qty_requested,unit,authorized_at,products(id,name,code,unit,current_rate),vendor_id&order=authorized_at.asc`);
+    updateStuckBanner("order-stuck-banner", rows);
+    updateStuckBanner("authorize-stuck-banner", rows);
     if (!rows.length) { emptyHint.hidden = false; return; }
     emptyHint.hidden = true;
+    const now = Date.now();
     rows.forEach(po => {
       const card = document.createElement("div");
       card.className = "po-card";
       const prod = po.products;
       const vendorOptions = state.vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join("");
+      const isStuck = (now - new Date(po.authorized_at).getTime()) > STUCK_HOURS * 3600 * 1000;
       card.innerHTML = `
-        <div class="po-title">${prod ? prod.name : "Unknown item"} <span class="badge badge-authorized">Authorized</span></div>
+        <div class="po-title">${prod ? prod.name : "Unknown item"} <span class="badge badge-authorized">Authorized</span>${isStuck ? ` <span class="badge badge-overdue">Not Ordered Yet</span>` : ""}</div>
         <div class="po-sub">${po.qty_requested} ${po.unit || prod?.unit || ""} · authorized ${new Date(po.authorized_at).toLocaleDateString()}</div>
         <div class="po-detail" hidden>
           <div class="field">
