@@ -78,6 +78,9 @@
   .badge-demand { background: var(--warn-bg); color: var(--warn); }
   .badge-authorized { background: var(--ok-bg); color: var(--ok); }
   .badge-overdue { background: var(--err-bg); color: var(--err); }
+  .suggest-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .suggest-row .suggest-info { font-size: 0.85rem; }
+  .suggest-row .suggest-sub { font-size: 0.75rem; color: var(--ink-soft); }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -104,6 +107,12 @@
 
 <!-- AUDITOR / DIRECTOR : create demand -->
 <div id="panel-demand" hidden>
+  <div class="card">
+    <div class="step-label">Suggested Reorders — based on last 30 days' usage</div>
+    <div id="suggest-list"></div>
+    <div class="hint" id="suggest-empty" hidden>Nothing due for reorder right now.</div>
+  </div>
+
   <div class="card">
     <div class="step-label">New Demand — request items to reorder</div>
     <div class="field">
@@ -370,6 +379,67 @@ function enterDemandPanel() {
   document.getElementById("d-suggest-hint").textContent = "";
   populateDemandItemSelect("");
   loadMyDemands();
+  loadSuggestedReorders();
+}
+
+async function loadSuggestedReorders() {
+  const list = document.getElementById("suggest-list");
+  const emptyHint = document.getElementById("suggest-empty");
+  list.innerHTML = "";
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/suggest_reorder_list_v1`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_location_id: LOCATION_ID })
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    const rows = await res.json();
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "suggest-row";
+      row.innerHTML = `
+        <div class="suggest-info">
+          <div><strong>${r.name}</strong></div>
+          <div class="suggest-sub">~${r.avg_daily_qty} ${r.unit}/day · suggest ${r.suggested_qty} ${r.unit}</div>
+        </div>
+        <button type="button" class="btn-primary btn-sm" style="width:auto;">Add to Demand</button>`;
+      row.querySelector("button").addEventListener("click", () => quickSubmitDemand(r, row));
+      list.appendChild(row);
+    });
+  } catch (e) {
+    emptyHint.hidden = false;
+    emptyHint.textContent = "Couldn't load suggestions: " + e.message;
+  }
+}
+
+async function quickSubmitDemand(r, rowEl) {
+  const btn = rowEl.querySelector("button");
+  btn.disabled = true;
+  btn.textContent = "Adding…";
+  try {
+    await sb("purchase_orders", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        location_id: LOCATION_ID,
+        product_id: r.product_id,
+        qty_requested: r.suggested_qty,
+        unit: r.unit,
+        requested_by: state.userId,
+        entered_by_manager_id: state.managerId,
+        status: "Demand",
+        notes: `Suggested from ~${r.avg_daily_qty} ${r.unit}/day usage`
+      })
+    });
+    rowEl.remove();
+    loadMyDemands();
+  } catch (e) {
+    alert("Couldn't add: " + e.message);
+    btn.disabled = false;
+    btn.textContent = "Add to Demand";
+  }
 }
 
 async function submitDemand() {
