@@ -698,7 +698,7 @@ document.getElementById("btn-submit").addEventListener("click", () => saveDay("s
 async function loadPayables() {
   try {
     const [vendors, purchases, payments] = await Promise.all([
-      sb(`vendors?active=eq.true&select=id,name&order=name`),
+      sb(`vendors?active=eq.true&select=id,name,opening_payable_balance&order=name`),
       sb(`purchases?location_id=eq.${GULBERG_ID}&payment_status=eq.credit&select=vendor_id,amount`),
       sb(`vendor_payments?location_id=eq.${GULBERG_ID}&select=vendor_id,amount`)
     ]);
@@ -708,7 +708,9 @@ async function loadPayables() {
     let total = 0;
     const lines = [];
     (vendors || []).forEach(v => {
-      const bal = (owed[v.id] || 0) - (paid[v.id] || 0);
+      // Includes any pre-system opening balance set for this vendor (dues from before
+      // this app was in use), set by a director in Vendor Payment.
+      const bal = (Number(v.opening_payable_balance) || 0) + (owed[v.id] || 0) - (paid[v.id] || 0);
       if (bal > 0.01) { total += bal; lines.push({ label: v.name, amount: bal }); }
     });
     lines.sort((a, b) => b.amount - a.amount);

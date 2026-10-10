@@ -142,7 +142,7 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const PAGE_KEY = "vendor_payment";
 
-let state = { userId: null, userName: null, managerId: null, vendors: [], balances: {} };
+let state = { userId: null, userName: null, managerId: null, role: null, vendors: [], balances: {} };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -240,6 +240,7 @@ function afterLogin(userId, name, managerId, role) {
   state.userId = userId;
   state.userName = name;
   state.managerId = managerId;
+  state.role = role;
   document.getElementById("step-name").hidden = true;
   document.getElementById("panel-main").hidden = false;
   document.getElementById("f-date").value = todayStr();
@@ -258,7 +259,7 @@ document.getElementById("btn-back").addEventListener("click", backToNames);
 async function loadBalances() {
   const list = document.getElementById("balance-list");
   let vendors = [], purchases = [], payments = [];
-  try { vendors = await sb(`vendors?active=eq.true&select=id,name&order=name`); } catch (e) {}
+  try { vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance&order=name`); } catch (e) {}
   try { purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&select=vendor_id,amount`); } catch (e) {}
   try { payments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&select=vendor_id,amount`); } catch (e) {}
 
@@ -270,21 +271,30 @@ async function loadBalances() {
   state.balances = {};
   let total = 0;
   vendors.forEach(v => {
-    const bal = (owed[v.id] || 0) - (paid[v.id] || 0);
+    // Includes any pre-system opening balance owed to this vendor (e.g. dues from
+    // before this app was used), on top of purchases logged here minus payments made.
+    const bal = (Number(v.opening_payable_balance) || 0) + (owed[v.id] || 0) - (paid[v.id] || 0);
     state.balances[v.id] = bal;
     if (bal > 0.01) total += bal;
   });
 
-  const owing = vendors.filter(v => state.balances[v.id] > 0.01).sort((a, b) => state.balances[b.id] - state.balances[a.id]);
-  if (!owing.length) {
+  const isDirector = state.role === "director";
+  const owing = vendors.filter(v => state.balances[v.id] > 0.01 || (isDirector && Number(v.opening_payable_balance))).sort((a, b) => state.balances[b.id] - state.balances[a.id]);
+  if (!owing.length && !isDirector) {
     list.innerHTML = '<div class="empty-note">No outstanding balances against any vendor right now.</div>';
     document.getElementById("balance-total-wrap").hidden = true;
   } else {
-    list.innerHTML = owing.map(v => `
+    list.innerHTML = (owing.length ? owing : vendors).map(v => `
       <div class="balance-row" data-vendor="${v.id}">
         <span class="v-name">${v.name}</span>
         <span class="v-amt">${fmtMoney(state.balances[v.id])}</span>
-      </div>`).join("");
+      </div>
+      ${isDirector ? `
+      <div class="hint" style="margin:-4px 0 8px; display:flex; align-items:center; gap:6px;">
+        Opening balance (pre-system dues):
+        <input type="number" step="any" value="${v.opening_payable_balance || 0}" data-opening-for="${v.id}" style="width:120px; padding:4px 6px; font-size:0.82rem;">
+        <button type="button" data-save-opening="${v.id}" style="padding:4px 8px; font-size:0.8rem; border-radius:6px; width:auto;">Save</button>
+      </div>` : ""}`).join("");
     document.querySelectorAll(".balance-row").forEach(row => {
       row.addEventListener("click", () => {
         document.getElementById("f-vendor").value = row.dataset.vendor;
@@ -292,11 +302,30 @@ async function loadBalances() {
         document.getElementById("f-amount").focus();
       });
     });
+    document.querySelectorAll("[data-save-opening]").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        saveOpeningBalance(btn.dataset.saveOpening);
+      });
+    });
     document.getElementById("balance-total").textContent = fmtMoney(total);
     document.getElementById("balance-total-wrap").hidden = false;
   }
 
   populateVendorSelect();
+}
+
+async function saveOpeningBalance(vendorId) {
+  const input = document.querySelector(`[data-opening-for="${vendorId}"]`);
+  const amount = parseFloat(input.value) || 0;
+  try {
+    await sb(`vendors?id=eq.${vendorId}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ opening_payable_balance: amount, opening_balance_as_of: todayStr(), opening_balance_updated_by: state.userId })
+    });
+    await loadBalances();
+  } catch (e) { alert("Couldn't save opening balance: " + e.message); }
 }
 
 function populateVendorSelect() {
