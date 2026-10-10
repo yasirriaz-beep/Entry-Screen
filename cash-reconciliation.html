@@ -193,6 +193,14 @@
       <label>Explanation (required if Counted ≠ Expected)</label>
       <textarea id="f-adjustment-reason" rows="2" placeholder="Why doesn't the physical count match?"></textarea>
     </div>
+
+    <div class="field">
+      <label>Photo of the counted cash (required to submit)</label>
+      <input type="file" id="f-safe-photo" accept="image/*" capture="environment">
+      <div class="hint" id="safe-photo-status"></div>
+      <div class="banner banner-warn" id="safe-photo-flag" hidden></div>
+      <a id="safe-photo-link" href="#" target="_blank" class="hint" hidden>View today's saved photo</a>
+    </div>
     <div class="hint">This box is the one true source of "how much cash does Zeeshan have." In a perfect world the variance stays at zero every day.</div>
   </div>
 
@@ -218,7 +226,7 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const GULBERG_ID = "10000000-0000-0000-0000-000000000005";
 const PAGE_KEY = "cash_reconciliation";
 
-let state = { userId: null, userName: null, managerId: null, role: null, currentRow: null };
+let state = { userId: null, userName: null, managerId: null, role: null, currentRow: null, safePhoto: null };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -366,6 +374,99 @@ function recalc() {
 document.getElementById("f-opening").addEventListener("input", recalc);
 document.getElementById("f-counted").addEventListener("input", recalc);
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadSafePhoto(file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${GULBERG_ID}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/safe-photos/${path}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": file.type || "image/jpeg" },
+    body: file
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${t}`);
+  }
+  return path;
+}
+
+// AI verification is a deterrent and a sanity flag, NOT a real cash count. Counting
+// stacked currency precisely from a photo isn't reliable, so this only catches: a
+// photo that plainly isn't cash, is reused/too blurry to assess, or whose rough
+// estimate range is wildly off from what Zeeshan claims he counted. It never blocks
+// saving - a flag just means the owner/Imran should take a closer look.
+async function checkSafePhoto(file, claimedAmount) {
+  const base64 = await fileToBase64(file);
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-safe-photo`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ image_base64: base64, media_type: file.type || "image/jpeg", claimed_amount: claimedAmount })
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !data.checked) throw new Error((data && data.error) || `AI check failed (${res.status})`);
+  return data.checked;
+}
+
+function renderSafePhotoCheck(checked, claimedAmount) {
+  const flag = document.getElementById("safe-photo-flag");
+  const reasons = [];
+  if (checked.looks_like_cash === false) reasons.push("This doesn't look like a photo of physical cash.");
+  if (checked.concerns) reasons.push(checked.concerns);
+  const low = checked.estimated_total_low, high = checked.estimated_total_high;
+  if (low !== null && high !== null && claimedAmount !== null && claimedAmount !== undefined) {
+    // Generous tolerance band - photo-based estimates are rough, so only flag a gross mismatch.
+    const bandLow = low * 0.3, bandHigh = high * 3;
+    if (claimedAmount < bandLow || claimedAmount > bandHigh) {
+      reasons.push(`AI's rough estimate from the photo (PKR ${Math.round(low).toLocaleString()}–${Math.round(high).toLocaleString()}) looks very inconsistent with the counted amount entered (PKR ${Math.round(claimedAmount).toLocaleString()}).`);
+    }
+  }
+  if (reasons.length) {
+    flag.hidden = false;
+    flag.textContent = "⚠ " + reasons.join(" ");
+  } else {
+    flag.hidden = true;
+  }
+}
+
+async function handleSafePhotoChange(e) {
+  const file = e.target.files[0];
+  const statusEl = document.getElementById("safe-photo-status");
+  const flag = document.getElementById("safe-photo-flag");
+  flag.hidden = true;
+  if (!file) { state.safePhoto = null; statusEl.textContent = ""; return; }
+  statusEl.textContent = "Uploading & checking…";
+  try {
+    const claimedAmount = parseFloat(document.getElementById("f-counted").value);
+    const [path, checked] = await Promise.all([
+      uploadSafePhoto(file),
+      checkSafePhoto(file, isNaN(claimedAmount) ? null : claimedAmount).catch(err => ({ _error: err.message }))
+    ]);
+    state.safePhoto = { path };
+    if (checked && !checked._error) {
+      state.safePhoto.estimateLow = checked.estimated_total_low;
+      state.safePhoto.estimateHigh = checked.estimated_total_high;
+      state.safePhoto.note = checked.concerns || null;
+      state.safePhoto.checkedAt = new Date().toISOString();
+      renderSafePhotoCheck(checked, isNaN(claimedAmount) ? null : claimedAmount);
+      statusEl.textContent = "Photo saved and checked.";
+    } else {
+      statusEl.textContent = "Photo saved (AI check unavailable right now — that's fine, it's just a sanity check).";
+    }
+  } catch (err) {
+    state.safePhoto = null;
+    statusEl.textContent = "Couldn't upload (" + err.message + ") — try again before submitting.";
+  }
+}
+document.getElementById("f-safe-photo").addEventListener("change", handleSafePhotoChange);
+
 async function fetchCashIn(dateStr) {
   try {
     const rows = await sb(`daily_sales?location_id=eq.${GULBERG_ID}&sale_date=eq.${dateStr}&select=shift,custodian_cash_amount`);
@@ -418,6 +519,7 @@ function applyLockState(row) {
   const isLocked = row && row.status === "locked";
   document.getElementById("f-counted").disabled = isLocked;
   document.getElementById("f-adjustment-reason").disabled = isLocked;
+  document.getElementById("f-safe-photo").disabled = isLocked;
   document.getElementById("f-opening").disabled = isLocked || state.role !== "director";
   document.getElementById("btn-save-draft").disabled = isLocked;
   document.getElementById("btn-submit").disabled = isLocked;
@@ -462,6 +564,7 @@ async function loadDay(dateStr) {
     document.getElementById("f-counted").value = r.counted_cash ?? "";
     document.getElementById("f-adjustment-reason").value = r.adjustment_reason || "";
     document.getElementById("opening-hint").textContent = "Loaded from today's saved entry.";
+    showSavedSafePhoto(r);
 
     const driftedIn = Math.abs((Number(r.cash_in) || 0) - cashIn.total) > 0.5;
     const driftedOut = Math.abs((Number(r.cash_out) || 0) - cashOut.total) > 0.5;
@@ -485,19 +588,64 @@ async function loadDay(dateStr) {
     document.getElementById("opening-hint").textContent = prevClosing
       ? "Carried automatically from the previous day's closing cash."
       : "No previous entry found — the owner needs to set the actual starting cash once.";
+    showSavedSafePhoto(null);
   }
   applyLockState(state.currentRow);
   recalc();
 }
 document.getElementById("f-date").addEventListener("change", (e) => loadDay(e.target.value));
 
+function showSavedSafePhoto(row) {
+  state.safePhoto = null;
+  document.getElementById("f-safe-photo").value = "";
+  document.getElementById("safe-photo-flag").hidden = true;
+  const statusEl = document.getElementById("safe-photo-status");
+  const link = document.getElementById("safe-photo-link");
+  if (row && row.safe_photo_path) {
+    statusEl.textContent = row.safe_photo_note ? `AI note: ${row.safe_photo_note}` : "Photo on file for this day.";
+    link.hidden = false;
+    link.onclick = (e) => { e.preventDefault(); viewSafePhoto(row.safe_photo_path); };
+    if (row.safe_photo_estimate_low !== null && row.safe_photo_estimate_low !== undefined) {
+      renderSafePhotoCheck({
+        looks_like_cash: true,
+        concerns: row.safe_photo_note,
+        estimated_total_low: row.safe_photo_estimate_low,
+        estimated_total_high: row.safe_photo_estimate_high
+      }, row.counted_cash);
+    }
+  } else {
+    statusEl.textContent = "";
+    link.hidden = true;
+  }
+}
+
+async function viewSafePhoto(path) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/safe-photos/${path}`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 300 })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+  } catch (e) {
+    alert("Couldn't open the photo: " + e.message);
+  }
+}
+
 async function saveDay(status) {
   const dateStr = document.getElementById("f-date").value;
   const calc = recalc();
   const reason = document.getElementById("f-adjustment-reason").value.trim() || null;
 
+  const hasPhoto = Boolean(state.safePhoto && state.safePhoto.path) || Boolean(state.currentRow && state.currentRow.safe_photo_path);
+
   if (calc.counted === null && status === "submitted") {
     return alert("Count the physical cash in the safe and enter it before submitting — that's the one number we actually need from you each day.");
+  }
+  if (status === "submitted" && !hasPhoto) {
+    return alert("Attach today's photo of the counted cash before submitting.");
   }
   if (calc.variance !== 0 && !reason) {
     return alert("Explain the variance before saving — that's the one thing we need from you if the count doesn't match the expected amount.");
@@ -514,6 +662,13 @@ async function saveDay(status) {
     updated_by_user_id: state.userId
   };
   if (status === "submitted") payload.submitted_at = new Date().toISOString();
+  if (state.safePhoto && state.safePhoto.path) {
+    payload.safe_photo_path = state.safePhoto.path;
+    payload.safe_photo_estimate_low = state.safePhoto.estimateLow ?? null;
+    payload.safe_photo_estimate_high = state.safePhoto.estimateHigh ?? null;
+    payload.safe_photo_note = state.safePhoto.note ?? null;
+    payload.safe_photo_checked_at = state.safePhoto.checkedAt || null;
+  }
 
   try {
     if (state.currentRow) {
@@ -612,9 +767,13 @@ async function loadHistory() {
           <div>Expected Cash: ${fmtMoney(expected)}</div>
           <div>Counted Cash: ${counted === null ? "not counted" : fmtMoney(counted)}</div>
           <div>Variance: ${variance === null ? "—" : fmtMoney(variance)}${r.adjustment_reason ? " — " + r.adjustment_reason : ""}</div>
+          <div>Photo: ${r.safe_photo_path ? `<a href="#" data-photo="${r.safe_photo_path}">View</a>${r.safe_photo_note ? " — AI note: " + r.safe_photo_note : ""}` : "not attached"}</div>
         </div>`;
       const detail = row.querySelector(".hist-detail");
-      row.addEventListener("click", () => { detail.hidden = !detail.hidden; });
+      row.addEventListener("click", (e) => {
+        if (e.target.closest("[data-photo]")) { e.preventDefault(); viewSafePhoto(e.target.closest("[data-photo]").dataset.photo); return; }
+        detail.hidden = !detail.hidden;
+      });
       list.appendChild(row);
     });
   } catch (e) {
