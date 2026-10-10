@@ -59,6 +59,13 @@
   .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
   .sticky-save { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
   .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
 </style>
 </head>
 <body>
@@ -68,7 +75,12 @@
 
 <div id="step-name" class="card">
   <div class="step-label">Who are you?</div>
-  <div id="name-grid" class="name-grid"></div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Your name" autocomplete="username" required>
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect name or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
 </div>
 
 <div id="panel-main" hidden>
@@ -145,50 +157,42 @@ async function sbRpc(fn, body) {
   return ct.includes("application/json") ? res.json() : null;
 }
 
-async function loadNames() {
-  const grid = document.getElementById("name-grid");
-  grid.innerHTML = "";
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedName = nameInput.value.trim();
+  const pin = pinInput.value;
+  if (!typedName || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
   try {
     const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
-    managers.forEach(m => {
-      const pill = document.createElement("button");
-      pill.type = "button";
-      pill.className = "name-pill";
-      pill.textContent = m.name;
-      pill.onclick = () => selectUser(m.id, m.name, pill);
-      grid.appendChild(pill);
-    });
-    if (!managers.length) grid.innerHTML = '<div class="hint">No one with access found.</div>';
-  } catch (e) {
-    grid.innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+    const match = managers.find(m => m.name.trim().toLowerCase() === typedName.toLowerCase());
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+          setTimeout(() => {
+        afterLogin(row.app_user_id, match.name, match.id, row.role);
+      }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
   }
 }
-
-function afterLogin(userId, name, managerId, role) {
-  state.userId = userId;
-  state.userName = name;
-  state.managerId = managerId;
-  document.getElementById("step-name").hidden = true;
-  document.getElementById("panel-main").hidden = false;
-  loadProducts();
-}
-
-function selectUser(managerId, name, pillEl) {
-  const pin = prompt(`Enter your PIN, ${name}`);
-  if (pin === null) return;
-  sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin })
-    .then(rows => {
-      const row = rows && rows[0];
-      if (!row) { alert("Incorrect PIN."); return; }
-      document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
-      pillEl.classList.add("selected");
-      FNKSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
-      setTimeout(() => {
-        afterLogin(row.app_user_id, name, managerId, row.role);
-      }, 150);
-    })
-    .catch(err => alert(err.message || "Incorrect PIN."));
-}
+document.getElementById("login-form").addEventListener("submit", doLogin);
 
 function backToNames() {
   state.userId = null;
@@ -323,8 +327,6 @@ document.getElementById("filter-unset").addEventListener("change", renderItemLis
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-} else {
-  loadNames();
 }
 </script>
 

@@ -40,11 +40,12 @@ h1{font-size:1.5rem;margin:0 0 2px;text-wrap:balance}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px}
 .field{display:flex;flex-direction:column;gap:6px;min-width:0}
 label{font-size:.8rem;color:var(--fg-muted)}
-select,input[type=number],input[type=date]{
+select,input[type=number],input[type=date],input[type=text],input[type=password]{
   background:var(--surface-2);border:1px solid var(--border);color:var(--fg);
   border-radius:9px;padding:11px 12px;font-size:1rem;font-family:inherit;width:100%;
 }
 select:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.login-error{font-size:.82rem;color:var(--danger,#d33)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .channel{border-top:1px solid var(--border);padding-top:14px;margin-top:14px}
 .channel:first-of-type{border-top:none;padding-top:0;margin-top:0}
@@ -91,14 +92,19 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
 <div class="card" id="whoCard">
   <div class="who-row">
     <div class="field">
-      <label for="whoSelect">Entered by</label>
-      <select id="whoSelect"><option value="">Loading names&hellip;</option></select>
+      <label for="loginName">Entered by</label>
+      <input type="text" id="loginName" placeholder="Your name" autocomplete="username">
     </div>
     <div class="field" style="flex:0 0 150px">
       <label for="dateInput">Date</label>
       <input type="date" id="dateInput">
     </div>
   </div>
+  <div class="field" style="margin-top:12px">
+    <label for="loginPin">PIN</label>
+    <input type="password" id="loginPin" placeholder="PIN" autocomplete="current-password" inputmode="numeric">
+  </div>
+  <div class="login-error" id="login-error" hidden style="margin-top:8px">Incorrect name or PIN.</div>
   <div class="field" style="margin-top:12px">
     <label for="shiftSelect">Shift</label>
     <select id="shiftSelect">
@@ -345,24 +351,12 @@ async function init(){
     if (!locs.length) throw new Error("No location matching '" + LOCATION_NAME_HINT + "' found");
     locationId = locs[0].id;
 
-    const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
-
-    const sel = document.getElementById("whoSelect");
-    sel.innerHTML = "";
-    if (!managers.length){
-      sel.innerHTML = '<option value="">No one with sales-entry access found</option>';
-    } else {
-      sel.innerHTML = '<option value="">Select your name&hellip;</option>' +
-        managers.map(m => `<option value="${m.id}">${m.name}</option>`).join("");
-    }
     document.getElementById("continueBtn").disabled = false;
     loadShiftEntry();
     loadTaskBanner();
   } catch (err) {
-    showBanner("Could not load the name list (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations'/'app_users' allows anon SELECT if this persists.", "danger");
+    showBanner("Could not load the location (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations' allows anon SELECT if this persists.", "danger");
     document.getElementById("continueBtn").disabled = false;
-    const sel = document.getElementById("whoSelect");
-    sel.innerHTML = '<option value="">Name list unavailable</option>';
   }
 }
 
@@ -512,23 +506,33 @@ function afterLogin(userId, name, managerId, role) {
 }
 
 document.getElementById("continueBtn").addEventListener("click", async () => {
-  const managerId = document.getElementById("whoSelect").value;
-  const managerName = document.getElementById("whoSelect").selectedOptions[0]?.textContent || "";
-  if (!managerId){
-    showBanner("Please select your name under \"Entered by\" before continuing.", "danger");
+  const nameInput = document.getElementById("loginName");
+  const pinInput = document.getElementById("loginPin");
+  const errEl = document.getElementById("login-error");
+  const typedName = nameInput.value.trim();
+  const pin = pinInput.value;
+  errEl.hidden = true;
+  if (!typedName || !pin){
+    showBanner("Enter your name and PIN under \"Entered by\" before continuing.", "danger");
     return;
   }
-  const pin = prompt(`Enter your PIN, ${managerName}`);
-  if (pin === null) return;
+  const btn = document.getElementById("continueBtn");
+  btn.disabled = true;
   try {
-    const rows = await sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin });
+    const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.name.trim().toLowerCase() === typedName.toLowerCase());
+    if (!match) throw new Error("no match");
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
     const row = rows && rows[0];
-    if (!row) { showBanner("Incorrect PIN.", "danger"); return; }
-    FNKSession.set({ managerId, userId: row.app_user_id, userName: managerName, role: row.role, pages: [], loginAt: new Date().toISOString() });
-    afterLogin(row.app_user_id, managerName, managerId, row.role);
+    if (!row) throw new Error("no match");
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+    afterLogin(row.app_user_id, match.name, match.id, row.role);
   } catch (e) {
-    showBanner(e.message || "Incorrect PIN.", "danger");
-    return;
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    btn.disabled = false;
   }
 });
 document.getElementById("shiftSelect").addEventListener("change", loadShiftEntry);
@@ -601,9 +605,11 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
     resetForm();
     document.getElementById("salesForm").hidden = true;
     document.getElementById("whoCard").hidden = false;
-    // Deliberately NOT clearing whoSelect — clearing it here is what caused saves to
+    // Deliberately NOT clearing loginName — clearing it here is what caused saves to
     // silently fail with an RLS error when someone came back to add closing cash
-    // without noticing they'd need to reselect their name first.
+    // without noticing they'd need to retype their name first. The PIN still has
+    // to be re-entered each time, same as every other screen.
+    document.getElementById("loginPin").value = "";
     loadShiftEntry();
   } catch (err) {
     showBanner("Could not save: " + err.message, "danger");
