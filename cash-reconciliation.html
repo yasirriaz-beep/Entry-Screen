@@ -80,11 +80,15 @@
   .flow-box.in .fb-value { color: var(--ok); }
   .flow-box.out .fb-value { color: var(--err); }
   .flow-box.close .fb-value { color: var(--accent); }
+  .flow-box .fb-sub { font-size: 0.68rem; color: var(--ink-soft); margin-top: 2px; }
   .flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 1.2rem; flex: 0 0 auto; }
   .flow-detail { background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin: -8px 0 16px; font-size: 0.85rem; }
   .flow-detail .fd-row { display: flex; justify-content: space-between; padding: 3px 0; }
   .flow-detail .fd-title { font-weight: 600; margin-bottom: 6px; }
   @media (max-width: 480px) { .flow-grid { flex-direction: column; } .flow-arrow { display: none; } }
+  .amount-display { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.1rem; font-weight: 600; margin-top: 2px; }
+  .amount-display.variance-zero { color: var(--ok); }
+  .amount-display.variance-nonzero { color: var(--err); }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field + .login-field { margin-top: 10px; }
@@ -123,6 +127,7 @@
   </div>
 
   <div class="banner banner-warn" id="status-banner" hidden></div>
+  <div class="banner banner-warn" id="source-drift-warning" hidden></div>
   <div class="step-label" style="margin:-6px 0 6px;">Safe Reconciliation <span id="status-badge"></span></div>
 
   <div class="flow-grid">
@@ -144,6 +149,7 @@
     <div class="flow-box close" id="box-closing">
       <div class="fb-label">Closing Safe Cash</div>
       <div class="fb-value" id="fb-closing">PKR 0</div>
+      <div class="fb-sub" id="fb-closing-sub"></div>
     </div>
   </div>
 
@@ -170,22 +176,24 @@
 
   <div class="flow-detail" id="detail-closing" hidden>
     <div class="fd-title">Closing Safe Cash</div>
-    <div class="hint">Opening + Cash In − Cash Out + Adjustment. This should match exactly what's physically in the safe.</div>
+    <div class="hint" id="closing-detail-hint"></div>
   </div>
 
   <div class="card">
-    <div class="step-label">Adjustment (only if the physical count doesn't match)</div>
-    <div class="row2 field">
-      <div>
-        <label>Amount (+/-)</label>
-        <input type="number" id="f-adjustment" step="any" placeholder="0">
-      </div>
+    <div class="step-label">Physical Count — what Zeeshan actually finds in the safe</div>
+    <div class="field">
+      <label>Counted Cash in Safe (PKR)</label>
+      <input type="number" id="f-counted" step="any" placeholder="Count the safe and enter the exact amount">
+    </div>
+    <div class="row2 field" style="margin-top:4px;">
+      <div><span class="hint">Expected (Opening + In − Out)</span><div class="amount-display" id="expected-display">PKR 0</div></div>
+      <div><span class="hint">Variance (Counted − Expected)</span><div class="amount-display" id="variance-display">PKR 0</div></div>
     </div>
     <div class="field">
-      <label>Explanation (required if adjusting)</label>
+      <label>Explanation (required if Counted ≠ Expected)</label>
       <textarea id="f-adjustment-reason" rows="2" placeholder="Why doesn't the physical count match?"></textarea>
     </div>
-    <div class="hint">In a perfect world this stays at zero every day.</div>
+    <div class="hint">This box is the one true source of "how much cash does Zeeshan have." In a perfect world the variance stays at zero every day.</div>
   </div>
 
   <button class="btn-primary" id="btn-save-draft" type="button">Save Draft</button>
@@ -337,14 +345,26 @@ function recalc() {
   const opening = parseFloat(document.getElementById("f-opening").value) || 0;
   const cashIn = parseFloat(document.getElementById("fb-in").dataset.raw || "0");
   const cashOut = parseFloat(document.getElementById("fb-out").dataset.raw || "0");
-  const adjustment = parseFloat(document.getElementById("f-adjustment").value) || 0;
-  const closing = opening + cashIn - cashOut + adjustment;
+  const expected = opening + cashIn - cashOut;
+  const countedRaw = document.getElementById("f-counted").value;
+  const counted = countedRaw === "" ? null : parseFloat(countedRaw) || 0;
+  const variance = counted === null ? 0 : Math.round((counted - expected) * 100) / 100;
+  const closing = counted === null ? expected : counted;
+
   document.getElementById("fb-opening").textContent = fmtMoney(opening);
   document.getElementById("fb-closing").textContent = fmtMoney(closing);
-  return { opening, cashIn, cashOut, adjustment, closing };
+  document.getElementById("fb-closing-sub").textContent = counted === null ? "expected — not yet counted" : "as physically counted";
+  document.getElementById("expected-display").textContent = fmtMoney(expected);
+  const varEl = document.getElementById("variance-display");
+  varEl.textContent = fmtMoney(variance);
+  varEl.className = "amount-display " + (variance === 0 ? "variance-zero" : "variance-nonzero");
+  document.getElementById("closing-detail-hint").textContent = counted === null
+    ? `Expected = Opening + Cash In − Cash Out = ${fmtMoney(expected)}. Enter today's physical count below to confirm it.`
+    : `Shows Zeeshan's counted cash (${fmtMoney(counted)}). Expected from the math was ${fmtMoney(expected)}; variance ${fmtMoney(variance)}.`;
+  return { opening, cashIn, cashOut, expected, counted, variance, closing };
 }
 document.getElementById("f-opening").addEventListener("input", recalc);
-document.getElementById("f-adjustment").addEventListener("input", recalc);
+document.getElementById("f-counted").addEventListener("input", recalc);
 
 async function fetchCashIn(dateStr) {
   try {
@@ -364,7 +384,7 @@ async function fetchCashIn(dateStr) {
 async function fetchCashOut(dateStr) {
   let expenseLines = [], vendorLines = [];
   try {
-    const rows = await sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&select=category,amount,detail`);
+    const rows = await sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&payment_method=eq.cash&select=category,amount,detail`);
     expenseLines = (rows || []).map(r => ({ label: r.category || r.detail || "Expense", amount: Number(r.amount) || 0 }));
   } catch (e) { /* ignore */ }
   try {
@@ -378,8 +398,13 @@ async function fetchCashOut(dateStr) {
 
 async function fetchPreviousClosing(dateStr) {
   try {
-    const rows = await sb(`cash_safe_ledger?ledger_date=lt.${dateStr}&select=ledger_date,closing_cash&order=ledger_date.desc&limit=1`);
-    return rows && rows[0] ? Number(rows[0].closing_cash) || 0 : 0;
+    const rows = await sb(`cash_safe_ledger?ledger_date=lt.${dateStr}&select=ledger_date,counted_cash,opening_cash,cash_in,cash_out&order=ledger_date.desc&limit=1`);
+    if (!rows || !rows[0]) return 0;
+    const r = rows[0];
+    // Carry forward the actual physical count if Zeeshan counted the safe that day;
+    // otherwise fall back to the expected figure (opening + in - out) with no count on file.
+    if (r.counted_cash !== null && r.counted_cash !== undefined) return Number(r.counted_cash) || 0;
+    return (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
   } catch (e) { return 0; }
 }
 
@@ -391,7 +416,7 @@ function renderBreakdown(elId, lines, emptyMsg) {
 
 function applyLockState(row) {
   const isLocked = row && row.status === "locked";
-  document.getElementById("f-adjustment").disabled = isLocked;
+  document.getElementById("f-counted").disabled = isLocked;
   document.getElementById("f-adjustment-reason").disabled = isLocked;
   document.getElementById("f-opening").disabled = isLocked || state.role !== "director";
   document.getElementById("btn-save-draft").disabled = isLocked;
@@ -419,25 +444,43 @@ async function loadDay(dateStr) {
   const rows = await sb(`cash_safe_ledger?ledger_date=eq.${dateStr}&select=*`);
   const cashIn = await fetchCashIn(dateStr);
   const cashOut = await fetchCashOut(dateStr);
-  document.getElementById("fb-in").textContent = fmtMoney(cashIn.total);
-  document.getElementById("fb-in").dataset.raw = cashIn.total;
-  document.getElementById("fb-out").textContent = fmtMoney(cashOut.total);
-  document.getElementById("fb-out").dataset.raw = cashOut.total;
   renderBreakdown("in-breakdown", cashIn.lines, "No till handovers recorded for this day yet.");
   renderBreakdown("out-breakdown", cashOut.lines, "No cash expenses or cash vendor payments recorded for this day yet.");
+
+  const drift = document.getElementById("source-drift-warning");
 
   if (rows && rows[0]) {
     state.currentRow = rows[0];
     const r = rows[0];
+    // Show the FROZEN totals actually saved for this day, never a live recompute — otherwise a
+    // locked/submitted day could silently drift if someone edits sales/expense records later.
+    document.getElementById("fb-in").textContent = fmtMoney(r.cash_in);
+    document.getElementById("fb-in").dataset.raw = r.cash_in;
+    document.getElementById("fb-out").textContent = fmtMoney(r.cash_out);
+    document.getElementById("fb-out").dataset.raw = r.cash_out;
     document.getElementById("f-opening").value = r.opening_cash;
-    document.getElementById("f-adjustment").value = r.adjustment_amount || "";
+    document.getElementById("f-counted").value = r.counted_cash ?? "";
     document.getElementById("f-adjustment-reason").value = r.adjustment_reason || "";
     document.getElementById("opening-hint").textContent = "Loaded from today's saved entry.";
+
+    const driftedIn = Math.abs((Number(r.cash_in) || 0) - cashIn.total) > 0.5;
+    const driftedOut = Math.abs((Number(r.cash_out) || 0) - cashOut.total) > 0.5;
+    if (driftedIn || driftedOut) {
+      drift.hidden = false;
+      drift.textContent = `Source records changed after this day was saved. Saved: In ${fmtMoney(r.cash_in)} / Out ${fmtMoney(r.cash_out)}. Current source records now total: In ${fmtMoney(cashIn.total)} / Out ${fmtMoney(cashOut.total)}. This needs the owner's attention.`;
+    } else {
+      drift.hidden = true;
+    }
   } else {
     state.currentRow = null;
+    document.getElementById("fb-in").textContent = fmtMoney(cashIn.total);
+    document.getElementById("fb-in").dataset.raw = cashIn.total;
+    document.getElementById("fb-out").textContent = fmtMoney(cashOut.total);
+    document.getElementById("fb-out").dataset.raw = cashOut.total;
+    drift.hidden = true;
     const prevClosing = await fetchPreviousClosing(dateStr);
     document.getElementById("f-opening").value = prevClosing;
-    document.getElementById("f-adjustment").value = "";
+    document.getElementById("f-counted").value = "";
     document.getElementById("f-adjustment-reason").value = "";
     document.getElementById("opening-hint").textContent = prevClosing
       ? "Carried automatically from the previous day's closing cash."
@@ -453,8 +496,11 @@ async function saveDay(status) {
   const calc = recalc();
   const reason = document.getElementById("f-adjustment-reason").value.trim() || null;
 
-  if (calc.adjustment !== 0 && !reason) {
-    return alert("Explain the adjustment before saving — that's the one thing we need from you if the count doesn't match.");
+  if (calc.counted === null && status === "submitted") {
+    return alert("Count the physical cash in the safe and enter it before submitting — that's the one number we actually need from you each day.");
+  }
+  if (calc.variance !== 0 && !reason) {
+    return alert("Explain the variance before saving — that's the one thing we need from you if the count doesn't match the expected amount.");
   }
 
   const payload = {
@@ -462,7 +508,7 @@ async function saveDay(status) {
     opening_cash: calc.opening,
     cash_in: calc.cashIn,
     cash_out: calc.cashOut,
-    adjustment_amount: calc.adjustment,
+    counted_cash: calc.counted,
     adjustment_reason: reason,
     status: status,
     updated_by_user_id: state.userId
@@ -551,17 +597,21 @@ async function loadHistory() {
       const row = document.createElement("div");
       row.className = "hist-row";
       const labels = { draft: "Draft", submitted: "Submitted", locked: "Locked" };
+      const expected = (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
+      const counted = r.counted_cash === null || r.counted_cash === undefined ? null : Number(r.counted_cash);
+      const variance = counted === null ? null : Number(r.cash_variance) || 0;
       row.innerHTML = `
         <div class="hr-top">
           <strong>${r.ledger_date}</strong>
-          <span>${fmtMoney(r.closing_cash)} <span class="badge badge-${r.status}">${labels[r.status] || r.status}</span></span>
+          <span>${fmtMoney(counted === null ? expected : counted)} <span class="badge badge-${r.status}">${labels[r.status] || r.status}</span></span>
         </div>
         <div class="hist-detail" hidden>
           <div>Opening Cash: ${fmtMoney(r.opening_cash)}</div>
           <div>Cash In (till handovers): ${fmtMoney(r.cash_in)}</div>
           <div>Cash Out (expenses + cash vendor payments): ${fmtMoney(r.cash_out)}</div>
-          <div>Adjustment: ${fmtMoney(r.adjustment_amount)}${r.adjustment_reason ? " — " + r.adjustment_reason : ""}</div>
-          <div>Closing Cash: ${fmtMoney(r.closing_cash)}</div>
+          <div>Expected Cash: ${fmtMoney(expected)}</div>
+          <div>Counted Cash: ${counted === null ? "not counted" : fmtMoney(counted)}</div>
+          <div>Variance: ${variance === null ? "—" : fmtMoney(variance)}${r.adjustment_reason ? " — " + r.adjustment_reason : ""}</div>
         </div>`;
       const detail = row.querySelector(".hist-detail");
       row.addEventListener("click", () => { detail.hidden = !detail.hidden; });

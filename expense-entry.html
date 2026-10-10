@@ -230,6 +230,17 @@
       <select id="f-vendor"><option value="">— None / N/A —</option></select>
     </div>
 
+    <div class="field">
+      <label>Payment Method</label>
+      <select id="f-payment-method">
+        <option value="cash" selected>Cash</option>
+        <option value="bank">Bank Transfer</option>
+        <option value="cheque">Cheque</option>
+        <option value="card">Card</option>
+      </select>
+      <div class="hint">Only Cash expenses are pulled into the safe's Cash Out reconciliation.</div>
+    </div>
+
     <div id="block-charged-to" class="field" hidden>
       <label>Charged To</label>
       <input type="text" id="f-charged-to" placeholder="e.g. Yasir Sb">
@@ -675,6 +686,7 @@ async function saveExpense({ status, reason }) {
     amount: amount,
     vendor_id: vendorId,
     detail: detail,
+    payment_method: document.getElementById("f-payment-method").value || "cash",
     entered_by_user_id: state.userId,
     entered_by_manager_id: state.managerId,
     ai_check_status: status,
@@ -728,6 +740,7 @@ function resetForm() {
   document.getElementById("f-rate").value = "";
   document.getElementById("f-amount").value = "";
   document.getElementById("f-vendor").selectedIndex = 0;
+  document.getElementById("f-payment-method").value = "cash";
   document.getElementById("f-charged-to").value = "";
   document.getElementById("f-employee").selectedIndex = 0;
   document.getElementById("f-detail").value = "";
