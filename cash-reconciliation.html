@@ -64,6 +64,28 @@
   .hist-detail { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; font-size: 0.82rem; }
   .hist-detail div { margin-bottom: 3px; }
 
+  .big-box { background: var(--surface); border: 2px solid var(--accent); border-radius: 16px; padding: 20px; margin-bottom: 16px; cursor: pointer; text-align: center; }
+  .big-box .bb-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); font-weight: 600; }
+  .big-box .bb-value { font-family: 'Zilla Slab', Georgia, serif; font-size: 2.2rem; font-weight: 600; color: var(--accent); margin-top: 4px; }
+  .big-box .bb-hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .big-box-detail { text-align: left; border-top: 1px solid var(--border); margin-top: 14px; padding-top: 12px; font-size: 0.85rem; cursor: default; }
+  .big-box-detail .pv-row { display: flex; justify-content: space-between; padding: 4px 0; }
+
+  .flow-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .flow-box { flex: 1; min-width: 130px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; cursor: pointer; text-align: center; }
+  .flow-box.locked-field { cursor: default; }
+  .flow-box .fb-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); font-weight: 600; }
+  .flow-box .fb-value { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.15rem; font-weight: 600; margin-top: 4px; }
+  .flow-box.op .fb-value { color: var(--ink); }
+  .flow-box.in .fb-value { color: var(--ok); }
+  .flow-box.out .fb-value { color: var(--err); }
+  .flow-box.close .fb-value { color: var(--accent); }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 1.2rem; flex: 0 0 auto; }
+  .flow-detail { background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin: -8px 0 16px; font-size: 0.85rem; }
+  .flow-detail .fd-row { display: flex; justify-content: space-between; padding: 3px 0; }
+  .flow-detail .fd-title { font-weight: 600; margin-bottom: 6px; }
+  @media (max-width: 480px) { .flow-grid { flex-direction: column; } .flow-arrow { display: none; } }
+
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field + .login-field { margin-top: 10px; }
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
@@ -87,65 +109,83 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="big-box" id="payables-box">
+    <div class="bb-label">Total Payable to Vendors</div>
+    <div class="bb-value" id="payables-value">PKR 0</div>
+    <div class="bb-hint">Tap for the breakdown by vendor</div>
+    <div class="big-box-detail" id="payables-detail" hidden></div>
+  </div>
+
   <div class="field" style="max-width:220px;">
     <label>Date</label>
     <input type="date" id="f-date">
   </div>
 
   <div class="banner banner-warn" id="status-banner" hidden></div>
+  <div class="step-label" style="margin:-6px 0 6px;">Safe Reconciliation <span id="status-badge"></span></div>
 
-  <div class="card">
-    <div class="step-label">Opening <span id="status-badge"></span></div>
-    <div class="field">
-      <label>Opening Petty Cash (from previous day's ending cash)</label>
+  <div class="flow-grid">
+    <div class="flow-box op locked-field" id="box-opening">
+      <div class="fb-label">Opening Safe Cash</div>
+      <div class="fb-value" id="fb-opening">PKR 0</div>
+    </div>
+    <div class="flow-arrow">+</div>
+    <div class="flow-box in" id="box-in">
+      <div class="fb-label">Cash In</div>
+      <div class="fb-value" id="fb-in">PKR 0</div>
+    </div>
+    <div class="flow-arrow">−</div>
+    <div class="flow-box out" id="box-out">
+      <div class="fb-label">Cash Out</div>
+      <div class="fb-value" id="fb-out">PKR 0</div>
+    </div>
+    <div class="flow-arrow">=</div>
+    <div class="flow-box close" id="box-closing">
+      <div class="fb-label">Closing Safe Cash</div>
+      <div class="fb-value" id="fb-closing">PKR 0</div>
+    </div>
+  </div>
+
+  <div class="flow-detail" id="detail-opening" hidden>
+    <div class="fd-title">Opening Safe Cash</div>
+    <div id="opening-hint" class="hint"></div>
+    <div class="field" id="opening-edit-wrap" style="margin-top:10px;" hidden>
+      <label>Set opening cash (owner only)</label>
       <input type="number" id="f-opening" step="any">
-      <div class="hint" id="opening-hint"></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="step-label">Cash Received</div>
-    <div class="field">
-      <label>Gulberg — handed to safe today (auto, from till recon)</label>
-      <input type="number" id="f-gulberg-received" readonly>
-    </div>
-    <div class="field">
-      <label>Other Locations — cash received (enter manually for now)</label>
-      <input type="number" id="f-other-received" step="any" placeholder="0">
-    </div>
-    <div class="field">
-      <label>Other Locations — notes (optional breakdown)</label>
-      <textarea id="f-other-notes" rows="2" placeholder="e.g. Susan 323,587 / Green Avenue 72,460 / Bakery 225,426"></textarea>
-    </div>
-    <div class="total-line"><span class="lbl">Total Cash</span><span class="num" id="total-cash-display">PKR 0</span></div>
+  <div class="flow-detail" id="detail-in" hidden>
+    <div class="fd-title">Cash In — from today's till handovers (Gulberg)</div>
+    <div id="in-breakdown"></div>
+    <div class="hint">Pulled automatically from Sales Entry's till cash reconciliation. Nothing to enter here.</div>
+  </div>
+
+  <div class="flow-detail" id="detail-out" hidden>
+    <div class="fd-title">Cash Out — today's cash expenses &amp; vendor payments</div>
+    <div id="out-breakdown"></div>
+    <div class="hint">Pulled automatically from Daily Expense and cash Vendor Payments. Nothing to enter here.</div>
+  </div>
+
+  <div class="flow-detail" id="detail-closing" hidden>
+    <div class="fd-title">Closing Safe Cash</div>
+    <div class="hint">Opening + Cash In − Cash Out + Adjustment. This should match exactly what's physically in the safe.</div>
   </div>
 
   <div class="card">
-    <div class="step-label">Expenses Paid From Safe</div>
-    <div class="field">
-      <label>Cash Expenses (vendors, salaries, etc. paid by you in cash)</label>
-      <input type="number" id="f-expenses" step="any" placeholder="0">
-    </div>
-    <div class="total-line"><span class="lbl">Ending Cash</span><span class="num" id="ending-cash-display">PKR 0</span></div>
-  </div>
-
-  <div class="card">
-    <div class="step-label">Ending Split (must add up to Ending Cash)</div>
+    <div class="step-label">Adjustment (only if the physical count doesn't match)</div>
     <div class="row2 field">
       <div>
-        <label>Cash in Hand</label>
-        <input type="number" id="f-cash-in-hand" step="any" placeholder="0">
-      </div>
-      <div>
-        <label>Jazz Cash</label>
-        <input type="number" id="f-jazz-cash" step="any" placeholder="0">
+        <label>Amount (+/-)</label>
+        <input type="number" id="f-adjustment" step="any" placeholder="0">
       </div>
     </div>
-    <div class="hint" id="split-hint"></div>
     <div class="field">
-      <label>Notes</label>
-      <textarea id="f-notes" rows="2" placeholder="Optional"></textarea>
+      <label>Explanation (required if adjusting)</label>
+      <textarea id="f-adjustment-reason" rows="2" placeholder="Why doesn't the physical count match?"></textarea>
     </div>
+    <div class="hint">In a perfect world this stays at zero every day.</div>
   </div>
 
   <button class="btn-primary" id="btn-save-draft" type="button">Save Draft</button>
@@ -270,6 +310,7 @@ function afterLogin(userId, name, managerId, role) {
   document.getElementById("f-date").value = todayStr();
   loadDay(todayStr());
   loadHistory();
+  loadPayables();
 }
 
 function backToNames() {
@@ -279,53 +320,83 @@ function backToNames() {
 }
 document.getElementById("btn-back").addEventListener("click", backToNames);
 
+function toggleDetail(boxId, detailId) {
+  document.getElementById(boxId).addEventListener("click", (e) => {
+    if (e.target.closest("input")) return;
+    const d = document.getElementById(detailId);
+    d.hidden = !d.hidden;
+  });
+}
+toggleDetail("box-opening", "detail-opening");
+toggleDetail("box-in", "detail-in");
+toggleDetail("box-out", "detail-out");
+toggleDetail("box-closing", "detail-closing");
+toggleDetail("payables-box", "payables-detail");
+
 function recalc() {
   const opening = parseFloat(document.getElementById("f-opening").value) || 0;
-  const gulberg = parseFloat(document.getElementById("f-gulberg-received").value) || 0;
-  const other = parseFloat(document.getElementById("f-other-received").value) || 0;
-  const expenses = parseFloat(document.getElementById("f-expenses").value) || 0;
-  const total = opening + gulberg + other;
-  const ending = total - expenses;
-  document.getElementById("total-cash-display").textContent = fmtMoney(total);
-  document.getElementById("ending-cash-display").textContent = fmtMoney(ending);
-
-  const cashInHand = parseFloat(document.getElementById("f-cash-in-hand").value) || 0;
-  const jazzCash = parseFloat(document.getElementById("f-jazz-cash").value) || 0;
-  const splitHint = document.getElementById("split-hint");
-  const diff = Math.round((ending - cashInHand - jazzCash) * 100) / 100;
-  if (diff !== 0 && (document.getElementById("f-cash-in-hand").value !== "" || document.getElementById("f-jazz-cash").value !== "")) {
-    splitHint.textContent = `Doesn't add up yet — off by ${fmtMoney(Math.abs(diff))}.`;
-    splitHint.style.color = "var(--err)";
-  } else {
-    splitHint.textContent = "";
-  }
-  return { opening, gulberg, other, expenses, total, ending, cashInHand, jazzCash, diff };
+  const cashIn = parseFloat(document.getElementById("fb-in").dataset.raw || "0");
+  const cashOut = parseFloat(document.getElementById("fb-out").dataset.raw || "0");
+  const adjustment = parseFloat(document.getElementById("f-adjustment").value) || 0;
+  const closing = opening + cashIn - cashOut + adjustment;
+  document.getElementById("fb-opening").textContent = fmtMoney(opening);
+  document.getElementById("fb-closing").textContent = fmtMoney(closing);
+  return { opening, cashIn, cashOut, adjustment, closing };
 }
-["f-opening","f-other-received","f-expenses","f-cash-in-hand","f-jazz-cash"].forEach(id => {
-  document.getElementById(id).addEventListener("input", recalc);
-});
+document.getElementById("f-opening").addEventListener("input", recalc);
+document.getElementById("f-adjustment").addEventListener("input", recalc);
 
-async function fetchGulbergReceived(dateStr) {
+async function fetchCashIn(dateStr) {
   try {
-    const rows = await sb(`daily_sales?location_id=eq.${GULBERG_ID}&sale_date=eq.${dateStr}&select=custodian_cash_amount`);
-    const net = (rows || []).reduce((s, r) => s - (Number(r.custodian_cash_amount) || 0), 0);
-    return Math.max(0, Math.round(net * 100) / 100);
+    const rows = await sb(`daily_sales?location_id=eq.${GULBERG_ID}&sale_date=eq.${dateStr}&select=shift,custodian_cash_amount`);
+    let net = 0;
+    const lines = [];
+    (rows || []).forEach(r => {
+      const handover = -(Number(r.custodian_cash_amount) || 0);
+      net += handover;
+      if (handover !== 0) lines.push({ label: `${r.shift || "shift"} handover`, amount: handover });
+    });
+    net = Math.max(0, Math.round(net * 100) / 100);
+    return { total: net, lines };
+  } catch (e) { return { total: 0, lines: [] }; }
+}
+
+async function fetchCashOut(dateStr) {
+  let expenseLines = [], vendorLines = [];
+  try {
+    const rows = await sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&select=category,amount,detail`);
+    expenseLines = (rows || []).map(r => ({ label: r.category || r.detail || "Expense", amount: Number(r.amount) || 0 }));
+  } catch (e) { /* ignore */ }
+  try {
+    const rows = await sb(`vendor_payments?location_id=eq.${GULBERG_ID}&payment_date=eq.${dateStr}&method=eq.cash&select=amount,vendors(name)`);
+    vendorLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Vendor") + " (cash payment)", amount: Number(r.amount) || 0 }));
+  } catch (e) { /* ignore */ }
+  const lines = [...expenseLines, ...vendorLines];
+  const total = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+  return { total, lines };
+}
+
+async function fetchPreviousClosing(dateStr) {
+  try {
+    const rows = await sb(`cash_safe_ledger?ledger_date=lt.${dateStr}&select=ledger_date,closing_cash&order=ledger_date.desc&limit=1`);
+    return rows && rows[0] ? Number(rows[0].closing_cash) || 0 : 0;
   } catch (e) { return 0; }
 }
 
-async function fetchPreviousEnding(dateStr) {
-  try {
-    const rows = await sb(`cash_safe_ledger?ledger_date=lt.${dateStr}&select=ledger_date,ending_cash&order=ledger_date.desc&limit=1`);
-    return rows && rows[0] ? Number(rows[0].ending_cash) || 0 : 0;
-  } catch (e) { return 0; }
+function renderBreakdown(elId, lines, emptyMsg) {
+  const el = document.getElementById(elId);
+  if (!lines.length) { el.innerHTML = `<div class="hint">${emptyMsg}</div>`; return; }
+  el.innerHTML = lines.map(l => `<div class="fd-row"><span>${l.label}</span><span>${fmtMoney(l.amount)}</span></div>`).join("");
 }
 
 function applyLockState(row) {
   const isLocked = row && row.status === "locked";
-  const fields = ["f-opening","f-other-received","f-other-notes","f-expenses","f-cash-in-hand","f-jazz-cash","f-notes"];
-  fields.forEach(id => document.getElementById(id).disabled = isLocked);
+  document.getElementById("f-adjustment").disabled = isLocked;
+  document.getElementById("f-adjustment-reason").disabled = isLocked;
+  document.getElementById("f-opening").disabled = isLocked || state.role !== "director";
   document.getElementById("btn-save-draft").disabled = isLocked;
   document.getElementById("btn-submit").disabled = isLocked;
+  document.getElementById("opening-edit-wrap").hidden = state.role !== "director";
   const banner = document.getElementById("status-banner");
   const badge = document.getElementById("status-badge");
   if (!row) { banner.hidden = true; badge.innerHTML = ""; return; }
@@ -346,33 +417,31 @@ function applyLockState(row) {
 
 async function loadDay(dateStr) {
   const rows = await sb(`cash_safe_ledger?ledger_date=eq.${dateStr}&select=*`);
-  const gulbergReceived = await fetchGulbergReceived(dateStr);
-  document.getElementById("f-gulberg-received").value = gulbergReceived;
+  const cashIn = await fetchCashIn(dateStr);
+  const cashOut = await fetchCashOut(dateStr);
+  document.getElementById("fb-in").textContent = fmtMoney(cashIn.total);
+  document.getElementById("fb-in").dataset.raw = cashIn.total;
+  document.getElementById("fb-out").textContent = fmtMoney(cashOut.total);
+  document.getElementById("fb-out").dataset.raw = cashOut.total;
+  renderBreakdown("in-breakdown", cashIn.lines, "No till handovers recorded for this day yet.");
+  renderBreakdown("out-breakdown", cashOut.lines, "No cash expenses or cash vendor payments recorded for this day yet.");
 
   if (rows && rows[0]) {
     state.currentRow = rows[0];
     const r = rows[0];
-    document.getElementById("f-opening").value = r.opening_petty_cash;
-    document.getElementById("f-other-received").value = r.other_locations_cash_received;
-    document.getElementById("f-other-notes").value = r.other_locations_notes || "";
-    document.getElementById("f-expenses").value = r.cash_expenses;
-    document.getElementById("f-cash-in-hand").value = r.cash_in_hand != null ? r.cash_in_hand : "";
-    document.getElementById("f-jazz-cash").value = r.jazz_cash != null ? r.jazz_cash : "";
-    document.getElementById("f-notes").value = r.notes || "";
+    document.getElementById("f-opening").value = r.opening_cash;
+    document.getElementById("f-adjustment").value = r.adjustment_amount || "";
+    document.getElementById("f-adjustment-reason").value = r.adjustment_reason || "";
     document.getElementById("opening-hint").textContent = "Loaded from today's saved entry.";
   } else {
     state.currentRow = null;
-    const prevEnding = await fetchPreviousEnding(dateStr);
-    document.getElementById("f-opening").value = prevEnding;
-    document.getElementById("f-other-received").value = "";
-    document.getElementById("f-other-notes").value = "";
-    document.getElementById("f-expenses").value = "";
-    document.getElementById("f-cash-in-hand").value = "";
-    document.getElementById("f-jazz-cash").value = "";
-    document.getElementById("f-notes").value = "";
-    document.getElementById("opening-hint").textContent = prevEnding
-      ? "Carried from the previous day's ending cash — override if it's wrong."
-      : "No previous entry found — enter the actual petty cash on hand.";
+    const prevClosing = await fetchPreviousClosing(dateStr);
+    document.getElementById("f-opening").value = prevClosing;
+    document.getElementById("f-adjustment").value = "";
+    document.getElementById("f-adjustment-reason").value = "";
+    document.getElementById("opening-hint").textContent = prevClosing
+      ? "Carried automatically from the previous day's closing cash."
+      : "No previous entry found — the owner needs to set the actual starting cash once.";
   }
   applyLockState(state.currentRow);
   recalc();
@@ -382,24 +451,19 @@ document.getElementById("f-date").addEventListener("change", (e) => loadDay(e.ta
 async function saveDay(status) {
   const dateStr = document.getElementById("f-date").value;
   const calc = recalc();
+  const reason = document.getElementById("f-adjustment-reason").value.trim() || null;
 
-  if (status === "submitted" && (document.getElementById("f-cash-in-hand").value === "" || document.getElementById("f-jazz-cash").value === "")) {
-    return alert("Enter the Cash in Hand / Jazz Cash split before submitting.");
-  }
-  if (status === "submitted" && calc.diff !== 0) {
-    return alert(`Cash in Hand + Jazz Cash must equal Ending Cash. Off by ${fmtMoney(Math.abs(calc.diff))}.`);
+  if (calc.adjustment !== 0 && !reason) {
+    return alert("Explain the adjustment before saving — that's the one thing we need from you if the count doesn't match.");
   }
 
   const payload = {
     ledger_date: dateStr,
-    opening_petty_cash: calc.opening,
-    gulberg_cash_received: calc.gulberg,
-    other_locations_cash_received: calc.other,
-    other_locations_notes: document.getElementById("f-other-notes").value || null,
-    cash_expenses: calc.expenses,
-    cash_in_hand: document.getElementById("f-cash-in-hand").value !== "" ? calc.cashInHand : null,
-    jazz_cash: document.getElementById("f-jazz-cash").value !== "" ? calc.jazzCash : null,
-    notes: document.getElementById("f-notes").value || null,
+    opening_cash: calc.opening,
+    cash_in: calc.cashIn,
+    cash_out: calc.cashOut,
+    adjustment_amount: calc.adjustment,
+    adjustment_reason: reason,
     status: status,
     updated_by_user_id: state.userId
   };
@@ -429,6 +493,30 @@ async function saveDay(status) {
 }
 document.getElementById("btn-save-draft").addEventListener("click", () => saveDay("draft"));
 document.getElementById("btn-submit").addEventListener("click", () => saveDay("submitted"));
+
+async function loadPayables() {
+  try {
+    const [vendors, purchases, payments] = await Promise.all([
+      sb(`vendors?active=eq.true&select=id,name&order=name`),
+      sb(`purchases?location_id=eq.${GULBERG_ID}&payment_status=eq.credit&select=vendor_id,amount`),
+      sb(`vendor_payments?location_id=eq.${GULBERG_ID}&select=vendor_id,amount`)
+    ]);
+    const owed = {}, paid = {};
+    (purchases || []).forEach(p => { if (p.vendor_id) owed[p.vendor_id] = (owed[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+    (payments || []).forEach(p => { if (p.vendor_id) paid[p.vendor_id] = (paid[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+    let total = 0;
+    const lines = [];
+    (vendors || []).forEach(v => {
+      const bal = (owed[v.id] || 0) - (paid[v.id] || 0);
+      if (bal > 0.01) { total += bal; lines.push({ label: v.name, amount: bal }); }
+    });
+    lines.sort((a, b) => b.amount - a.amount);
+    document.getElementById("payables-value").textContent = fmtMoney(total);
+    renderBreakdown("payables-detail", lines, "No outstanding vendor balances right now.");
+  } catch (e) {
+    document.getElementById("payables-value").textContent = "—";
+  }
+}
 
 async function lockDay() {
   const pin = prompt("Owner PIN to lock this day:");
@@ -466,17 +554,14 @@ async function loadHistory() {
       row.innerHTML = `
         <div class="hr-top">
           <strong>${r.ledger_date}</strong>
-          <span>${fmtMoney(r.ending_cash)} <span class="badge badge-${r.status}">${labels[r.status] || r.status}</span></span>
+          <span>${fmtMoney(r.closing_cash)} <span class="badge badge-${r.status}">${labels[r.status] || r.status}</span></span>
         </div>
         <div class="hist-detail" hidden>
-          <div>Opening Petty Cash: ${fmtMoney(r.opening_petty_cash)}</div>
-          <div>Gulberg Received: ${fmtMoney(r.gulberg_cash_received)}</div>
-          <div>Other Locations Received: ${fmtMoney(r.other_locations_cash_received)}${r.other_locations_notes ? " — " + r.other_locations_notes : ""}</div>
-          <div>Total Cash: ${fmtMoney(r.total_cash)}</div>
-          <div>Cash Expenses: ${fmtMoney(r.cash_expenses)}</div>
-          <div>Ending Cash: ${fmtMoney(r.ending_cash)}</div>
-          <div>Split: Cash in Hand ${fmtMoney(r.cash_in_hand)} / Jazz Cash ${fmtMoney(r.jazz_cash)}</div>
-          ${r.notes ? `<div>Notes: ${r.notes}</div>` : ""}
+          <div>Opening Cash: ${fmtMoney(r.opening_cash)}</div>
+          <div>Cash In (till handovers): ${fmtMoney(r.cash_in)}</div>
+          <div>Cash Out (expenses + cash vendor payments): ${fmtMoney(r.cash_out)}</div>
+          <div>Adjustment: ${fmtMoney(r.adjustment_amount)}${r.adjustment_reason ? " — " + r.adjustment_reason : ""}</div>
+          <div>Closing Cash: ${fmtMoney(r.closing_cash)}</div>
         </div>`;
       const detail = row.querySelector(".hist-detail");
       row.addEventListener("click", () => { detail.hidden = !detail.hidden; });
