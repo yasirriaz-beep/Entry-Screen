@@ -392,6 +392,23 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
+async function loadLocations() {
+  try {
+    state.locations = await sb(`locations?active=eq.true&select=id,code,name,is_hub&order=code`);
+  } catch (e) { state.locations = []; }
+  const sel = document.getElementById("loc-select");
+  sel.innerHTML = "";
+  state.locations.forEach(l => {
+    const opt = document.createElement("option");
+    opt.value = l.id;
+    opt.textContent = l.name + (l.is_hub ? " (Hub)" : "");
+    sel.appendChild(opt);
+  });
+  const gulberg = state.locations.find(l => l.code === "C-5");
+  state.locationId = gulberg ? gulberg.id : (state.locations[0] ? state.locations[0].id : null);
+  sel.value = state.locationId || "";
+}
+
 function afterLogin(userId, name, managerId, role) {
   state.userId = userId;
   state.userName = name;
