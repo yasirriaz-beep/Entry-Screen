@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 7px 12px; font-size: 0.82rem; border-radius: 8px; width: auto; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+  .badge-ok { background: var(--ok-bg); color: var(--ok); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); }
+
+  .checklist-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .checklist-row:last-child { border-bottom: none; }
+  .checklist-row input[type="checkbox"] { width: 22px; height: 22px; flex: 0 0 auto; margin-top: 2px; accent-color: var(--ok); }
+  .checklist-row .ci-text { flex: 1; font-size: 0.95rem; line-height: 1.4; }
+  .checklist-row .ci-text.done { color: var(--ink-soft); text-decoration: line-through; }
+  .checklist-row .ci-meta { font-size: 0.75rem; color: var(--ink-soft); margin-top: 2px; }
+
+  .progress-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 0.82rem; margin: 4px 6px 4px 0; cursor: pointer; background: var(--field-bg); }
+  .progress-pill .pp-count { font-weight: 700; }
+  .progress-pill.complete { border-color: var(--ok); color: var(--ok); }
+  .progress-pill.incomplete { border-color: var(--warn); color: var(--warn); }
+
+  .review-table { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+  .review-table th, .review-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .review-table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); }
+
+  .manage-item-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .manage-item-row:last-child { border-bottom: none; }
+  details.manage-block > summary { cursor: pointer; font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 10px; }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+
+<h1>Daily Checklist</h1>
+<div class="sub">Gulberg — what each role needs to get done today, with a timestamped sign-off</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who's checking in?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="card">
+    <div class="step-label">Today — <span id="today-label"></span></div>
+    <div id="my-role-label" class="hint" style="margin-bottom:10px;"></div>
+    <div id="my-checklist"></div>
+    <div class="hint" id="my-checklist-empty" hidden>No checklist has been set up for your role yet.</div>
+  </div>
+
+  <div class="card" id="director-review-card" hidden>
+    <div class="step-label">Today's completion, by role</div>
+    <div id="summary-pills"></div>
+
+    <div class="row2 field" style="margin-top:14px;">
+      <div>
+        <label>Date</label>
+        <input type="date" id="review-date">
+      </div>
+      <div>
+        <label>Role</label>
+        <select id="review-role"></select>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="review-table" id="review-table">
+        <thead><tr><th>Item</th><th>Status</th><th>By / When</th></tr></thead>
+        <tbody id="review-tbody"></tbody>
+      </table>
+    </div>
+    <div class="hint" id="review-empty" hidden>No checklist items for this role.</div>
+  </div>
+
+  <div class="card" id="manage-items-card" hidden>
+    <details class="manage-block">
+      <summary>Manage checklist items (add or retire items per role)</summary>
+      <div class="row2 field">
+        <div>
+          <label>Role</label>
+          <select id="new-item-role"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>New item text</label>
+        <textarea id="new-item-text" rows="2" placeholder="e.g. Count the till float before opening"></textarea>
+      </div>
+      <button type="button" class="btn-ghost" id="btn-add-item">Add item</button>
+      <div id="manage-items-list" style="margin-top:16px;"></div>
+    </details>
+  </div>
+
+  <a class="btn-ghost" href="home.html" style="display:block; text-align:center; text-decoration:none;">Back to Home</a>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const GULBERG_ID = "10000000-0000-0000-0000-000000000005";
+const PAGE_KEY = "daily_checklist";
+const ROLE_LABELS = { cash_custodian: "Cash Custodian", store_man: "Store / Inventory", shift_manager: "Shift Manager", director: "Director / Purchase Authorizer" };
+const ROLES_WITH_ITEMS = ["cash_custodian", "store_man", "shift_manager", "director"];
+
+let state = { userId: null, userName: null, managerId: null, role: null };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-US", { timeZone: "Asia/Karachi", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  state.role = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("today-label").textContent = todayStr();
+  document.getElementById("my-role-label").textContent = `Signed in as ${name} (${(ROLE_LABELS[role] || role || "no role").replace("_", " ")})`;
+
+  const isDirector = role === "director";
+  document.getElementById("director-review-card").hidden = !isDirector;
+  document.getElementById("manage-items-card").hidden = !isDirector;
+
+  loadMyChecklist();
+  if (isDirector) {
+    populateRoleSelects();
+    document.getElementById("review-date").value = todayStr();
+    loadSummaryPills();
+    loadReview();
+    loadManageItems();
+  }
+}
+
+function populateRoleSelects() {
+  ["review-role", "new-item-role"].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = ROLES_WITH_ITEMS.map(r => `<option value="${r}">${ROLE_LABELS[r]}</option>`).join("");
+  });
+}
+
+async function loadMyChecklist() {
+  const wrap = document.getElementById("my-checklist");
+  const emptyHint = document.getElementById("my-checklist-empty");
+  wrap.innerHTML = "";
+  if (!ROLES_WITH_ITEMS.includes(state.role)) { emptyHint.hidden = false; return; }
+
+  const items = await sb(`checklist_items?role_key=eq.${state.role}&active=eq.true&select=id,item_text&order=sort_order.asc`);
+  if (!items || !items.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  const dateStr = todayStr();
+  const ids = items.map(i => i.id).join(",");
+  const completions = await sb(`checklist_completions?item_id=in.(${ids})&checklist_date=eq.${dateStr}&location_id=eq.${GULBERG_ID}&select=*`);
+  const byItem = {};
+  (completions || []).forEach(c => { byItem[c.item_id] = c; });
+
+  items.forEach(item => {
+    const existing = byItem[item.id];
+    const row = document.createElement("div");
+    row.className = "checklist-row";
+    const done = existing && existing.completed;
+    row.innerHTML = `
+      <input type="checkbox" ${done ? "checked" : ""} data-item-id="${item.id}">
+      <div>
+        <div class="ci-text ${done ? "done" : ""}">${item.item_text}</div>
+        <div class="ci-meta">${done ? `✓ done by ${state.userName} at ${fmtTime(existing.completed_at)}` : "Not done yet"}</div>
+      </div>`;
+    const checkbox = row.querySelector("input");
+    checkbox.addEventListener("change", () => toggleItem(item.id, checkbox.checked, existing));
+    wrap.appendChild(row);
+  });
+}
+
+async function toggleItem(itemId, checked, existing) {
+  const dateStr = todayStr();
+  // completed_by_* always records who last touched this row (even an uncheck) -
+  // only completed_at is cleared when unchecked. The RLS check requires a
+  // non-null, active app_user id, so this must never be nulled out.
+  const payload = {
+    completed: checked,
+    completed_by_user_id: state.userId,
+    completed_by_manager_id: state.managerId,
+    completed_at: checked ? new Date().toISOString() : null
+  };
+  try {
+    if (existing) {
+      await sb(`checklist_completions?id=eq.${existing.id}`, {
+        method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+      });
+    } else {
+      await sb("checklist_completions", {
+        method: "POST", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ item_id: itemId, checklist_date: dateStr, location_id: GULBERG_ID, ...payload })
+      });
+    }
+    await loadMyChecklist();
+    if (state.role === "director") { loadSummaryPills(); loadReview(); }
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+    await loadMyChecklist();
+  }
+}
+
+async function loadSummaryPills() {
+  const wrap = document.getElementById("summary-pills");
+  wrap.innerHTML = "Loading…";
+  const dateStr = document.getElementById("review-date").value || todayStr();
+  const pills = [];
+  for (const role of ROLES_WITH_ITEMS) {
+    const items = await sb(`checklist_items?role_key=eq.${role}&active=eq.true&select=id`);
+    const total = (items || []).length;
+    if (!total) continue;
+    const ids = items.map(i => i.id).join(",");
+    const done = await sb(`checklist_completions?item_id=in.(${ids})&checklist_date=eq.${dateStr}&location_id=eq.${GULBERG_ID}&completed=eq.true&select=id`);
+    const doneCount = (done || []).length;
+    pills.push(`<span class="progress-pill ${doneCount === total ? "complete" : "incomplete"}" data-role="${role}">${ROLE_LABELS[role]}: <span class="pp-count">${doneCount}/${total}</span></span>`);
+  }
+  wrap.innerHTML = pills.join("") || '<span class="hint">No checklist items set up yet.</span>';
+  wrap.querySelectorAll(".progress-pill").forEach(p => {
+    p.addEventListener("click", () => {
+      document.getElementById("review-role").value = p.dataset.role;
+      loadReview();
+    });
+  });
+}
+document.getElementById("review-date").addEventListener("change", () => { loadSummaryPills(); loadReview(); });
+document.getElementById("review-role").addEventListener("change", loadReview);
+
+async function loadReview() {
+  const role = document.getElementById("review-role").value;
+  const dateStr = document.getElementById("review-date").value || todayStr();
+  const tbody = document.getElementById("review-tbody");
+  const emptyHint = document.getElementById("review-empty");
+  tbody.innerHTML = "";
+
+  const items = await sb(`checklist_items?role_key=eq.${role}&active=eq.true&select=id,item_text&order=sort_order.asc`);
+  if (!items || !items.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  const ids = items.map(i => i.id).join(",");
+  const completions = await sb(`checklist_completions?item_id=in.(${ids})&checklist_date=eq.${dateStr}&location_id=eq.${GULBERG_ID}&select=*,managers(name)`);
+  const byItem = {};
+  (completions || []).forEach(c => { byItem[c.item_id] = c; });
+
+  items.forEach(item => {
+    const c = byItem[item.id];
+    const done = c && c.completed;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${item.item_text}</td>
+      <td>${done ? '<span class="badge badge-ok">Done</span>' : '<span class="badge badge-warn">Pending</span>'}</td>
+      <td>${done ? `${(c.managers && c.managers.name) || "—"}<br><span class="hint">${fmtTime(c.completed_at)}</span>` : "—"}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadManageItems() {
+  const wrap = document.getElementById("manage-items-list");
+  wrap.innerHTML = "Loading…";
+  const items = await sb(`checklist_items?active=eq.true&select=id,role_key,item_text&order=role_key.asc,sort_order.asc`);
+  if (!items || !items.length) { wrap.innerHTML = '<div class="hint">No items yet.</div>'; return; }
+  wrap.innerHTML = items.map(i => `
+    <div class="manage-item-row">
+      <span>${ROLE_LABELS[i.role_key] || i.role_key}: ${i.item_text}</span>
+      <button type="button" class="btn-sm btn-ghost" data-retire="${i.id}">Retire</button>
+    </div>`).join("");
+  wrap.querySelectorAll("[data-retire]").forEach(btn => {
+    btn.addEventListener("click", () => retireItem(btn.dataset.retire));
+  });
+}
+
+async function retireItem(itemId) {
+  if (!confirm("Retire this checklist item? It will stop showing up for that role (history is kept).")) return;
+  try {
+    await sb(`checklist_items?id=eq.${itemId}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ active: false, updated_by_user_id: state.userId })
+    });
+    await loadManageItems();
+    await loadSummaryPills();
+  } catch (e) { alert("Couldn't retire: " + e.message); }
+}
+
+document.getElementById("btn-add-item").addEventListener("click", async () => {
+  const role = document.getElementById("new-item-role").value;
+  const text = document.getElementById("new-item-text").value.trim();
+  if (!text) return alert("Enter the item text first.");
+  try {
+    const existing = await sb(`checklist_items?role_key=eq.${role}&select=sort_order&order=sort_order.desc&limit=1`);
+    const nextSort = existing && existing[0] ? (existing[0].sort_order || 0) + 1 : 1;
+    await sb("checklist_items", {
+      method: "POST", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ role_key: role, item_text: text, sort_order: nextSort, created_by_user_id: state.userId })
+    });
+    document.getElementById("new-item-text").value = "";
+    await loadManageItems();
+    await loadSummaryPills();
+  } catch (e) { alert("Couldn't add item: " + e.message); }
+});
+
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+</body>
+</html>
