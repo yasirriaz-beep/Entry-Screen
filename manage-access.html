@@ -56,6 +56,13 @@
   .banner { border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; margin-bottom: 14px; line-height: 1.4; }
   .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
   .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; box-sizing: border-box; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .code-field { width: 90px; text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -63,7 +70,19 @@
 <h1>Manage Access</h1>
 <div class="sub">Grant each manager a PIN and the specific pages they're allowed into. This is Director-only and double-locked behind the Owner PIN.</div>
 
-<div id="step-pin" class="card">
+<div id="step-login" class="card">
+  <div class="field">
+    <label>Who are you?</label>
+  </div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="step-pin" class="card" hidden>
   <div class="field">
     <label>Owner PIN</label>
     <input type="password" id="f-owner-pin" inputmode="numeric" placeholder="••••">
@@ -84,6 +103,11 @@
       <input type="text" id="new-name" placeholder="e.g. Ahsan (RGM)">
     </div>
     <div class="field">
+      <label>Login Code (2 letters — what they type to sign in)</label>
+      <input type="text" id="new-login-code" class="code-field" placeholder="e.g. AH" maxlength="2" style="text-transform:uppercase">
+      <div class="hint">Leave blank if you'll assign a code later. Must be unique across everyone.</div>
+    </div>
+    <div class="field">
       <label>Underlying Role (which existing account they act under)</label>
       <select id="new-app-user"></select>
       <div class="hint">This is the role-tier account (e.g. S.Manager, Zeeshan) their rows already get recorded under. It does not change when you add more people under the same role.</div>
@@ -94,25 +118,38 @@
   <div id="mgr-list"></div>
 </div>
 
-<a class="btn-ghost" href="director-home.html" style="display:block; text-align:center; text-decoration:none; margin-top:10px;">Back to Director Home</a>
+<a class="btn-ghost" href="home.html" style="display:block; text-align:center; text-decoration:none; margin-top:10px;">Back to Home</a>
 
+<script src="session.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const PAGE_KEY = "manage_access";
 const PAGE_KEYS = [
+  { key: "sales_entry", label: "Sales Entry" },
+  { key: "expense_entry", label: "Expense Entry" },
+  { key: "attendance", label: "Attendance" },
+  { key: "issue_entry", label: "Issue Entry" },
+  { key: "vendor_payment", label: "Vendor Payment" },
   { key: "delivery_km", label: "Delivery KM Log" },
-  { key: "delivery_ops", label: "Delivery Operations" },
-  { key: "payroll", label: "Payroll" }
+  { key: "delivery_ops", label: "Delivery Ops" },
+  { key: "variance_entry", label: "Drinks/Bakery Usage Entry" },
+  { key: "stock_count", label: "Stock Count" },
+  { key: "inventory_balance_sheet", label: "Inventory Balance Sheet" },
+  { key: "goods_receipt", label: "Goods Receipt" },
+  { key: "purchase_order", label: "Purchase Orders" },
+  { key: "payroll", label: "Payroll" },
+  { key: "employee_master", label: "Employee Master" },
+  { key: "owner_dashboard", label: "Owner Dashboard" },
+  { key: "settlements", label: "Settlements" },
+  { key: "pos_upload", label: "POS Upload" },
+  { key: "item_master", label: "Item Master" },
+  { key: "variance_items", label: "Variance Items" },
+  { key: "moq_setup", label: "MOQ Setup" },
+  { key: "manage_access", label: "Manage Access" }
 ];
 
 let state = { ownerPin: null, managers: [], appUsers: [] };
-
-(function () {
-  let user = null;
-  try { user = JSON.parse(localStorage.getItem("fnk_user") || "null"); } catch (e) { user = null; }
-  if (!user || !user.role) { location.href = "role-select.html"; return; }
-  if (user.role !== "director") { location.href = "role-select.html"; return; }
-})();
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -123,6 +160,43 @@ async function sb(path, opts = {}) {
   const ct = res.headers.get("content-type") || "";
   return ct.includes("application/json") ? res.json() : null;
 }
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+    if (row.role !== "director") throw new Error("not a director");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+    document.getElementById("step-login").hidden = true;
+    document.getElementById("step-pin").hidden = false;
+    nameInput.value = "";
+    pinInput.value = "";
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
 
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -149,7 +223,7 @@ async function unlock() {
   if (!pin) { statusEl.textContent = "Enter the Owner PIN."; return; }
   statusEl.textContent = "Checking…";
   try {
-    const rows = await sbRpc("admin_list_managers", { p_owner_pin: pin });
+    const rows = await sbRpc("admin_list_managers_v2", { p_owner_pin: pin });
     state.ownerPin = pin;
     state.managers = rows || [];
     document.getElementById("step-pin").hidden = true;
@@ -171,7 +245,7 @@ async function loadAppUsers() {
 }
 
 async function refreshManagers() {
-  state.managers = await sbRpc("admin_list_managers", { p_owner_pin: state.ownerPin });
+  state.managers = await sbRpc("admin_list_managers_v2", { p_owner_pin: state.ownerPin });
   renderManagers();
 }
 
@@ -195,13 +269,14 @@ function renderManagers() {
       <div class="mgr-top">
         <div>
           <span class="mgr-title">${m.name}</span>
-          <div class="mgr-sub">acts as ${m.app_user_name} (${m.role})</div>
+          <div class="mgr-sub">acts as ${m.app_user_name} (${m.role}) &middot; login code: ${m.login_code ? `<strong>${m.login_code}</strong>` : "<em>none set</em>"}</div>
         </div>
         <span class="pill-badge ${m.has_pin ? "pill-ok" : "pill-warn"}">${m.has_pin ? "PIN set" : "No PIN yet"}</span>
       </div>
       <div class="access-grid">${accessChips}</div>
       <div class="mgr-actions">
         <button type="button" class="btn-ghost btn-sm mgr-set-pin">${m.has_pin ? "Change PIN" : "Set PIN"}</button>
+        <button type="button" class="btn-ghost btn-sm mgr-set-code">${m.login_code ? "Change Code" : "Set Code"}</button>
         <button type="button" class="btn-ghost btn-sm mgr-toggle-active">${m.active ? "Deactivate" : "Reactivate"}</button>
       </div>
     `;
@@ -209,6 +284,7 @@ function renderManagers() {
       chip.addEventListener("click", () => toggleAccess(chip));
     });
     row.querySelector(".mgr-set-pin").addEventListener("click", () => setPin(m));
+    row.querySelector(".mgr-set-code").addEventListener("click", () => setCode(m));
     row.querySelector(".mgr-toggle-active").addEventListener("click", () => toggleActive(m));
     list.appendChild(row);
   });
@@ -244,9 +320,22 @@ async function setPin(m) {
   }
 }
 
+async function setCode(m) {
+  const code1 = prompt(`Set the 2-letter login code for ${m.name} (what they'll type instead of a name):`, m.login_code || "");
+  if (code1 === null || code1.trim() === "") return;
+  const code = code1.trim().toUpperCase();
+  if (code.length !== 2 || !/^[A-Z]{2}$/.test(code)) { alert("Login code must be exactly 2 letters."); return; }
+  try {
+    await sbRpc("admin_upsert_manager_v2", { p_owner_pin: state.ownerPin, p_manager_id: m.id, p_name: m.name, p_app_user_id: m.app_user_id, p_active: m.active, p_login_code: code });
+    await refreshManagers();
+  } catch (e) {
+    alert("Couldn't set login code: " + e.message);
+  }
+}
+
 async function toggleActive(m) {
   try {
-    await sbRpc("admin_upsert_manager", { p_owner_pin: state.ownerPin, p_manager_id: m.id, p_name: m.name, p_app_user_id: m.app_user_id, p_active: !m.active });
+    await sbRpc("admin_upsert_manager_v2", { p_owner_pin: state.ownerPin, p_manager_id: m.id, p_name: m.name, p_app_user_id: m.app_user_id, p_active: !m.active, p_login_code: m.login_code });
     await refreshManagers();
   } catch (e) {
     alert("Couldn't update: " + e.message);
@@ -256,15 +345,24 @@ async function toggleActive(m) {
 document.getElementById("btn-add-manager").addEventListener("click", async () => {
   const name = document.getElementById("new-name").value.trim();
   const appUserId = document.getElementById("new-app-user").value;
+  const loginCode = document.getElementById("new-login-code").value.trim().toUpperCase();
   if (!name || !appUserId) { alert("Enter a name and pick the underlying role."); return; }
+  if (loginCode && (loginCode.length !== 2 || !/^[A-Z]{2}$/.test(loginCode))) { alert("Login code must be exactly 2 letters (or leave it blank)."); return; }
   try {
-    await sbRpc("admin_upsert_manager", { p_owner_pin: state.ownerPin, p_manager_id: null, p_name: name, p_app_user_id: appUserId, p_active: true });
+    await sbRpc("admin_upsert_manager_v2", { p_owner_pin: state.ownerPin, p_manager_id: null, p_name: name, p_app_user_id: appUserId, p_active: true, p_login_code: loginCode || null });
+    document.getElementById("new-login-code").value = "";
     document.getElementById("new-name").value = "";
     await refreshManagers();
   } catch (e) {
     alert("Couldn't add manager: " + e.message);
   }
 });
+
+const existingSession = FNKSession.get();
+if (existingSession && FNKSession.hasAccess(existingSession, PAGE_KEY) && existingSession.role === "director") {
+  document.getElementById("step-login").hidden = true;
+  document.getElementById("step-pin").hidden = false;
+}
 </script>
 
 </body>
