@@ -211,6 +211,7 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
 </form>
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap">
+<script src="session.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
@@ -501,6 +502,15 @@ async function loadMorningReconCard(saleDate, shift){
   }
 }
 
+function afterLogin(userId, name, managerId, role) {
+  resolvedUserId = userId;
+  resolvedManagerId = managerId;
+  document.getElementById("whoCard").hidden = true;
+  document.getElementById("salesForm").hidden = false;
+  hideBanner();
+  loadShiftEntry();
+}
+
 document.getElementById("continueBtn").addEventListener("click", async () => {
   const managerId = document.getElementById("whoSelect").value;
   const managerName = document.getElementById("whoSelect").selectedOptions[0]?.textContent || "";
@@ -514,16 +524,12 @@ document.getElementById("continueBtn").addEventListener("click", async () => {
     const rows = await sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin });
     const row = rows && rows[0];
     if (!row) { showBanner("Incorrect PIN.", "danger"); return; }
-    resolvedUserId = row.app_user_id;
-    resolvedManagerId = managerId;
+    FNKSession.set({ managerId, userId: row.app_user_id, userName: managerName, role: row.role, pages: [], loginAt: new Date().toISOString() });
+    afterLogin(row.app_user_id, managerName, managerId, row.role);
   } catch (e) {
     showBanner(e.message || "Incorrect PIN.", "danger");
     return;
   }
-  document.getElementById("whoCard").hidden = true;
-  document.getElementById("salesForm").hidden = false;
-  hideBanner();
-  loadShiftEntry();
 });
 document.getElementById("shiftSelect").addEventListener("change", loadShiftEntry);
 document.getElementById("dateInput").addEventListener("change", loadShiftEntry);
@@ -607,7 +613,12 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
   }
 });
 
-init();
+init().then(() => {
+  const existing = FNKSession.get();
+  if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+    afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  }
+});
 </script>
 
 </body>

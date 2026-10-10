@@ -99,6 +99,7 @@
   <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 </div>
 
+<script src="session.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
@@ -187,13 +188,18 @@ function selectManager(managerId, name, pillEl) {
     .then(rows => {
       const row = rows && rows[0];
       if (!row) { alert("Incorrect PIN."); return; }
-      const initials = name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
-      finishLogin(row.app_user_id, name, row.role, initials, managerId, pillEl);
+      FNKSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+      finishLogin(row.app_user_id, name, row.role, managerId, pillEl);
     })
     .catch(err => alert(err.message || "Incorrect PIN."));
 }
 
-function finishLogin(id, name, role, initials, managerId, pillEl) {
+function afterLogin(userId, name, managerId, role) {
+  finishLogin(userId, name, role, managerId, null);
+}
+
+function finishLogin(id, name, role, managerId, pillEl) {
+  const initials = name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
   if (pillEl) pillEl.classList.add("selected");
   state.userId = id;
@@ -408,7 +414,12 @@ async function saveKmEntry(detail, r, log) {
   }
 }
 
-loadNames();
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+} else {
+  loadNames();
+}
 </script>
 
 </body>

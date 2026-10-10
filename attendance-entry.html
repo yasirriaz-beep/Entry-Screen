@@ -102,6 +102,7 @@
   <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 </div>
 
+<script src="session.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
@@ -197,6 +198,19 @@ async function loadNames() {
   }
 }
 
+function afterLogin(userId, name, managerId, role) {
+  const initials = name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
+  state.userId = userId;
+  state.userName = name;
+  state.userRole = role;
+  state.initials = initials;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  loadEmployees().then(loadMarksForDate);
+}
+
 function selectUser(managerId, name, pillEl) {
   const pin = prompt(`Enter your PIN, ${name}`);
   if (pin === null) return;
@@ -204,19 +218,11 @@ function selectUser(managerId, name, pillEl) {
     .then(rows => {
       const row = rows && rows[0];
       if (!row) { alert("Incorrect PIN."); return; }
-      const initials = name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
       document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
       pillEl.classList.add("selected");
-      state.userId = row.app_user_id;
-      state.userName = name;
-      state.userRole = row.role;
-      state.initials = initials;
-      state.managerId = managerId;
+      FNKSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
       setTimeout(() => {
-        document.getElementById("step-name").hidden = true;
-        document.getElementById("panel-main").hidden = false;
-        document.getElementById("f-date").value = todayStr();
-        loadEmployees().then(loadMarksForDate);
+        afterLogin(row.app_user_id, name, managerId, row.role);
       }, 150);
     })
     .catch(err => alert(err.message || "Incorrect PIN."));
@@ -433,7 +439,12 @@ document.getElementById("btn-mark-all-present").addEventListener("click", async 
 
 document.getElementById("search-emp").addEventListener("input", renderEmpList);
 
-loadNames();
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+} else {
+  loadNames();
+}
 </script>
 
 </body>

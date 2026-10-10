@@ -3,64 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Store Man — Gulberg</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<meta http-equiv="refresh" content="0; url=home.html">
+<title>Forks N Knives — Gulberg</title>
 <style>
-  :root {
-    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
-    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
-    color-scheme: light;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
-      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
-      color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
-    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
-    color-scheme: dark;
-  }
-  * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 480px; margin: 0 auto; }
-  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.4rem; margin: 4px 0 2px; }
-  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
-  a.link-btn { display: block; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 14px 18px; border-radius: 10px; margin-top: 14px; font-weight: 600; text-align: center; }
-  a.switch-link { display: block; text-align: center; margin-top: 28px; color: var(--ink-soft); font-size: 0.85rem; text-decoration: underline; }
+  body { font-family: system-ui, sans-serif; background:#faf7f2; color:#2a2420; max-width:480px; margin:60px auto; padding:0 20px; }
+  h1 { font-size:1.3rem; }
+  a { display:block; background:#9c3b2e; color:#fff; text-decoration:none; padding:14px 18px; border-radius:10px; margin-top:14px; font-weight:600; text-align:center; }
 </style>
 </head>
 <body>
-
-<h1 id="page-title">Store Man</h1>
-<div class="sub">Your daily tasks at Gulberg.</div>
-
-<a class="link-btn" href="goods-receipt.html">Goods Receipt</a>
-<a class="link-btn" href="issue-entry.html">Issue to Kitchen/Floor</a>
-<a class="link-btn" href="expense-entry.html">Expense Entry</a>
-
-<a class="switch-link" href="role-select.html">Switch Person</a>
-
-<script>
-(function () {
-  let user = null;
-  try { user = JSON.parse(localStorage.getItem("fnk_user") || "null"); } catch (e) { user = null; }
-  if (!user || !user.role) {
-    location.href = "role-select.html";
-    return;
-  }
-  // Soft UX guard only (not security — Postgres RLS enforces the real rule). Directors may
-  // peek at any role-home page without being bounced.
-  if (user.role !== "store_man" && user.role !== "director") {
-    location.href = "role-select.html";
-    return;
-  }
-  document.getElementById("page-title").textContent = "Store Man — " + user.name;
-})();
-</script>
-
+<h1>This page moved</h1>
+<p>Everyone now signs in from one page, which shows only the screens granted to you (Directors see everything).</p>
+<a href="home.html">Continue to the new sign-in page</a>
 </body>
 </html>

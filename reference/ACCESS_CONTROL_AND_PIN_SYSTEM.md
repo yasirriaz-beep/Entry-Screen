@@ -63,6 +63,21 @@ share the same underlying `shift_manager` app_user row).
   localStorage-role-check + Owner-PIN pattern (not the new name+PIN picker) so it always
   stays reachable to fix a broken PIN, even if every manager's PIN is wrong — this is the
   bootstrap/escape-hatch screen.
+- **`home.html`** (2026-10-09, the entry point — `index.html` redirects here) — a single
+  login page for everyone, including Directors: pick your name, enter your PIN once, and it
+  shows only the pages granted to you as tabbed sections (Directors see every page). This
+  replaced `role-select.html` and the five role-based home pages
+  (`director-home.html`/`shift-manager-home.html`/`store-man-home.html`/
+  `cash-custodian-home.html`/`auditor-home.html`), which are now just redirect stubs to
+  `home.html` so old bookmarks still land somewhere sensible.
+- **`session.js`** — shared helper (`FNKSession.get/set/clear/hasAccess`) backing the
+  "log in once per visit" behavior. It stores `{managerId, userId, userName, role, pages,
+  loginAt}` in `sessionStorage` (not `localStorage`) — deliberately so it clears when the
+  browser/tab closes, rather than staying "logged in" as whoever last used a shared device.
+  Every entry screen checks `FNKSession.get()` on load: if there's a valid session with
+  access to that page, it skips straight past the name grid; otherwise it falls back to its
+  own `list_managers_for_page` + PIN picker exactly as before (so a direct link/bookmark to
+  any screen still works without having gone through `home.html` first).
 - **Every other screen**: "who are you?" now shows only the individually-named people
   granted that `page_key` (via `list_managers_for_page`), and picking a name prompts for
   that person's PIN (`verify_manager_pin`) before anything unlocks. This replaced two older
@@ -71,6 +86,18 @@ share the same underlying `shift_manager` app_user row).
   special-cased anymore — they go through the same manager+PIN flow as everyone else now
   (this was a deliberate later decision; initially Directors stayed PIN-free, then the whole
   app was migrated uniformly, Directors included).
+
+## RPCs added for `home.html` (2026-10-09)
+
+- **`list_all_managers()` returns table(id uuid, name text)`** — public, no PIN, like
+  `list_managers_for_page` but with no page filter (the login page doesn't know a page_key
+  yet). Lists every active manager.
+- **`list_pages_for_manager(p_manager_id uuid) returns text[]`** — public, called right
+  after `verify_manager_pin` succeeds, to get the page_keys to show as tabs/links. Kept as a
+  separate RPC rather than changing `verify_manager_pin`'s return shape, because
+  `CREATE OR REPLACE FUNCTION` refuses to change a function's `OUT`/`TABLE` columns
+  (`42P13`) and dropping+recreating it in this session's migration tool got silently
+  cancelled (destructive-SQL guard) — easier and non-destructive to just add a second call.
 
 ## `page_key` -> screen map (and who currently has each)
 
@@ -82,6 +109,7 @@ share the same underlying `shift_manager` app_user row).
 | `issue_entry` | issue-entry.html | Store Person, Ahsan, Hamza, Aqib, Anjum, + Directors |
 | `vendor_payment` | vendor-payment.html | Zeeshan, + Directors |
 | `stock_count` | stock-count.html | Hammad, Imran, + Directors |
+| `inventory_balance_sheet` | inventory-balance-sheet.html | Store Person, Hammad, Imran, + Directors (read-only ledger, 2026-10-09) |
 | `settlements` | settlements.html | Zeeshan, + Directors |
 | `variance_entry` | variance-entry.html | Store Person, Ahsan, Hamza, Aqib, Anjum, + Directors |
 | `goods_receipt` | goods-receipt.html | Store Person, Ahsan, Hamza, Aqib, Anjum, + Directors |

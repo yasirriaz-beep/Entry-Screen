@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forks N Knives — Gulberg</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 60px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  [hidden] { display: none !important; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 4px; }
+
+  .who-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .who-bar .name { font-weight: 600; }
+  .who-bar .role { color: var(--ink-soft); font-size: 0.8rem; text-transform: capitalize; }
+  .btn-switch { background: transparent; border: 1px solid var(--border); color: var(--ink-soft); padding: 7px 12px; font-size: 0.78rem; border-radius: 8px; }
+
+  .tab-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+  .tab-btn { flex: none; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink-soft); border-radius: 999px; padding: 8px 14px; font-size: 0.82rem; cursor: pointer; white-space: nowrap; }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  .page-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .page-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--field-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; text-decoration: none; color: var(--ink); }
+  .page-link:hover { border-color: var(--accent); }
+  .page-link .arrow { color: var(--ink-soft); }
+  .empty-hint { color: var(--ink-soft); font-size: 0.88rem; padding: 10px 2px; }
+</style>
+</head>
+<body>
+
+<h1>Forks N Knives — Gulberg</h1>
+<div class="sub">Sign in to see the pages you have access to</div>
+
+<div id="step-login" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="who-bar">
+    <div>
+      <div class="name" id="who-name"></div>
+      <div class="role" id="who-role"></div>
+    </div>
+    <button class="btn-switch" id="btn-switch" type="button">Switch person</button>
+  </div>
+
+  <div id="tab-row" class="tab-row"></div>
+  <div id="page-grid" class="page-grid"></div>
+  <div class="hint" id="director-hint" hidden>As a Director you can open every page. Everyone else only sees what's been granted to them in Manage Access.</div>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+
+// One section per page_key. This is the same grant matrix documented in
+// reference/ACCESS_CONTROL_AND_PIN_SYSTEM.md - update both places together.
+const SECTIONS = [
+  { name: "Daily Operations", pages: [
+    { key: "sales_entry", label: "Sales Entry", url: "sales-entry.html" },
+    { key: "expense_entry", label: "Expense Entry", url: "expense-entry.html" },
+    { key: "attendance", label: "Attendance", url: "attendance-entry.html" },
+    { key: "issue_entry", label: "Issue Entry", url: "issue-entry.html" },
+    { key: "vendor_payment", label: "Vendor Payment", url: "vendor-payment.html" },
+    { key: "delivery_km", label: "Delivery KM Log", url: "delivery-km-entry.html" },
+    { key: "delivery_ops", label: "Delivery Ops", url: "delivery-ops.html" },
+  ]},
+  { name: "Drinks & Bakery", pages: [
+    { key: "variance_entry", label: "Drinks/Bakery Usage Entry", url: "variance-entry.html" },
+  ]},
+  { name: "Stock Control", pages: [
+    { key: "stock_count", label: "Stock Count", url: "stock-count.html" },
+    { key: "inventory_balance_sheet", label: "Inventory Balance Sheet", url: "inventory-balance-sheet.html" },
+    { key: "goods_receipt", label: "Goods Receipt", url: "goods-receipt.html" },
+    { key: "purchase_order", label: "Purchase Orders", url: "purchase-order.html" },
+  ]},
+  { name: "People & Payroll", pages: [
+    { key: "payroll", label: "Payroll", url: "payroll-entry.html" },
+    { key: "employee_master", label: "Employee Master", url: "employee-master.html" },
+  ]},
+  { name: "Oversight", pages: [
+    { key: "owner_dashboard", label: "Owner Dashboard", url: "owner-dashboard.html" },
+    { key: "settlements", label: "Settlements", url: "settlements.html" },
+    { key: "pos_upload", label: "POS Upload", url: "pos-upload.html" },
+  ]},
+  { name: "Setup & Reference", pages: [
+    { key: "item_master", label: "Item Master", url: "item-master.html" },
+    { key: "variance_items", label: "Variance Items", url: "variance-items.html" },
+    { key: "moq_setup", label: "MOQ Setup", url: "moq-setup.html" },
+    { key: "manage_access", label: "Manage Access", url: "manage-access.html" },
+  ]},
+];
+
+let session = null;
+let activeSection = null;
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function loadNames() {
+  const grid = document.getElementById("name-grid");
+  grid.innerHTML = "";
+  try {
+    const managers = await sbRpc("list_all_managers", {});
+    managers.forEach((m) => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = m.name;
+      pill.onclick = () => selectUser(m.id, m.name, pill);
+      grid.appendChild(pill);
+    });
+  } catch (e) {
+    grid.innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(managerId, name, pillEl) {
+  const pin = prompt(`Enter your PIN, ${name}`);
+  if (pin === null) return;
+  sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin })
+    .then((rows) => {
+      const row = rows && rows[0];
+      if (!row) { alert("Incorrect PIN."); return; }
+      document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
+      pillEl.classList.add("selected");
+      return sbRpc("list_pages_for_manager", { p_manager_id: managerId }).then((pages) => {
+        session = {
+          managerId,
+          userId: row.app_user_id,
+          userName: name,
+          role: row.role,
+          pages: pages || [],
+          loginAt: new Date().toISOString(),
+        };
+        FNKSession.set(session);
+        showMain();
+      });
+    })
+    .catch((err) => alert(err.message || "Incorrect PIN."));
+}
+
+function showMain() {
+  document.getElementById("step-login").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("who-name").textContent = session.userName;
+  document.getElementById("who-role").textContent = session.role.replace("_", " ");
+  document.getElementById("director-hint").hidden = session.role !== "director";
+
+  const visibleSections = SECTIONS
+    .map((s) => ({ name: s.name, pages: s.pages.filter((p) => FNKSession.hasAccess(session, p.key)) }))
+    .filter((s) => s.pages.length);
+
+  if (!visibleSections.length) {
+    document.getElementById("tab-row").innerHTML = "";
+    document.getElementById("page-grid").innerHTML =
+      '<div class="empty-hint">No pages have been granted to you yet. Ask a Director to set this up in Manage Access.</div>';
+    return;
+  }
+
+  activeSection = visibleSections[0].name;
+  renderTabs(visibleSections);
+  renderPages(visibleSections);
+}
+
+function renderTabs(visibleSections) {
+  const row = document.getElementById("tab-row");
+  row.innerHTML = "";
+  visibleSections.forEach((s) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tab-btn" + (s.name === activeSection ? " active" : "");
+    btn.textContent = s.name;
+    btn.onclick = () => {
+      activeSection = s.name;
+      renderTabs(visibleSections);
+      renderPages(visibleSections);
+    };
+    row.appendChild(btn);
+  });
+}
+
+function renderPages(visibleSections) {
+  const grid = document.getElementById("page-grid");
+  grid.innerHTML = "";
+  const section = visibleSections.find((s) => s.name === activeSection);
+  (section ? section.pages : []).forEach((p) => {
+    const a = document.createElement("a");
+    a.className = "page-link";
+    a.href = p.url;
+    a.innerHTML = `<span>${p.label}</span><span class="arrow">&rarr;</span>`;
+    grid.appendChild(a);
+  });
+}
+
+document.getElementById("btn-switch").addEventListener("click", () => {
+  FNKSession.clear();
+  session = null;
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-login").hidden = false;
+  document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
+});
+
+// Already logged in this visit? Skip straight to their pages.
+const existing = FNKSession.get();
+if (existing) {
+  session = existing;
+  showMain();
+} else {
+  loadNames();
+}
+</script>
+
+</body>
+</html>

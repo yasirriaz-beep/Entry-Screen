@@ -259,6 +259,7 @@
   <div id="drawer-body"></div>
 </div>
 
+<script src="session.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
@@ -380,6 +381,18 @@ async function loadLocations() {
   sel.value = state.locationId || "";
 }
 
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  setTimeout(async () => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    await loadLocations();
+    await refreshAll();
+  }, 150);
+}
+
 function selectUser(managerId, name, pillEl) {
   const pin = prompt(`Enter your PIN, ${name}`);
   if (pin === null) return;
@@ -389,15 +402,8 @@ function selectUser(managerId, name, pillEl) {
       if (!row) { alert("Incorrect PIN."); return; }
       document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
       pillEl.classList.add("selected");
-      state.userId = row.app_user_id;
-      state.userName = name;
-      state.managerId = managerId;
-      setTimeout(async () => {
-        document.getElementById("step-name").hidden = true;
-        document.getElementById("panel-main").hidden = false;
-        await loadLocations();
-        await refreshAll();
-      }, 150);
+      FNKSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+      afterLogin(row.app_user_id, name, managerId, row.role);
     })
     .catch(err => alert(err.message || "Incorrect PIN."));
 }
@@ -1089,7 +1095,12 @@ async function loadAlerts() {
     </div>`).join("");
 }
 
-loadNames();
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+} else {
+  loadNames();
+}
 </script>
 
 </body>

@@ -129,6 +129,7 @@
   <button class="btn-primary" id="btn-save-all" type="button">Save Counts (<span id="dirty-count">0</span>)</button>
 </div>
 
+<script src="session.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
@@ -230,18 +231,24 @@ function selectUser(managerId, name, pillEl) {
       if (!row) { alert("Incorrect PIN."); return; }
       document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
       pillEl.classList.add("selected");
-      state.userId = row.app_user_id;
-      state.userName = name;
-      state.managerId = managerId;
-      state.userRole = row.role;
-      setTimeout(() => {
-        document.getElementById("step-name").hidden = true;
-        document.getElementById("panel-main").hidden = false;
-        document.getElementById("f-date").value = todayStr();
-        loadAll();
-      }, 150);
+      FNKSession.set({
+        managerId, userId: row.app_user_id, userName: name, role: row.role,
+        pages: [], loginAt: new Date().toISOString()
+      });
+      setTimeout(() => afterLogin(row.app_user_id, name, managerId, row.role), 150);
     })
     .catch(err => alert(err.message || "Incorrect PIN."));
+}
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  state.userRole = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  loadAll();
 }
 
 function backToNames() {
@@ -471,7 +478,12 @@ document.getElementById("search-items").addEventListener("input", renderItemList
 document.getElementById("filter-category").addEventListener("change", renderItemList);
 document.getElementById("filter-moq").addEventListener("change", renderItemList);
 
-loadNames();
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+} else {
+  loadNames();
+}
 </script>
 
 </body>

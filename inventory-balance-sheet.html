@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Inventory Balance Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 60px; max-width: 960px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 11px 16px; cursor: pointer; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; align-items: flex-end; }
+  .filter-row > * { flex: 1; min-width: 140px; }
+  .filter-row .btn-ghost { flex: none; }
+  .table-scroll { overflow-x: auto; }
+  .base-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 0.85rem; }
+  .base-table th { text-align: right; font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .base-table th:first-child, .base-table th:nth-child(2) { text-align: left; }
+  .base-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
+  .base-table td:first-child, .base-table td:nth-child(2) { text-align: left; }
+  .base-table .end-val { font-weight: 600; color: var(--ink); }
+  .base-table .var-off { color: var(--err); font-weight: 600; }
+  .base-table .var-ok { color: var(--ok); }
+  .dept-row td { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; }
+  .top-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+  .as-of { color: var(--ink-soft); font-size: 0.8rem; }
+  @media print {
+    body { padding: 0; max-width: none; }
+    .card.controls, .no-print { display: none !important; }
+    .base-table { font-size: 0.78rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Inventory Balance Sheet</h1>
+<div class="sub">Beginning + Add (purchases) − Sub (issuance) = Ending — checked against the latest physical count</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <div id="name-grid" class="name-grid"></div>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="card controls">
+    <div class="filter-row">
+      <div>
+        <label>As of date</label>
+        <input type="date" id="f-date">
+      </div>
+      <div>
+        <label>Search</label>
+        <input type="text" id="search-items" placeholder="Name or code...">
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="filter-category"><option value="">All categories</option></select>
+      </div>
+      <button class="btn-ghost no-print" id="btn-print" type="button">Print / Export</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="top-bar">
+      <div id="row-count" class="as-of"></div>
+      <div id="last-count-info" class="as-of"></div>
+    </div>
+    <div class="table-scroll">
+      <table class="base-table">
+        <thead>
+          <tr>
+            <th>Category</th><th>Item</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th>
+          </tr>
+        </thead>
+        <tbody id="rows-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <button class="btn-ghost no-print" id="btn-back" type="button">Change Person</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const PAGE_KEY = "inventory_balance_sheet";
+
+let state = { userId: null, userName: null, managerId: null, userRole: null, products: [], purchases: [], issues: [], snapshots: [] };
+
+async function sb(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => "")}`);
+  return res.json();
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function fmtQty(n) {
+  const v = Number(n) || 0;
+  return (Math.round(v * 100) / 100).toLocaleString();
+}
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function loadNames() {
+  const grid = document.getElementById("name-grid");
+  grid.innerHTML = "";
+  try {
+    const managers = await sbRpc("list_managers_for_page", { p_page_key: PAGE_KEY });
+    managers.forEach((m) => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "name-pill";
+      pill.textContent = m.name;
+      pill.onclick = () => selectUser(m.id, m.name, pill);
+      grid.appendChild(pill);
+    });
+    if (!managers.length) grid.innerHTML = '<div class="hint">No one with access to this page found.</div>';
+  } catch (e) {
+    grid.innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load names: ${e.message}</div>`;
+  }
+}
+
+function selectUser(managerId, name, pillEl) {
+  const pin = prompt(`Enter your PIN, ${name}`);
+  if (pin === null) return;
+  sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin })
+    .then((rows) => {
+      const row = rows && rows[0];
+      if (!row) { alert("Incorrect PIN."); return; }
+      document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
+      pillEl.classList.add("selected");
+      afterLogin(row.app_user_id, name, managerId, row.role);
+    })
+    .catch((err) => alert(err.message || "Incorrect PIN."));
+}
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  state.userRole = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  loadAll();
+}
+
+function backToNames() {
+  state = { userId: null, userName: null, managerId: null, userRole: null, products: [], purchases: [], issues: [], snapshots: [] };
+  FNKSession.clear();
+  document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+document.getElementById("btn-print").addEventListener("click", () => window.print());
+document.getElementById("f-date").addEventListener("change", () => { renderRows(); });
+document.getElementById("search-items").addEventListener("input", renderRows);
+document.getElementById("filter-category").addEventListener("change", renderRows);
+
+async function loadAll() {
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit&order=category,name`);
+  } catch (e) { state.products = []; }
+  try {
+    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date`);
+  } catch (e) { state.purchases = []; }
+  try {
+    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date`);
+  } catch (e) { state.issues = []; }
+  try {
+    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc`);
+  } catch (e) { state.snapshots = []; }
+
+  const cats = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort();
+  const sel = document.getElementById("filter-category");
+  sel.innerHTML = '<option value="">All categories</option>' + cats.map((c) => `<option value="${c}">${c}</option>`).join("");
+
+  const lastOverall = state.snapshots.length ? state.snapshots[0].snapshot_date : null;
+  document.getElementById("last-count-info").textContent = lastOverall
+    ? `Most recent physical count logged: ${lastOverall}`
+    : "No physical count has ever been logged for this location.";
+
+  renderRows();
+}
+
+// Same BASE computation as stock-count.html's expectedQty().
+function baseFor(productId, date) {
+  const priorSnaps = state.snapshots.filter((s) => s.product_id === productId && s.snapshot_date <= date);
+  const last = priorSnaps[0];
+  const windowStart = last ? last.snapshot_date : null;
+  const opening = last ? Number(last.closing_qty) || 0 : 0;
+  const addQty = state.purchases
+    .filter((p) => p.product_id === productId && p.purchase_date <= date && (!windowStart || p.purchase_date > windowStart))
+    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  const subQty = state.issues
+    .filter((i) => i.product_id === productId && i.issue_date <= date && (!windowStart || i.issue_date > windowStart))
+    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  const ending = opening + addQty - subQty;
+  const physical = last && last.snapshot_date === date ? Number(last.closing_qty) : null;
+  return { opening, addQty, subQty, ending, physical };
+}
+
+function renderRows() {
+  const date = document.getElementById("f-date").value || todayStr();
+  const search = document.getElementById("search-items").value.trim().toUpperCase();
+  const cat = document.getElementById("filter-category").value;
+  const body = document.getElementById("rows-body");
+  body.innerHTML = "";
+
+  const rows = state.products.filter((p) => {
+    if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
+    if (cat && p.category !== cat) return false;
+    return true;
+  });
+
+  document.getElementById("row-count").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"} as of ${date}`;
+
+  let lastCat = null;
+  rows.forEach((p) => {
+    const c = p.category || "Uncategorized";
+    if (c !== lastCat) {
+      const tr = document.createElement("tr");
+      tr.className = "dept-row";
+      tr.innerHTML = `<td colspan="9">${c}</td>`;
+      body.appendChild(tr);
+      lastCat = c;
+    }
+    const b = baseFor(p.id, date);
+    const varianceVal = b.physical !== null ? b.physical - b.ending : null;
+    const varianceCell = varianceVal === null
+      ? "—"
+      : `<span class="${Math.abs(varianceVal) < 0.01 ? "var-ok" : "var-off"}">${varianceVal > 0 ? "+" : ""}${fmtQty(varianceVal)}</span>`;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td></td>
+      <td>${p.name}</td>
+      <td>${p.unit || ""}</td>
+      <td>${fmtQty(b.opening)}</td>
+      <td>+${fmtQty(b.addQty)}</td>
+      <td>-${fmtQty(b.subQty)}</td>
+      <td class="end-val">${fmtQty(b.ending)}</td>
+      <td>${b.physical === null ? "—" : fmtQty(b.physical)}</td>
+      <td>${varianceCell}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+// Already logged in via home.html this visit? Skip straight to the sheet.
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+} else {
+  loadNames();
+}
+</script>
+
+</body>
+</html>
