@@ -251,6 +251,23 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userRole = role;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  // Auditor can only raise demands. Director can raise demands, authorize them,
+  // and place the order, so show all three stages stacked for a director.
+  if (role === "auditor") {
+    enterDemandPanel();
+  } else if (role === "director") {
+    enterDemandPanel();
+    enterAuthorizePanel();
+    enterOrderPanel();
+  }
+}
+
 function backToNames() {
   state.userId = null; state.userRole = null; state.userName = null;
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));

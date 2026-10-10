@@ -272,6 +272,13 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  finishSettlementsLogin();
+}
+
 function finishSettlementsLogin() {
   setTimeout(() => {
     document.getElementById("step-name").hidden = true;

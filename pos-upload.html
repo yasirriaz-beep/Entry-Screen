@@ -209,6 +209,19 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  setTimeout(async () => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    try {
+      state.items = await sb(`variance_items?location_id=eq.${LOCATION_ID}&active=eq.true&select=id,department,name&order=department,name`);
+    } catch (e) { state.items = []; }
+  }, 150);
+}
+
 function backToNames() {
   state.userId = null;
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));

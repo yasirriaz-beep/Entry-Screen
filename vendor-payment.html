@@ -235,6 +235,16 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  loadBalances();
+}
+
 function backToNames() {
   state.userId = null;
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));

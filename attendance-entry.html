@@ -228,6 +228,19 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
+function afterLogin(userId, name, managerId, role) {
+  const initials = name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
+  state.userId = userId;
+  state.userName = name;
+  state.userRole = role;
+  state.initials = initials;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  loadEmployees().then(loadMarksForDate);
+}
+
 function backToNames() {
   state.userId = null;
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));

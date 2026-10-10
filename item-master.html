@@ -244,6 +244,32 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  loadItems();
+}
+
+function selectUser(managerId, name, pillEl) {
+  const pin = prompt(`Enter your PIN, ${name}`);
+  if (pin === null) return;
+  sbRpc("verify_manager_pin", { p_manager_id: managerId, p_pin: pin })
+    .then(rows => {
+      const row = rows && rows[0];
+      if (!row) { alert("Incorrect PIN."); return; }
+      document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+      pillEl.classList.add("selected");
+      FNKSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+      setTimeout(() => {
+        afterLogin(row.app_user_id, name, managerId, row.role);
+      }, 150);
+    })
+    .catch(err => alert(err.message || "Incorrect PIN."));
+}
+
 function backToNames() {
   state.userId = null;
   document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));

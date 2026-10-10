@@ -297,6 +297,14 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("step-mode").hidden = false;
+}
+
 async function loadProducts() {
   try {
     state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
