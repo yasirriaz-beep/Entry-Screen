@@ -531,7 +531,7 @@ async function loadCashReconHistory() {
   let sales = [];
   try {
     sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&shift=not.is.null` +
-      `&select=sale_date,shift,dine_in_amount,takeaway_amount,delivery_amount,bakery_sale,card_amount,opening_cash_till,closing_cash_till,custodian_cash_amount` +
+      `&select=sale_date,shift,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale,card_amount,opening_cash_till,closing_cash_till,custodian_cash_amount` +
       `&order=sale_date.desc,shift.asc`);
   } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
   if (!sales.length) { wrap.innerHTML = '<div class="empty-note">No shift cash-recon entries for this range yet.</div>'; return; }
@@ -547,7 +547,11 @@ async function loadCashReconHistory() {
   });
 
   wrap.innerHTML = sales.map(s => {
-    const cashSales = (Number(s.dine_in_amount) || 0) + (Number(s.takeaway_amount) || 0) + (Number(s.delivery_amount) || 0) + (Number(s.bakery_sale) || 0) - (Number(s.card_amount) || 0);
+    // Cash in till: Dine-In + Takeaway + Delivery + Third Party (Careem, cash in hand,
+    // confirmed 2026-10-09) minus the card portion. Bakery Sale Amount is a memo breakdown
+    // already included in those channel amounts (confirmed 2026-10-11) — never added again.
+    // Food Panda settles externally and stays excluded.
+    const cashSales = (Number(s.dine_in_amount) || 0) + (Number(s.takeaway_amount) || 0) + (Number(s.delivery_amount) || 0) + (Number(s.third_party_amount) || 0) - (Number(s.card_amount) || 0);
     const custodian = Number(s.custodian_cash_amount) || 0;
     const opening = Number(s.opening_cash_till) || 0;
     const closing = s.closing_cash_till != null ? Number(s.closing_cash_till) : null;

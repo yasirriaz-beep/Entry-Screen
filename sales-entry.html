@@ -266,7 +266,9 @@ function n(id){
 
 function recalcSummary(){
   const covers = Math.round(n("diCovers") + n("taCovers") + n("dlCovers") + n("tpCovers") + n("fpCovers"));
-  const amount = n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("fpAmount") + n("bakeryAmount");
+  // Bakery Sale Amount is a memo breakdown of items already included in Dine-In/Takeaway/
+  // Delivery amounts (confirmed with the owner 2026-10-11) — never added to the total.
+  const amount = n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("fpAmount");
   document.getElementById("sumCovers").textContent = covers.toLocaleString();
   document.getElementById("sumAmount").textContent = "PKR " + Math.round(amount).toLocaleString();
   recalcCashRecon();
@@ -274,9 +276,11 @@ function recalcSummary(){
 
 // Cash actually received in the till: the channels that land in hand, minus the card
 // portion of them. Third Party (Careem/other) is cash in hand, confirmed 2026-10-09 —
-// included here. Food Panda still settles externally, so it's excluded entirely.
+// included here. Food Panda still settles externally, so it's excluded entirely. Bakery
+// Sale Amount is a memo breakdown already inside Dine-In/Takeaway/Delivery (confirmed
+// 2026-10-11) — it is NOT added again here.
 function cashSalesTotal(){
-  return n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("bakeryAmount") - n("cardAmount");
+  return n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") - n("cardAmount");
 }
 
 function recalcCashRecon(){
@@ -424,7 +428,7 @@ async function loadShiftEntry(){
     document.getElementById("custodianAmount").value = custodian ? Math.abs(custodian) : "";
     document.getElementById("closingCash").value = existing.closing_cash_till != null ? existing.closing_cash_till : "";
 
-    const total = existing.total_sale != null ? existing.total_sale : (existing.dine_in_amount + existing.takeaway_amount + existing.delivery_amount + existing.third_party_amount + (existing.food_panda_amount || 0) + existing.bakery_sale);
+    const total = existing.total_sale != null ? existing.total_sale : (existing.dine_in_amount + existing.takeaway_amount + existing.delivery_amount + existing.third_party_amount + (existing.food_panda_amount || 0));
     body.innerHTML = `
       ${SHIFT_LABELS[shift]} shift &middot; Dine-in: PKR ${Math.round(existing.dine_in_amount || 0).toLocaleString()} &middot;
       Takeaway: PKR ${Math.round(existing.takeaway_amount || 0).toLocaleString()} &middot;
@@ -468,8 +472,8 @@ async function loadMorningReconCard(saleDate, shift){
     }
     const m = rows[0];
     const total = m.total_sale != null ? m.total_sale :
-      (m.dine_in_amount + m.takeaway_amount + m.delivery_amount + m.third_party_amount + (m.food_panda_amount || 0) + m.bakery_sale);
-    const cashSales = (m.dine_in_amount || 0) + (m.takeaway_amount || 0) + (m.delivery_amount || 0) + (m.third_party_amount || 0) + (m.bakery_sale || 0) - (m.card_amount || 0);
+      (m.dine_in_amount + m.takeaway_amount + m.delivery_amount + m.third_party_amount + (m.food_panda_amount || 0));
+    const cashSales = (m.dine_in_amount || 0) + (m.takeaway_amount || 0) + (m.delivery_amount || 0) + (m.third_party_amount || 0) - (m.card_amount || 0);
     const custodian = Number(m.custodian_cash_amount) || 0;
     const opening = Number(m.opening_cash_till) || 0;
     const closing = m.closing_cash_till != null ? Number(m.closing_cash_till) : null;
