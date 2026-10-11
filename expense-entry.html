@@ -525,7 +525,7 @@ async function loadTodayList() {
   const list = document.getElementById("today-list");
   const emptyHint = document.getElementById("today-empty");
   try {
-    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${todayStr()}&select=id,head,sub_head,amount,created_at,detail,shift&order=created_at.desc`);
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${todayStr()}&select=id,category,amount,created_at,detail,shift&order=created_at.desc`);
     list.innerHTML = "";
     if (!rows.length) { emptyHint.hidden = false; return; }
     emptyHint.hidden = true;
@@ -534,7 +534,7 @@ async function loadTodayList() {
       row.className = "po-card";
       const shiftTag = r.shift ? ` · ${r.shift === "morning" ? "Morning" : "Evening"}` : "";
       row.innerHTML = `
-        <div class="po-title">${r.head || "Expense"}${r.sub_head ? " — " + r.sub_head : ""}</div>
+        <div class="po-title">${r.category || "Expense"}</div>
         <div class="po-sub">PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${r.detail ? " · " + r.detail : ""}</div>`;
       list.appendChild(row);
     });
