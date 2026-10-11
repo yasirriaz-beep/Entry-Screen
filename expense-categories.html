@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Expense Categories</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 120px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  .btn-outline-err { background: transparent; border: 1px solid var(--err); color: var(--err); }
+  .btn-outline-ok { background: transparent; border: 1px solid var(--ok); color: var(--ok); }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .cat-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .cat-row .cat-top { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; gap: 8px; }
+  .cat-row .cat-title { font-weight: 600; }
+  .cat-row .cat-sub { font-size: 0.8rem; color: var(--ink-soft); }
+  .cat-detail { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-left: 6px; background: var(--err-bg); color: var(--err); }
+  .drag-handle { color: var(--ink-soft); cursor: grab; font-size: 0.85rem; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+  .banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Expense Categories</h1>
+<div class="sub">The "head" list shown on Expense Entry &amp; Expense Edit — director access only</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="card">
+    <div class="step-label">Add New Category</div>
+    <div class="field">
+      <label>Name</label>
+      <input type="text" id="n-name" placeholder="e.g. Equipment Rental">
+    </div>
+    <div class="hint" style="margin:-8px 0 14px;">This exact name is what's stored on each expense row and what the balance sheet / income statement mapping keys off of — pick it carefully; renaming later changes it everywhere, including on past entries.</div>
+    <button class="btn-primary" id="btn-add-cat" type="button">Add Category</button>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Existing Categories</div>
+    <input type="text" id="search-cats" placeholder="Search categories...">
+    <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="show-inactive" style="width:auto;"> Show retired categories too
+    </label>
+    <div id="cat-list" style="margin-top:12px;"></div>
+    <div class="hint" id="cat-list-empty" hidden>No categories match.</div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;" id="success-title">Saved</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub"></div>
+  <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">OK</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const PAGE_KEY = "expense_categories";
+
+let state = { userId: null, userName: null, managerId: null, categories: [] };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    setTimeout(() => {
+      afterLogin(row.app_user_id, match.name, match.id, row.role);
+    }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  loadCategories();
+}
+
+function showSuccess(title, sub) {
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("success-title").textContent = title;
+  document.getElementById("success-sub").textContent = sub || "";
+  document.getElementById("step-success").hidden = false;
+}
+
+async function addCategory() {
+  const name = document.getElementById("n-name").value.trim();
+  if (!name) return alert("Enter a category name.");
+  if (state.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    return alert("That category already exists.");
+  }
+  const btn = document.getElementById("btn-add-cat");
+  btn.disabled = true;
+  try {
+    const maxSort = state.categories.reduce((m, c) => Math.max(m, c.sort_order || 0), 0);
+    await sb("expense_categories", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        name, active: true, sort_order: maxSort + 1,
+        updated_by_manager_id: state.managerId, updated_at: new Date().toISOString()
+      })
+    });
+    document.getElementById("n-name").value = "";
+    showSuccess("Category added", `"${name}" is now selectable on Expense Entry and Expense Edit.`);
+    await loadCategories();
+  } catch (e) {
+    alert("Couldn't add category: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btn-add-cat").addEventListener("click", addCategory);
+document.getElementById("btn-success-ok").addEventListener("click", () => {
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+});
+document.getElementById("btn-back").addEventListener("click", () => {
+  state.userId = null;
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-name").hidden = false;
+});
+
+async function loadCategories() {
+  const showInactive = document.getElementById("show-inactive").checked;
+  const filter = showInactive ? "" : "&active=eq.true";
+  try {
+    state.categories = await sb(`expense_categories?select=id,name,active,sort_order&order=sort_order${filter}`);
+  } catch (e) { state.categories = []; }
+  renderCatList();
+}
+
+async function usageCount(name) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/expenses?category=eq.${encodeURIComponent(name)}&select=id`, {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, Prefer: "count=exact", Range: "0-0" }
+    });
+    const range = res.headers.get("content-range") || "";
+    const total = range.split("/")[1];
+    return total && total !== "*" ? parseInt(total, 10) : 0;
+  } catch (e) { return null; }
+}
+
+function renderCatList() {
+  const search = document.getElementById("search-cats").value.trim().toUpperCase();
+  const list = document.getElementById("cat-list");
+  const emptyHint = document.getElementById("cat-list-empty");
+  const rows = state.categories.filter(c => !search || c.name.toUpperCase().includes(search));
+  list.innerHTML = "";
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+  rows.forEach(c => {
+    const row = document.createElement("div");
+    row.className = "cat-row";
+    row.innerHTML = `
+      <div class="cat-top">
+        <div>
+          <span class="cat-title">${c.name}</span>${!c.active ? '<span class="badge">Retired</span>' : ""}
+          <div class="cat-sub">Order ${c.sort_order}</div>
+        </div>
+      </div>
+      <div class="cat-detail" hidden>
+        <div class="field">
+          <label>Rename</label>
+          <input type="text" class="e-name" value="${c.name.replace(/"/g, "&quot;")}">
+          <div class="hint" id="usage-${c.id}">Checking how many expense entries use this name…</div>
+        </div>
+        <div class="field">
+          <label>Sort Order</label>
+          <input type="number" class="e-sort" value="${c.sort_order}">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-primary btn-sm e-save-btn" style="flex:1;">Save Changes</button>
+          <button type="button" class="btn-sm ${c.active ? "btn-outline-err e-retire-btn" : "btn-outline-ok e-restore-btn"}" style="flex:1;">
+            ${c.active ? "Retire" : "Restore"}
+          </button>
+        </div>
+      </div>`;
+    const detail = row.querySelector(".cat-detail");
+    row.querySelector(".cat-top").addEventListener("click", async () => {
+      document.querySelectorAll("#cat-list .cat-detail").forEach(d => { if (d !== detail) d.hidden = true; });
+      detail.hidden = !detail.hidden;
+      if (!detail.hidden) {
+        const n = await usageCount(c.name);
+        const hint = document.getElementById(`usage-${c.id}`);
+        if (hint) {
+          hint.textContent = n == null
+            ? "Couldn't check usage."
+            : n === 0
+              ? "Not used on any expense entry yet — safe to rename or remove freely."
+              : `Used on ${n} existing expense ${n === 1 ? "entry" : "entries"} — renaming updates how those entries read, but the amounts/line mapping follow the new name.`;
+        }
+      }
+    });
+    row.querySelector(".e-save-btn").addEventListener("click", () => saveCategoryEdit(c, row));
+    const retireBtn = row.querySelector(".e-retire-btn");
+    if (retireBtn) retireBtn.addEventListener("click", () => setCategoryActive(c, false));
+    const restoreBtn = row.querySelector(".e-restore-btn");
+    if (restoreBtn) restoreBtn.addEventListener("click", () => setCategoryActive(c, true));
+    list.appendChild(row);
+  });
+}
+
+async function saveCategoryEdit(c, rowEl) {
+  const newName = rowEl.querySelector(".e-name").value.trim();
+  const sortOrder = parseInt(rowEl.querySelector(".e-sort").value, 10) || 0;
+  if (!newName) return alert("Category name can't be blank.");
+  if (newName !== c.name && state.categories.some(x => x.id !== c.id && x.name.toLowerCase() === newName.toLowerCase())) {
+    return alert("Another category already has that name.");
+  }
+  const renaming = newName !== c.name;
+  if (renaming && !confirm(`Rename "${c.name}" to "${newName}"? This updates every existing expense entry currently filed under "${c.name}" too.`)) return;
+  try {
+    if (renaming) {
+      // Update every expense row currently using the old name first, then the
+      // category row itself — the validation trigger requires the new name to
+      // already exist in expense_categories before it'll accept it on expenses,
+      // so do this in two atomic steps against the *old* row's own id, never a
+      // blanket update with no WHERE.
+      await sb(`expense_categories?id=eq.${c.id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ name: newName, sort_order: sortOrder, updated_by_manager_id: state.managerId, updated_at: new Date().toISOString() })
+      });
+      await sb(`expenses?category=eq.${encodeURIComponent(c.name)}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ category: newName })
+      });
+    } else {
+      await sb(`expense_categories?id=eq.${c.id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ sort_order: sortOrder, updated_by_manager_id: state.managerId, updated_at: new Date().toISOString() })
+      });
+    }
+    await loadCategories();
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  }
+}
+
+async function setCategoryActive(c, active) {
+  if (!active) {
+    const n = await usageCount(c.name);
+    const usageMsg = n ? ` It's used on ${n} existing expense ${n === 1 ? "entry" : "entries"} — those keep their history, but no one will be able to pick "${c.name}" for a new entry.` : "";
+    if (!confirm(`Retire "${c.name}"?${usageMsg}`)) return;
+  }
+  try {
+    await sb(`expense_categories?id=eq.${c.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ active, updated_by_manager_id: state.managerId, updated_at: new Date().toISOString() })
+    });
+    await loadCategories();
+  } catch (e) {
+    alert("Couldn't update: " + e.message);
+  }
+}
+
+document.getElementById("search-cats").addEventListener("input", renderCatList);
+document.getElementById("show-inactive").addEventListener("change", loadCategories);
+
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+
+</body>
+</html>
