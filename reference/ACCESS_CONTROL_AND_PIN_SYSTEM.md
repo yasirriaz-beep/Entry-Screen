@@ -124,6 +124,8 @@ share the same underlying `shift_manager` app_user row).
 | `delivery_ops` | delivery-ops.html | Ahsan, Hamza, Aqib, Anjum, + Directors |
 | `payroll` | payroll-entry.html | Zeeshan, + Directors |
 | `manage_access` | (not actually checked — see above) | Directors (nominal only) |
+| `reports` | reports.html | Directors only (2026-10-12) |
+| `activity_log` | activity-log.html | Directors only (2026-10-12) |
 
 This matrix was built to exactly match each screen's pre-migration role-based access — no
 one gained or lost screen access in the migration itself, they just now prove identity with

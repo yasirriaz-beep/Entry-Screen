@@ -122,6 +122,11 @@
       <label>Notes (optional)</label>
       <textarea id="f-notes" rows="2" placeholder="e.g. invoice numbers settled"></textarea>
     </div>
+    <div class="field">
+      <label>Payment Photo (optional)</label>
+      <input type="file" id="f-payment-photo" accept="image/*" capture="environment">
+      <div class="hint" id="payment-photo-status">For a bank transfer, attach the slip or screenshot. Kept for 40 days.</div>
+    </div>
     <button class="btn-primary" id="btn-save" type="button">Save Payment</button>
   </div>
 
@@ -142,7 +147,7 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const PAGE_KEY = "vendor_payment";
 
-let state = { userId: null, userName: null, managerId: null, role: null, vendors: [], balances: {} };
+let state = { userId: null, userName: null, managerId: null, role: null, vendors: [], balances: {}, paymentPhotoPath: null };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -348,6 +353,40 @@ function updateSelectedBalance() {
 }
 document.getElementById("f-vendor").addEventListener("change", updateSelectedBalance);
 
+async function uploadPaymentPhoto(file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${LOCATION_ID}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/vendor-payment-photos/${path}`, {
+    method: "POST",
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": file.type || "image/jpeg"
+    },
+    body: file
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${t}`);
+  }
+  return path;
+}
+
+async function handlePaymentPhotoChange(e) {
+  const file = e.target.files[0];
+  const statusEl = document.getElementById("payment-photo-status");
+  if (!file) { state.paymentPhotoPath = null; return; }
+  statusEl.textContent = "Uploading…";
+  try {
+    state.paymentPhotoPath = await uploadPaymentPhoto(file);
+    statusEl.textContent = "Attached ✓ — kept for 40 days.";
+  } catch (e2) {
+    state.paymentPhotoPath = null;
+    statusEl.textContent = "Couldn't upload photo: " + e2.message;
+  }
+}
+document.getElementById("f-payment-photo").addEventListener("change", handlePaymentPhotoChange);
+
 async function savePayment() {
   const vendorId = document.getElementById("f-vendor").value;
   const amount = parseFloat(document.getElementById("f-amount").value) || 0;
@@ -373,7 +412,8 @@ async function savePayment() {
         method: method,
         notes: notes,
         paid_by: state.userId,
-        entered_by_manager_id: state.managerId
+        entered_by_manager_id: state.managerId,
+        payment_photo_path: state.paymentPhotoPath || null
       })
     });
     const vendorName = (state.vendors.find(v => v.id === vendorId) || {}).name || "Vendor";
@@ -395,6 +435,9 @@ document.getElementById("btn-success-ok").addEventListener("click", async () => 
   document.getElementById("f-notes").value = "";
   document.getElementById("f-vendor").value = "";
   document.getElementById("f-date").value = todayStr();
+  document.getElementById("f-payment-photo").value = "";
+  document.getElementById("payment-photo-status").textContent = "For a bank transfer, attach the slip or screenshot. Kept for 40 days.";
+  state.paymentPhotoPath = null;
   document.getElementById("selected-balance").hidden = true;
   await loadBalances();
 });

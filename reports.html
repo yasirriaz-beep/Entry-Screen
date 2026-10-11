@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Reports</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+
+  .tab-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; -webkit-overflow-scrolling: touch; }
+  .tab-btn { white-space: nowrap; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink-soft); border-radius: 999px; padding: 9px 15px; font-size: 0.85rem; cursor: pointer; font-weight: 600; }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  .report-panel { display: none; }
+  .report-panel.active { display: block; }
+
+  .row-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; background: var(--field-bg); }
+  .row-card .r-title { font-weight: 600; font-size: 0.92rem; display: flex; justify-content: space-between; gap: 10px; }
+  .row-card .r-amt { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+  .row-card .r-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 3px; line-height: 1.4; }
+  .row-card .r-flag { color: var(--err); font-weight: 600; }
+  .photo-link { color: var(--accent); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  .totals-bar { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 0 0; margin-top: 6px; border-top: 2px solid var(--border); font-family: 'Zilla Slab', Georgia, serif; }
+  .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
+  .vendor-block { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; background: var(--field-bg); }
+  .vendor-block .v-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+  .vendor-block .v-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 2px 0; }
+  .vendor-block .v-row.bal { font-weight: 700; border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+  table.simple { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  table.simple th, table.simple td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--border); }
+  table.simple th { color: var(--ink-soft); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .retention-note { font-size: 0.76rem; color: var(--ink-soft); margin: -6px 0 14px; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Reports</h1>
+<div class="sub">Director audit view — any day, any screen, with photos where available</div>
+<div class="retention-note">Photos are kept for 40 days from upload, then automatically removed to save space. The underlying figures stay in the system permanently.</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="tab-row" id="tab-row">
+    <button class="tab-btn active" data-tab="sales">Sales</button>
+    <button class="tab-btn" data-tab="expenses">Expenses</button>
+    <button class="tab-btn" data-tab="goods_receipt">Goods Receipt</button>
+    <button class="tab-btn" data-tab="issue_entry">Issue Entry</button>
+    <button class="tab-btn" data-tab="vendor_payments">Vendor Payments</button>
+    <button class="tab-btn" data-tab="cash_recon">Cash Recon</button>
+    <button class="tab-btn" data-tab="payables">Payables (Monthly)</button>
+  </div>
+
+  <!-- Sales -->
+  <div class="report-panel active" data-panel="sales">
+    <div class="card">
+      <div class="row2 field">
+        <div><label>Date</label><input type="date" id="sales-date"></div>
+        <div><button class="btn-primary" id="sales-run" type="button">Run Report</button></div>
+      </div>
+      <div id="sales-result"><div class="hint">Pick a date and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Expenses -->
+  <div class="report-panel" data-panel="expenses">
+    <div class="card">
+      <div class="row2 field">
+        <div><label>Date</label><input type="date" id="expenses-date"></div>
+        <div><button class="btn-primary" id="expenses-run" type="button">Run Report</button></div>
+      </div>
+      <div id="expenses-result"><div class="hint">Pick a date and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Goods Receipt -->
+  <div class="report-panel" data-panel="goods_receipt">
+    <div class="card">
+      <div class="row2 field">
+        <div><label>Date</label><input type="date" id="goods-date"></div>
+        <div><button class="btn-primary" id="goods-run" type="button">Run Report</button></div>
+      </div>
+      <div id="goods-result"><div class="hint">Pick a date and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Issue Entry -->
+  <div class="report-panel" data-panel="issue_entry">
+    <div class="card">
+      <div class="row2 field">
+        <div><label>Date</label><input type="date" id="issue-date"></div>
+        <div><button class="btn-primary" id="issue-run" type="button">Run Report</button></div>
+      </div>
+      <div id="issue-result"><div class="hint">Pick a date and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Vendor Payments -->
+  <div class="report-panel" data-panel="vendor_payments">
+    <div class="card">
+      <div class="row2 field">
+        <div><label>Date</label><input type="date" id="vp-date"></div>
+        <div><button class="btn-primary" id="vp-run" type="button">Run Report</button></div>
+      </div>
+      <div id="vp-result"><div class="hint">Pick a date and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Cash Recon -->
+  <div class="report-panel" data-panel="cash_recon">
+    <div class="card">
+      <div class="row2 field">
+        <div><label>Date</label><input type="date" id="cr-date"></div>
+        <div><button class="btn-primary" id="cr-run" type="button">Run Report</button></div>
+      </div>
+      <div id="cr-result"><div class="hint">Pick a date and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Payables -->
+  <div class="report-panel" data-panel="payables">
+    <div class="card">
+      <div class="row2 field">
+        <div><label>Month</label><input type="month" id="pay-month"></div>
+        <div><button class="btn-primary" id="pay-run" type="button">Run Report</button></div>
+      </div>
+      <div id="pay-result"><div class="hint">Pick a month and run the report.</div></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const PAGE_KEY = "reports";
+
+let state = { userId: null, userName: null, managerId: null, role: null, users: {}, vendors: {}, products: {} };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+  });
+  if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`${res.status} ${text}`); }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function fmtMoney(n) { return "PKR " + Math.round(Number(n) || 0).toLocaleString(); }
+function userName(id) { return id && state.users[id] ? state.users[id] : (id ? "—" : "—"); }
+function vendorName(id) { return id && state.vendors[id] ? state.vendors[id] : "—"; }
+function productName(id) { return id && state.products[id] ? state.products[id] : "—"; }
+
+async function viewPhoto(bucket, path) {
+  if (!path) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${path}`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 300 })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+  } catch (e) {
+    alert("Couldn't open the photo (it may be older than 40 days and already removed): " + e.message);
+  }
+}
+window.viewPhoto = viewPhoto;
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    nameInput.value = "";
+    pinInput.value = "";
+    afterLogin(row.app_user_id, match.name, match.id, row.role);
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+async function loadLookups() {
+  try {
+    const users = await sb(`app_users?select=id,name`);
+    users.forEach(u => { state.users[u.id] = u.name; });
+  } catch (e) { /* non-fatal */ }
+  try {
+    const vendors = await sb(`vendors?select=id,name`);
+    vendors.forEach(v => { state.vendors[v.id] = v.name; });
+  } catch (e) { /* non-fatal */ }
+  try {
+    const products = await sb(`products?select=id,name,unit`);
+    products.forEach(p => { state.products[p.id] = p.name; });
+  } catch (e) { /* non-fatal */ }
+}
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId; state.userName = name; state.managerId = managerId; state.role = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  const d = todayStr();
+  ["sales-date", "expenses-date", "goods-date", "issue-date", "vp-date", "cr-date"].forEach(id => { document.getElementById(id).value = d; });
+  document.getElementById("pay-month").value = d.slice(0, 7);
+  loadLookups();
+}
+
+// --- Tabs ---
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".report-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelector(`.report-panel[data-panel="${btn.dataset.tab}"]`).classList.add("active");
+  });
+});
+
+// --- Sales report ---
+async function runSalesReport() {
+  const date = document.getElementById("sales-date").value;
+  const resultEl = document.getElementById("sales-result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const rows = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=eq.${date}&select=*&order=shift`);
+    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No sales entry for this date.</div>'; return; }
+    let totalSale = 0;
+    resultEl.innerHTML = rows.map(r => {
+      totalSale += Number(r.total_sale) || 0;
+      return `<div class="row-card">
+        <div class="r-title"><span>${r.shift === "morning" ? "Morning" : "Evening"} shift</span><span class="r-amt">${fmtMoney(r.total_sale)}</span></div>
+        <div class="r-sub">
+          Dine-in: ${fmtMoney(r.dine_in_amount)} (${r.dine_in_covers || 0} covers) · Takeaway: ${fmtMoney(r.takeaway_amount)} (${r.takeaway_covers || 0}) ·
+          Delivery: ${fmtMoney(r.delivery_amount)} (${r.delivery_covers || 0}) · Careem/3rd Party: ${fmtMoney(r.third_party_amount)} (${r.third_party_covers || 0}) ·
+          Food Panda: ${fmtMoney(r.food_panda_amount)} (${r.food_panda_covers || 0}) · Bakery: ${fmtMoney(r.bakery_sale)}<br>
+          Card: ${fmtMoney(r.card_amount)} · Opening till: ${fmtMoney(r.opening_cash_till)} · Closing till: ${r.closing_cash_till != null ? fmtMoney(r.closing_cash_till) : "not entered"} ·
+          Custodian handover: ${fmtMoney(r.custodian_cash_amount)}<br>
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+        </div>
+      </div>`;
+    }).join("") + `<div class="totals-bar"><span>Day total</span><span>${fmtMoney(totalSale)}</span></div>`;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("sales-run").addEventListener("click", runSalesReport);
+
+// --- Expenses report ---
+async function runExpensesReport() {
+  const date = document.getElementById("expenses-date").value;
+  const resultEl = document.getElementById("expenses-result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${date}&select=*&order=created_at`);
+    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No expenses for this date.</div>'; return; }
+    let total = 0;
+    resultEl.innerHTML = rows.map(r => {
+      total += Number(r.amount) || 0;
+      const flagged = r.ai_check_status && r.ai_check_status !== "ok";
+      return `<div class="row-card">
+        <div class="r-title"><span>${r.category || "Expense"}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          ${r.detail ? r.detail + "<br>" : ""}
+          ${r.vendor_id ? "Vendor: " + vendorName(r.vendor_id) + " · " : ""}Payment: ${r.payment_method || "cash"}${r.shift ? " · " + (r.shift === "morning" ? "Morning" : "Evening") : ""}<br>
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+          ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
+          ${flagged ? `<br><span class="r-flag">Flagged: ${r.ai_check_status}${r.ai_check_reason ? " — " + r.ai_check_reason : ""}</span>` : ""}
+        </div>
+      </div>`;
+    }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} entries)</span><span>${fmtMoney(total)}</span></div>`;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("expenses-run").addEventListener("click", runExpensesReport);
+
+// --- Goods Receipt report ---
+async function runGoodsReport() {
+  const date = document.getElementById("goods-date").value;
+  const resultEl = document.getElementById("goods-result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${date}&select=*&order=created_at`);
+    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No goods received on this date.</div>'; return; }
+    let total = 0;
+    resultEl.innerHTML = rows.map(r => {
+      total += Number(r.amount) || 0;
+      return `<div class="row-card">
+        <div class="r-title"><span>${productName(r.product_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          ${r.qty} ${r.unit || ""} @ ${fmtMoney(r.rate)} · Vendor: ${vendorName(r.vendor_id)} · ${r.payment_status === "credit" ? "On credit" : "Paid"}${r.inv_number ? " · Inv# " + r.inv_number : ""}<br>
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+          ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
+          ${r.variance_note ? `<br><span class="r-flag">Variance: ${r.variance_note}</span>` : ""}
+        </div>
+      </div>`;
+    }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} line items)</span><span>${fmtMoney(total)}</span></div>`;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("goods-run").addEventListener("click", runGoodsReport);
+
+// --- Issue Entry report ---
+async function runIssueReport() {
+  const date = document.getElementById("issue-date").value;
+  const resultEl = document.getElementById("issue-result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const rows = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&issue_date=eq.${date}&select=*&order=created_at`);
+    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No stock issued on this date.</div>'; return; }
+    let total = 0;
+    resultEl.innerHTML = rows.map(r => {
+      total += Number(r.amount) || 0;
+      return `<div class="row-card">
+        <div class="r-title"><span>${productName(r.product_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          ${r.qty} @ ${fmtMoney(r.rate)} · Issued to: ${r.issued_to || "—"}<br>
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+        </div>
+      </div>`;
+    }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} line items)</span><span>${fmtMoney(total)}</span></div>`;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("issue-run").addEventListener("click", runIssueReport);
+
+// --- Vendor Payments report ---
+async function runVpReport() {
+  const date = document.getElementById("vp-date").value;
+  const resultEl = document.getElementById("vp-result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const rows = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=eq.${date}&select=*&order=created_at`);
+    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No vendor payments on this date.</div>'; return; }
+    let total = 0;
+    resultEl.innerHTML = rows.map(r => {
+      total += Number(r.amount) || 0;
+      return `<div class="row-card">
+        <div class="r-title"><span>${vendorName(r.vendor_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          Method: ${r.method}${r.notes ? " · " + r.notes : ""}<br>
+          Paid by: ${userName(r.paid_by)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+          ${r.payment_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('vendor-payment-photos','${r.payment_photo_path}')">View Photo</span>` : ""}
+        </div>
+      </div>`;
+    }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} payments)</span><span>${fmtMoney(total)}</span></div>`;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("vp-run").addEventListener("click", runVpReport);
+
+// --- Cash Reconciliation report ---
+async function runCrReport() {
+  const date = document.getElementById("cr-date").value;
+  const resultEl = document.getElementById("cr-result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const rows = await sb(`cash_safe_ledger?ledger_date=eq.${date}&select=*`);
+    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No cash reconciliation entry for this date.</div>'; return; }
+    const r = rows[0];
+    const varianceOk = !r.cash_variance || Math.abs(Number(r.cash_variance)) < 1;
+    resultEl.innerHTML = `<div class="row-card">
+      <div class="r-title"><span>Status: ${r.status}</span><span class="r-amt" style="${varianceOk ? "" : "color:var(--err)"}">${r.cash_variance != null ? "Variance " + fmtMoney(r.cash_variance) : ""}</span></div>
+      <div class="r-sub">
+        Opening: ${fmtMoney(r.opening_cash)} · Cash In: ${fmtMoney(r.cash_in)} · Cash Out: ${fmtMoney(r.cash_out)} ·
+        Expected: ${fmtMoney((Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0))} ·
+        Counted: ${r.counted_cash != null ? fmtMoney(r.counted_cash) : "not counted"}<br>
+        ${r.adjustment_reason ? "Adjustment note: " + r.adjustment_reason + "<br>" : ""}
+        Entered by: ${userName(r.entered_by_user_id)}${r.updated_by_user_id ? " · Updated by: " + userName(r.updated_by_user_id) : ""}
+        ${r.safe_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('safe-photos','${r.safe_photo_path}')">View Safe Photo</span>` : ""}
+        ${r.safe_photo_note ? `<br>AI photo check: ${r.safe_photo_note}` : ""}
+      </div>
+    </div>`;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("cr-run").addEventListener("click", runCrReport);
+
+// --- Monthly Payables report ---
+async function runPayReport() {
+  const month = document.getElementById("pay-month").value; // YYYY-MM
+  const resultEl = document.getElementById("pay-result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const [y, m] = month.split("-").map(Number);
+    const monthStart = `${month}-01`;
+    const nextMonth = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10); // first day of next month
+    const monthEndExclusive = nextMonth;
+
+    const vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance&order=name`);
+    const allPurchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&purchase_date=lt.${monthEndExclusive}&select=vendor_id,amount,purchase_date`);
+    const allPayments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=lt.${monthEndExclusive}&select=vendor_id,amount,payment_date`);
+
+    const owedToDate = {}, paidToDate = {}, owedInMonth = {}, paidInMonth = {};
+    allPurchases.forEach(p => {
+      if (!p.vendor_id) return;
+      owedToDate[p.vendor_id] = (owedToDate[p.vendor_id] || 0) + (Number(p.amount) || 0);
+      if (p.purchase_date >= monthStart) owedInMonth[p.vendor_id] = (owedInMonth[p.vendor_id] || 0) + (Number(p.amount) || 0);
+    });
+    allPayments.forEach(p => {
+      if (!p.vendor_id) return;
+      paidToDate[p.vendor_id] = (paidToDate[p.vendor_id] || 0) + (Number(p.amount) || 0);
+      if (p.payment_date >= monthStart) paidInMonth[p.vendor_id] = (paidInMonth[p.vendor_id] || 0) + (Number(p.amount) || 0);
+    });
+
+    let grandBalance = 0;
+    const blocks = vendors.map(v => {
+      const balance = (Number(v.opening_payable_balance) || 0) + (owedToDate[v.id] || 0) - (paidToDate[v.id] || 0);
+      const activityThisMonth = (owedInMonth[v.id] || 0) + (paidInMonth[v.id] || 0);
+      if (Math.abs(balance) < 0.01 && activityThisMonth < 0.01) return null;
+      grandBalance += balance;
+      return { name: v.name, purchased: owedInMonth[v.id] || 0, paid: paidInMonth[v.id] || 0, balance };
+    }).filter(Boolean).sort((a, b) => b.balance - a.balance);
+
+    if (!blocks.length) { resultEl.innerHTML = '<div class="empty-note">No vendor activity or balance for this month.</div>'; return; }
+
+    resultEl.innerHTML = blocks.map(b => `
+      <div class="vendor-block">
+        <div class="v-name">${b.name}</div>
+        <div class="v-row"><span>Purchased this month (credit)</span><span>${fmtMoney(b.purchased)}</span></div>
+        <div class="v-row"><span>Paid this month</span><span>${fmtMoney(b.paid)}</span></div>
+        <div class="v-row bal"><span>Balance as of month end</span><span>${fmtMoney(b.balance)}</span></div>
+      </div>`).join("") + `<div class="totals-bar"><span>Total payable</span><span>${fmtMoney(grandBalance)}</span></div>`;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("pay-run").addEventListener("click", runPayReport);
+
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+
+</body>
+</html>

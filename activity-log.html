@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Activity Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  [hidden] { display: none !important; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+
+  .entry { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; background: var(--field-bg); }
+  .entry-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.85rem; margin-bottom: 6px; flex-wrap: wrap; }
+  .entry-table { font-weight: 700; }
+  .badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; border-radius: 999px; padding: 2px 9px; }
+  .badge.insert { background: var(--ok-bg); color: var(--ok); }
+  .badge.update { background: var(--warn-bg); color: var(--warn); }
+  .badge.delete { background: var(--err-bg); color: var(--err); }
+  .entry-meta { font-size: 0.78rem; color: var(--ink-soft); }
+  .diff-row { font-size: 0.82rem; padding: 2px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+  .diff-key { color: var(--ink-soft); min-width: 140px; }
+  .diff-old { text-decoration: line-through; color: var(--err); }
+  .diff-new { color: var(--ok); font-weight: 600; }
+  .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
+  .retention-note { font-size: 0.76rem; color: var(--ink-soft); margin: -6px 0 14px; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg Activity Log</h1>
+<div class="sub">Every change to Sales, Expenses, Goods Receipt, Issue Entry, Vendor Payments, Cash Recon, Access Grants, Employees and Vendors</div>
+<div class="retention-note">Who made a change is as reliable as what that screen itself records — there's no separate login per device, so "entered by" reflects the name picked on that screen, not a verified identity.</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="card">
+    <div class="row2 field">
+      <div><label>From</label><input type="date" id="f-from"></div>
+      <div><label>To</label><input type="date" id="f-to"></div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Screen</label>
+        <select id="f-table">
+          <option value="">All screens</option>
+          <option value="daily_sales">Sales Entry</option>
+          <option value="expenses">Expense Entry</option>
+          <option value="purchases">Goods Receipt</option>
+          <option value="daily_issues">Issue Entry</option>
+          <option value="vendor_payments">Vendor Payment</option>
+          <option value="cash_safe_ledger">Cash Reconciliation</option>
+          <option value="manager_page_access">Access Grant Change</option>
+          <option value="employees">Employee Master</option>
+          <option value="vendors">Vendor Master</option>
+        </select>
+      </div>
+      <div>
+        <label>Person</label>
+        <select id="f-user"><option value="">Everyone</option></select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Action</label>
+      <select id="f-action">
+        <option value="">All</option>
+        <option value="insert">Created</option>
+        <option value="update">Changed</option>
+        <option value="delete">Deleted</option>
+      </select>
+    </div>
+    <button class="btn-primary" id="btn-run" type="button">Run</button>
+  </div>
+
+  <div id="result"><div class="hint">Set your filters and run.</div></div>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const PAGE_KEY = "activity_log";
+
+const TABLE_LABELS = {
+  daily_sales: "Sales Entry", expenses: "Expense Entry", purchases: "Goods Receipt",
+  daily_issues: "Issue Entry", vendor_payments: "Vendor Payment", cash_safe_ledger: "Cash Reconciliation",
+  manager_page_access: "Access Grant Change", employees: "Employee Master", vendors: "Vendor Master"
+};
+// Fields never shown — internal bookkeeping with nothing for a human to read.
+const SKIP_FIELDS = new Set(["id", "created_at", "updated_at", "org_id"]);
+// Fields that hold a uuid referencing another table's name.
+const LOOKUP_FIELDS = {
+  vendor_id: "vendors", product_id: "products", employee_id: "employees",
+  entered_by_user_id: "users", entered_by_manager_id: "users", paid_by: "users",
+  updated_by_user_id: "users", updated_by: "users", created_by: "users",
+  manager_id: "users", retired_by: "users", opening_balance_updated_by: "users"
+};
+
+let state = { userId: null, userName: null, managerId: null, role: null, users: {}, vendors: {}, products: {}, employees: {} };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+  });
+  if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`${res.status} ${text}`); }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function daysAgoStr(n) {
+  const dt = new Date(todayStr() + "T00:00:00Z");
+  dt.setUTCDate(dt.getUTCDate() - n);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    nameInput.value = "";
+    pinInput.value = "";
+    afterLogin(row.app_user_id, match.name, match.id, row.role);
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+async function loadLookups() {
+  try {
+    const users = await sb(`app_users?select=id,name`);
+    users.forEach(u => { state.users[u.id] = u.name; });
+    const sel = document.getElementById("f-user");
+    users.sort((a, b) => a.name.localeCompare(b.name)).forEach(u => {
+      sel.insertAdjacentHTML("beforeend", `<option value="${u.id}">${u.name}</option>`);
+    });
+  } catch (e) { /* non-fatal */ }
+  try {
+    const vendors = await sb(`vendors?select=id,name`);
+    vendors.forEach(v => { state.vendors[v.id] = v.name; });
+  } catch (e) { /* non-fatal */ }
+  try {
+    const products = await sb(`products?select=id,name`);
+    products.forEach(p => { state.products[p.id] = p.name; });
+  } catch (e) { /* non-fatal */ }
+  try {
+    const employees = await sb(`employees?select=id,name`);
+    employees.forEach(emp => { state.employees[emp.id] = emp.name; });
+  } catch (e) { /* non-fatal */ }
+}
+
+function resolveName(kind, id) {
+  if (!id) return null;
+  const map = kind === "users" ? state.users : kind === "vendors" ? state.vendors : kind === "products" ? state.products : kind === "employees" ? state.employees : null;
+  return (map && map[id]) || id;
+}
+
+function fmtValue(key, val) {
+  if (val === null || val === undefined || val === "") return "—";
+  if (LOOKUP_FIELDS[key]) return resolveName(LOOKUP_FIELDS[key], val);
+  if (typeof val === "boolean") return val ? "Yes" : "No";
+  if (typeof val === "number") return Number.isInteger(val) ? String(val) : val.toFixed(2);
+  return String(val);
+}
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId; state.userName = name; state.managerId = managerId; state.role = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-from").value = daysAgoStr(6);
+  document.getElementById("f-to").value = todayStr();
+  loadLookups();
+}
+
+function renderEntry(e) {
+  const tableLabel = TABLE_LABELS[e.table_name] || e.table_name;
+  const actorName = resolveName("users", e.actor_user_id) || resolveName("users", e.actor_manager_id) || "Unknown";
+  const when = new Date(e.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  let body = "";
+  if (e.action === "update") {
+    const fields = (e.changed_fields || []).filter(f => !SKIP_FIELDS.has(f));
+    if (!fields.length) {
+      body = '<div class="diff-row"><span class="diff-key">(no visible field changed)</span></div>';
+    } else {
+      body = fields.map(f => {
+        const oldV = fmtValue(f, e.old_data ? e.old_data[f] : null);
+        const newV = fmtValue(f, e.new_data ? e.new_data[f] : null);
+        return `<div class="diff-row"><span class="diff-key">${f}</span><span class="diff-old">${oldV}</span>→<span class="diff-new">${newV}</span></div>`;
+      }).join("");
+    }
+  } else {
+    const row = e.action === "delete" ? e.old_data : e.new_data;
+    const keys = row ? Object.keys(row).filter(k => !SKIP_FIELDS.has(k) && row[k] !== null && row[k] !== "") : [];
+    body = keys.map(k => `<div class="diff-row"><span class="diff-key">${k}</span><span>${fmtValue(k, row[k])}</span></div>`).join("");
+  }
+
+  return `<div class="entry">
+    <div class="entry-head">
+      <span class="entry-table">${tableLabel}</span>
+      <span class="badge ${e.action}">${e.action === "insert" ? "Created" : e.action === "delete" ? "Deleted" : "Changed"}</span>
+      <span class="entry-meta">${when} · ${actorName}</span>
+    </div>
+    ${body}
+  </div>`;
+}
+
+async function runReport() {
+  const from = document.getElementById("f-from").value;
+  const to = document.getElementById("f-to").value;
+  const table = document.getElementById("f-table").value;
+  const user = document.getElementById("f-user").value;
+  const action = document.getElementById("f-action").value;
+  const resultEl = document.getElementById("result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+
+  try {
+    let path = `activity_log?select=*&order=created_at.desc&limit=300`;
+    if (from) path += `&created_at=gte.${from}T00:00:00`;
+    if (to) {
+      const toNext = new Date(to + "T00:00:00Z"); toNext.setUTCDate(toNext.getUTCDate() + 1);
+      path += `&created_at=lt.${toNext.toISOString().slice(0, 10)}T00:00:00`;
+    }
+    if (table) path += `&table_name=eq.${table}`;
+    if (action) path += `&action=eq.${action}`;
+    if (user) path += `&or=(actor_user_id.eq.${user},actor_manager_id.eq.${user})`;
+
+    const rows = await sb(path);
+    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No activity matches these filters.</div>'; return; }
+    const truncNote = rows.length === 300 ? '<div class="hint" style="margin-bottom:8px;">Showing the most recent 300 matches — narrow the dates for a complete list.</div>' : "";
+    resultEl.innerHTML = truncNote + rows.map(renderEntry).join("");
+  } catch (e) {
+    resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`;
+  }
+}
+document.getElementById("btn-run").addEventListener("click", runReport);
+
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+
+</body>
+</html>
