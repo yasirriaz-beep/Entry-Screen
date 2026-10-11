@@ -192,7 +192,7 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const PAGE_KEY = "reports";
 
-let state = { userId: null, userName: null, managerId: null, role: null, users: {}, vendors: {}, products: {} };
+let state = { userId: null, userName: null, managerId: null, role: null, users: {}, managers: {}, vendors: {}, products: {} };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -233,7 +233,11 @@ function todayStr() {
 }
 
 function fmtMoney(n) { return "PKR " + Math.round(Number(n) || 0).toLocaleString(); }
+// "userName" looks up app_users.id (how most screens record who did a sale/expense/etc);
+// "managerName" looks up managers.id (a DIFFERENT id for the same person, used only for
+// entered_by_manager_id — mixing these two up is what showed raw uuids before).
 function userName(id) { return id && state.users[id] ? state.users[id] : (id ? "—" : "—"); }
+function managerName(id) { return id && state.managers[id] ? state.managers[id] : (id ? "—" : "—"); }
 function vendorName(id) { return id && state.vendors[id] ? state.vendors[id] : "—"; }
 function productName(id) { return id && state.products[id] ? state.products[id] : "—"; }
 
@@ -303,6 +307,12 @@ async function loadLookups() {
     const products = await sb(`products?select=id,name,unit`);
     products.forEach(p => { state.products[p.id] = p.name; });
   } catch (e) { /* non-fatal */ }
+  try {
+    // managers.id is a DIFFERENT id space from app_users.id (see userName/managerName
+    // above) — entered_by_manager_id needs this map, not state.users.
+    const managers = await sbRpc("list_manager_names", {});
+    managers.forEach(m => { state.managers[m.id] = m.name; });
+  } catch (e) { /* non-fatal */ }
 }
 
 function afterLogin(userId, name, managerId, role) {
@@ -344,7 +354,7 @@ async function runSalesReport() {
           Food Panda: ${fmtMoney(r.food_panda_amount)} (${r.food_panda_covers || 0}) · Bakery: ${fmtMoney(r.bakery_sale)}<br>
           Card: ${fmtMoney(r.card_amount)} · Opening till: ${fmtMoney(r.opening_cash_till)} · Closing till: ${r.closing_cash_till != null ? fmtMoney(r.closing_cash_till) : "not entered"} ·
           Custodian handover: ${fmtMoney(r.custodian_cash_amount)}<br>
-          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
         </div>
       </div>`;
     }).join("") + `<div class="totals-bar"><span>Day total</span><span>${fmtMoney(totalSale)}</span></div>`;
@@ -369,7 +379,7 @@ async function runExpensesReport() {
         <div class="r-sub">
           ${r.detail ? r.detail + "<br>" : ""}
           ${r.vendor_id ? "Vendor: " + vendorName(r.vendor_id) + " · " : ""}Payment: ${r.payment_method || "cash"}${r.shift ? " · " + (r.shift === "morning" ? "Morning" : "Evening") : ""}<br>
-          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
           ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
           ${flagged ? `<br><span class="r-flag">Flagged: ${r.ai_check_status}${r.ai_check_reason ? " — " + r.ai_check_reason : ""}</span>` : ""}
         </div>
@@ -394,7 +404,7 @@ async function runGoodsReport() {
         <div class="r-title"><span>${productName(r.product_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
         <div class="r-sub">
           ${r.qty} ${r.unit || ""} @ ${fmtMoney(r.rate)} · Vendor: ${vendorName(r.vendor_id)} · ${r.payment_status === "credit" ? "On credit" : "Paid"}${r.inv_number ? " · Inv# " + r.inv_number : ""}<br>
-          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
           ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
           ${r.variance_note ? `<br><span class="r-flag">Variance: ${r.variance_note}</span>` : ""}
         </div>
@@ -419,7 +429,7 @@ async function runIssueReport() {
         <div class="r-title"><span>${productName(r.product_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
         <div class="r-sub">
           ${r.qty} @ ${fmtMoney(r.rate)} · Issued to: ${r.issued_to || "—"}<br>
-          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
         </div>
       </div>`;
     }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} line items)</span><span>${fmtMoney(total)}</span></div>`;
@@ -442,7 +452,7 @@ async function runVpReport() {
         <div class="r-title"><span>${vendorName(r.vendor_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
         <div class="r-sub">
           Method: ${r.method}${r.notes ? " · " + r.notes : ""}<br>
-          Paid by: ${userName(r.paid_by)}${r.entered_by_manager_id ? " (via " + userName(r.entered_by_manager_id) + ")" : ""}
+          Paid by: ${userName(r.paid_by)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
           ${r.payment_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('vendor-payment-photos','${r.payment_photo_path}')">View Photo</span>` : ""}
         </div>
       </div>`;

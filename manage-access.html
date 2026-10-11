@@ -314,7 +314,8 @@ async function toggleAccess(chip) {
   const currentViewOnly = viewOnlyToggle ? viewOnlyToggle.dataset.viewOnly === "true" : false;
   chip.style.opacity = "0.5";
   try {
-    await sbRpc("admin_set_page_access_v2", { p_owner_pin: state.ownerPin, p_manager_id: managerId, p_page_key: page, p_granted: next, p_view_only: next ? currentViewOnly : false });
+    const acting = FNKSession.get();
+    await sbRpc("admin_set_page_access_v3", { p_owner_pin: state.ownerPin, p_acting_manager_id: acting ? acting.managerId : null, p_manager_id: managerId, p_page_key: page, p_granted: next, p_view_only: next ? currentViewOnly : false });
     await refreshManagers();
   } catch (e) {
     alert("Couldn't update access: " + e.message);
@@ -329,7 +330,8 @@ async function toggleViewOnly(toggle) {
   const next = !currentlyViewOnly;
   toggle.style.opacity = "0.5";
   try {
-    await sbRpc("admin_set_page_access_v2", { p_owner_pin: state.ownerPin, p_manager_id: managerId, p_page_key: page, p_granted: true, p_view_only: next });
+    const acting = FNKSession.get();
+    await sbRpc("admin_set_page_access_v3", { p_owner_pin: state.ownerPin, p_acting_manager_id: acting ? acting.managerId : null, p_manager_id: managerId, p_page_key: page, p_granted: true, p_view_only: next });
     await refreshManagers();
   } catch (e) {
     alert("Couldn't update: " + e.message);

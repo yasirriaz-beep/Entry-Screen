@@ -138,15 +138,20 @@ const TABLE_LABELS = {
 };
 // Fields never shown — internal bookkeeping with nothing for a human to read.
 const SKIP_FIELDS = new Set(["id", "created_at", "updated_at", "org_id"]);
-// Fields that hold a uuid referencing another table's name.
+// Fields that hold a uuid referencing another table's name. "users" means
+// app_users.id; "managers" means managers.id -- these are TWO DIFFERENT tables
+// with their own ids for the same person, so mixing them up shows the wrong
+// name (or no name at all). entered_by_manager_id/updated_by_manager_id/
+// manager_id are all managers.id; everything else here is app_users.id.
 const LOOKUP_FIELDS = {
   vendor_id: "vendors", product_id: "products", employee_id: "employees",
-  entered_by_user_id: "users", entered_by_manager_id: "users", paid_by: "users",
+  entered_by_user_id: "users", paid_by: "users",
   updated_by_user_id: "users", updated_by: "users", created_by: "users",
-  manager_id: "users", retired_by: "users", opening_balance_updated_by: "users"
+  retired_by: "users", opening_balance_updated_by: "users",
+  manager_id: "managers", entered_by_manager_id: "managers", updated_by_manager_id: "managers"
 };
 
-let state = { userId: null, userName: null, managerId: null, role: null, users: {}, vendors: {}, products: {}, employees: {} };
+let state = { userId: null, userName: null, managerId: null, role: null, users: {}, managers: {}, vendors: {}, products: {}, employees: {} };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -232,9 +237,16 @@ async function loadLookups() {
   try {
     const users = await sb(`app_users?select=id,name`);
     users.forEach(u => { state.users[u.id] = u.name; });
+  } catch (e) { /* non-fatal */ }
+  try {
+    // A person shows up under TWO different ids depending on which screen acted
+    // (app_users.id on most entry screens, managers.id on access-grant changes),
+    // so the "Person" filter needs both to catch everything one person touched.
+    const identities = await sbRpc("list_manager_identities", {});
+    identities.forEach(m => { state.managers[m.manager_id] = m.name; });
     const sel = document.getElementById("f-user");
-    users.sort((a, b) => a.name.localeCompare(b.name)).forEach(u => {
-      sel.insertAdjacentHTML("beforeend", `<option value="${u.id}">${u.name}</option>`);
+    identities.sort((a, b) => a.name.localeCompare(b.name)).forEach(m => {
+      sel.insertAdjacentHTML("beforeend", `<option value="${m.app_user_id || ""}|${m.manager_id}">${m.name}</option>`);
     });
   } catch (e) { /* non-fatal */ }
   try {
@@ -253,7 +265,7 @@ async function loadLookups() {
 
 function resolveName(kind, id) {
   if (!id) return null;
-  const map = kind === "users" ? state.users : kind === "vendors" ? state.vendors : kind === "products" ? state.products : kind === "employees" ? state.employees : null;
+  const map = kind === "users" ? state.users : kind === "managers" ? state.managers : kind === "vendors" ? state.vendors : kind === "products" ? state.products : kind === "employees" ? state.employees : null;
   return (map && map[id]) || id;
 }
 
@@ -276,7 +288,7 @@ function afterLogin(userId, name, managerId, role) {
 
 function renderEntry(e) {
   const tableLabel = TABLE_LABELS[e.table_name] || e.table_name;
-  const actorName = resolveName("users", e.actor_user_id) || resolveName("users", e.actor_manager_id) || "Unknown";
+  const actorName = resolveName("users", e.actor_user_id) || resolveName("managers", e.actor_manager_id) || "Unknown";
   const when = new Date(e.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   let body = "";
@@ -325,7 +337,13 @@ async function runReport() {
     }
     if (table) path += `&table_name=eq.${table}`;
     if (action) path += `&action=eq.${action}`;
-    if (user) path += `&or=(actor_user_id.eq.${user},actor_manager_id.eq.${user})`;
+    if (user) {
+      const [appUserId, managerId] = user.split("|");
+      const clauses = [];
+      if (appUserId) clauses.push(`actor_user_id.eq.${appUserId}`);
+      if (managerId) clauses.push(`actor_manager_id.eq.${managerId}`);
+      if (clauses.length) path += `&or=(${clauses.join(",")})`;
+    }
 
     const rows = await sb(path);
     if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No activity matches these filters.</div>'; return; }
