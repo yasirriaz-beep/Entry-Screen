@@ -71,6 +71,8 @@
   .ack-row input { width: auto; margin-top: 2px; }
   .amount-display { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.4rem; font-weight: 600; }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .route-note { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; background: var(--field-bg); font-size: 0.82rem; color: var(--ink-soft); line-height: 1.4; }
+  .route-note a { color: var(--accent); font-weight: 600; text-decoration: underline; }
   .success-wrap { text-align: center; padding: 48px 16px; }
   .success-wrap .check { font-size: 2.6rem; }
   .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; background: var(--field-bg); }
@@ -118,6 +120,12 @@
 <div id="step-form" hidden>
   <div class="card">
     <div id="po-context-banner"></div>
+
+    <div class="route-note">
+      Yahan sirf vendor say mangwaya hua stock darj karen (invoice/bill k saath, chahe cash ho ya credit).
+      Agar yeh ek-martaba ka cash purchase hai jis ka koi vendor invoice nahi (misal: market say khud utha k lana),
+      to <a href="expense-entry.html">Expense Entry</a> mein "Inventory Purchase" head say darj karen.
+    </div>
 
     <div class="field">
       <label>Scan Receipt Photo (optional)</label>

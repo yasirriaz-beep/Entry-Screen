@@ -210,9 +210,9 @@
     </div>
     <div class="hint" style="margin:-8px 0 14px;">Pick the shift this was spent during — it's what the till cash-recon check compares against.</div>
     <div class="ask-head">
-      <div class="ask-head-label"><span class="spark">✦</span> Not sure which head to pick? Describe the expense</div>
-      <textarea id="ask-head-input" placeholder="e.g. bought a new frying pan for the kitchen"></textarea>
-      <button type="button" class="ask-head-btn" id="ask-head-btn">Suggest the head</button>
+      <div class="ask-head-label"><span class="spark">✦</span> Confuse hain kis head mein dalni hai? Expense yahan likhen</div>
+      <textarea id="ask-head-input" placeholder="misal: kitchen k liye nayi frying pan khareedi"></textarea>
+      <button type="button" class="ask-head-btn" id="ask-head-btn">Head suggest karwayen</button>
       <div class="ask-head-result" id="ask-head-result"></div>
     </div>
 
@@ -370,14 +370,14 @@ async function askExpenseHead() {
   const question = input.value.trim();
   if (!question) {
     resultEl.className = "ask-head-result show err";
-    resultEl.textContent = "Type a short description first.";
+    resultEl.textContent = "Pehle expense ka thora detail likhen.";
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = "Thinking…";
+  btn.textContent = "Sochrahe hain…";
   resultEl.className = "ask-head-result show";
-  resultEl.textContent = "Checking…";
+  resultEl.textContent = "Check kar rahe hain…";
 
   let result = null;
   let errorMsg = null;
@@ -395,12 +395,22 @@ async function askExpenseHead() {
   }
 
   btn.disabled = false;
-  btn.textContent = "Suggest the head";
+  btn.textContent = "Head suggest karwayen";
 
   if (!result) {
     resultEl.className = "ask-head-result show err";
-    resultEl.textContent = "Couldn't get a suggestion (" + (errorMsg || "unknown error") + "). Pick the head yourself below.";
-    logExpenseHeadQuery(question, null, null, null, false);
+    resultEl.textContent = "Suggestion nahi mil saki (" + (errorMsg || "unknown error") + "). Neeche khud head select kar lein.";
+    logExpenseHeadQuery(question, null, null, null, null, false);
+    return;
+  }
+
+  if (result.destination === "goods_receipt") {
+    resultEl.className = "ask-head-result show low";
+    resultEl.innerHTML =
+      `Yeh Expense Entry mein nahi — <b>Goods Receipt</b> screen mein darj honi chahiye ` +
+      `(vendor say aaya hua stock lagta hai). ${result.reasoning_roman_urdu}<br>` +
+      `<a href="goods-receipt.html" style="color:inherit;font-weight:700;text-decoration:underline;">Goods Receipt par jayen →</a>`;
+    logExpenseHeadQuery(question, result.category, result.confidence, result.reasoning_roman_urdu, result.destination, false);
     return;
   }
 
@@ -413,13 +423,13 @@ async function askExpenseHead() {
 
   const cls = result.confidence === "low" ? "low" : "ok";
   resultEl.className = "ask-head-result show " + cls;
-  resultEl.innerHTML = `<b>${result.category}</b>${matched ? " (selected below)" : ""} — ${result.reasoning}` +
-    (result.confidence === "low" ? "<br>Low confidence — please double-check this one." : "");
+  resultEl.innerHTML = `<b>${result.category}</b>${matched ? " (neeche select ho gaya)" : ""} — ${result.reasoning_roman_urdu}` +
+    (result.confidence === "low" ? "<br>Confidence kam hai — khud bhi check kar lein." : "");
 
-  logExpenseHeadQuery(question, result.category, result.confidence, result.reasoning, matched);
+  logExpenseHeadQuery(question, result.category, result.confidence, result.reasoning_roman_urdu, result.destination, matched);
 }
 
-async function logExpenseHeadQuery(question, category, confidence, reasoning, applied) {
+async function logExpenseHeadQuery(question, category, confidence, reasoning, destination, applied) {
   try {
     await sb("expense_category_queries", {
       method: "POST",
@@ -428,6 +438,7 @@ async function logExpenseHeadQuery(question, category, confidence, reasoning, ap
         location_id: LOCATION_ID,
         question: question,
         suggested_category: category,
+        suggested_destination: destination,
         confidence: confidence,
         reasoning: reasoning,
         applied: !!applied,
