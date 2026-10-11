@@ -202,6 +202,13 @@
   </div>
 
   <div class="card">
+    <h2>Daily Cash Safe Check</h2>
+    <div id="daily-cash-check-list"><div class="spinner-note">Loading…</div></div>
+    <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="cash-reconciliation.html">Open Cash Reconciliation</a>
+    <div class="hint" style="margin-top:8px;">Each day's total sales (cash-only channels) vs. what the cash custodian logged as received into the safe that day. A gap over PKR 1,000 is flagged with a plain-language note on what to check.</div>
+  </div>
+
+  <div class="card">
     <h2>Flagged Delivery KM</h2>
     <div id="flagged-km-list"><div class="spinner-note">Loading…</div></div>
     <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="delivery-km-entry.html">Open Delivery KM Log</a>
@@ -445,7 +452,7 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyChecklist(), loadFlaggedKm()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyCashCheck(), loadDailyChecklist(), loadFlaggedKm()]);
 }
 
 async function loadFlaggedKm() {
@@ -570,6 +577,75 @@ async function loadCashReconHistory() {
       <div>
         <div class="alert-title">${s.sale_date} &middot; ${shiftLabel}</div>
         <div class="alert-sub">Implied ${implied != null ? fmtMoney(implied) : "—"} vs. logged ${fmtMoney(actual)}</div>
+      </div>
+      ${badge}
+    </div>`;
+  }).join("");
+}
+
+// Plain-language note under a flagged day — a simple rules-based first pass ("start simple"),
+// not a model call: explains what the gap likely means and what to go check. Thresholds are
+// rules of thumb, not statistics — tune them if they turn out noisy in practice.
+function dailyCashCheckGuidance(variance, totalSales) {
+  if (variance == null) return "No custodian entry logged for this date yet in Cash Reconciliation.";
+  const pct = totalSales > 0 ? Math.abs(variance) / totalSales * 100 : 0;
+  if (variance < 0) {
+    return `Cash received is ${fmtMoney(Math.abs(variance))} short of sales (${pct.toFixed(1)}% of the day) — check for a till shortage on a shift, a handover that wasn't logged, or a cash expense paid out before it reached the safe.`;
+  }
+  return `Cash received is ${fmtMoney(variance)} more than sales (${pct.toFixed(1)}% of the day) — check for a prior day's cash being logged late, or a deposit not tied to that day's sales.`;
+}
+
+async function loadDailyCashCheck() {
+  const wrap = document.getElementById("daily-cash-check-list");
+  const { from, to } = rangeDates();
+
+  let sales = [];
+  try {
+    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&shift=not.is.null` +
+      `&select=sale_date,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,card_amount&order=sale_date.desc`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+
+  const salesByDate = {};
+  sales.forEach(s => {
+    // Same cash-only formula as the per-shift check above, summed across both shifts for the day.
+    const cashSales = (Number(s.dine_in_amount) || 0) + (Number(s.takeaway_amount) || 0) + (Number(s.delivery_amount) || 0) + (Number(s.third_party_amount) || 0) - (Number(s.card_amount) || 0);
+    salesByDate[s.sale_date] = (salesByDate[s.sale_date] || 0) + cashSales;
+  });
+
+  let ledger = [];
+  try {
+    ledger = await sb(`cash_safe_ledger?ledger_date=gte.${from}&ledger_date=lte.${to}&select=ledger_date,cash_in,status`);
+  } catch (e) { ledger = []; }
+  const ledgerByDate = {};
+  ledger.forEach(l => { ledgerByDate[l.ledger_date] = l; });
+
+  const dates = Array.from(new Set([...Object.keys(salesByDate), ...Object.keys(ledgerByDate)])).sort().reverse();
+  if (!dates.length) { wrap.innerHTML = '<div class="empty-note">No sales or custodian entries for this range yet.</div>'; return; }
+
+  wrap.innerHTML = dates.map(d => {
+    const totalSales = salesByDate[d] || 0;
+    const row = ledgerByDate[d];
+    const received = row ? Number(row.cash_in) || 0 : null;
+    const variance = received != null ? Math.round(received - totalSales) : null;
+    const threshold = Math.max(2000, totalSales * 0.01);
+
+    let badge, flagged;
+    if (received == null) {
+      badge = '<span class="pill-badge pill-warn">Not submitted yet</span>';
+      flagged = totalSales > 0;
+    } else if (Math.abs(variance) > threshold) {
+      badge = `<span class="pill-badge pill-err">Off ${variance > 0 ? "+" : ""}${fmtMoney(variance)}</span>`;
+      flagged = true;
+    } else {
+      badge = '<span class="pill-badge pill-ok">Matches</span>';
+      flagged = false;
+    }
+
+    return `<div class="alert-row">
+      <div>
+        <div class="alert-title">${d}</div>
+        <div class="alert-sub">Sales (cash channels): ${fmtMoney(totalSales)} ${received != null ? "&middot; Custodian received: " + fmtMoney(received) : ""}</div>
+        ${flagged ? `<div class="alert-sub" style="margin-top:4px;">${dailyCashCheckGuidance(variance, totalSales)}</div>` : ""}
       </div>
       ${badge}
     </div>`;
