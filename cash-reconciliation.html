@@ -485,7 +485,11 @@ async function fetchCashIn(dateStr) {
 async function fetchCashOut(dateStr) {
   let expenseLines = [], vendorLines = [];
   try {
-    const rows = await sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&payment_method=eq.cash&select=category,amount,detail`);
+    // Only expenses with no shift (paid directly from this safe) belong here. A shift-tied
+    // expense was already paid out of the cashier's till and is reflected in a *smaller*
+    // handover (custodian_cash_amount / cash_in) — counting it again here would deduct it
+    // from this safe twice.
+    const rows = await sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&payment_method=eq.cash&shift=is.null&select=category,amount,detail`);
     expenseLines = (rows || []).map(r => ({ label: r.category || r.detail || "Expense", amount: Number(r.amount) || 0 }));
   } catch (e) { /* ignore */ }
   try {

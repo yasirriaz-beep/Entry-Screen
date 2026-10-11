@@ -202,10 +202,10 @@
   </div>
 
   <div class="card">
-    <h2>Daily Cash Safe Check</h2>
+    <h2>Daily Cash Safe Check (Safe 2 — Custodian)</h2>
     <div id="daily-cash-check-list"><div class="spinner-note">Loading…</div></div>
     <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="cash-reconciliation.html">Open Cash Reconciliation</a>
-    <div class="hint" style="margin-top:8px;">Each day's total sales (cash-only channels) vs. what the cash custodian logged as received into the safe that day. A gap over PKR 1,000 is flagged with a plain-language note on what to check.</div>
+    <div class="hint" style="margin-top:8px;">Opening balance + today's till handovers (Cash In) &minus; non-till cash expenses (Cash Out) = expected closing, checked against the custodian's physical count. Any gap gets a plain-language note on what to check. (The till itself — Safe 1 — is checked separately above.)</div>
   </div>
 
   <div class="card">
@@ -573,10 +573,16 @@ async function loadCashReconHistory() {
         ? `<span class="pill-badge pill-err">Off ${diff > 0 ? "+" : ""}${fmtMoney(diff)}</span>`
         : '<span class="pill-badge pill-ok">OK</span>';
     }
+    // The till should always start and end at the fixed PKR 40,000 float — anything else means
+    // the cashier didn't hand over the full excess, or a prior shift left it short/over.
+    const floatNote = closing != null && Math.abs(closing - 40000) > 1
+      ? `<div class="alert-sub" style="margin-top:4px;">Till closed at ${fmtMoney(closing)}, not the PKR 40,000 float — the difference should have been handed to the custodian.</div>`
+      : "";
     return `<div class="alert-row">
       <div>
         <div class="alert-title">${s.sale_date} &middot; ${shiftLabel}</div>
         <div class="alert-sub">Implied ${implied != null ? fmtMoney(implied) : "—"} vs. logged ${fmtMoney(actual)}</div>
+        ${floatNote}
       </div>
       ${badge}
     </div>`;
@@ -586,54 +592,51 @@ async function loadCashReconHistory() {
 // Plain-language note under a flagged day — a simple rules-based first pass ("start simple"),
 // not a model call: explains what the gap likely means and what to go check. Thresholds are
 // rules of thumb, not statistics — tune them if they turn out noisy in practice.
-function dailyCashCheckGuidance(variance, totalSales) {
-  if (variance == null) return "No custodian entry logged for this date yet in Cash Reconciliation.";
-  const pct = totalSales > 0 ? Math.abs(variance) / totalSales * 100 : 0;
-  if (variance < 0) {
-    return `Cash received is ${fmtMoney(Math.abs(variance))} short of sales (${pct.toFixed(1)}% of the day) — check for a till shortage on a shift, a handover that wasn't logged, or a cash expense paid out before it reached the safe.`;
+//
+// This is Safe 2 (the cash custodian's safe), not the till: opening balance carries from
+// yesterday's closing; Cash In is what the till(s) handed over that day; Cash Out is cash
+// expenses/vendor payments paid directly from this safe (never a shift's own till expenses —
+// those already reduced what the till handed over, and are checked separately above under
+// Shift Cash Reconciliation, which is Safe 1). Expected closing = opening + in − out; the
+// custodian's physical count is checked against that.
+function dailySafeGuidance(row, expectedClosing) {
+  if (row.counted_cash == null) {
+    return row.status === "locked"
+      ? "Locked with no physical count on file — ask the owner to reopen it if a count is still needed."
+      : "Not counted yet — the cash custodian hasn't logged a physical count for this day.";
   }
-  return `Cash received is ${fmtMoney(variance)} more than sales (${pct.toFixed(1)}% of the day) — check for a prior day's cash being logged late, or a deposit not tied to that day's sales.`;
+  const variance = Math.round(Number(row.counted_cash) - expectedClosing);
+  const pct = expectedClosing > 0 ? Math.abs(variance) / expectedClosing * 100 : 0;
+  if (variance < 0) {
+    return `Counted ${fmtMoney(Math.abs(variance))} less than expected (${pct.toFixed(1)}%) — check for an unlogged cash expense, a till handover that didn't make it into the safe, or a miscount.`;
+  }
+  return `Counted ${fmtMoney(variance)} more than expected (${pct.toFixed(1)}%) — check for a cash receipt that wasn't logged as Cash In, or a miscount.`;
 }
 
 async function loadDailyCashCheck() {
   const wrap = document.getElementById("daily-cash-check-list");
   const { from, to } = rangeDates();
 
-  let sales = [];
-  try {
-    sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&shift=not.is.null` +
-      `&select=sale_date,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,card_amount&order=sale_date.desc`);
-  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
-
-  const salesByDate = {};
-  sales.forEach(s => {
-    // Same cash-only formula as the per-shift check above, summed across both shifts for the day.
-    const cashSales = (Number(s.dine_in_amount) || 0) + (Number(s.takeaway_amount) || 0) + (Number(s.delivery_amount) || 0) + (Number(s.third_party_amount) || 0) - (Number(s.card_amount) || 0);
-    salesByDate[s.sale_date] = (salesByDate[s.sale_date] || 0) + cashSales;
-  });
-
   let ledger = [];
   try {
-    ledger = await sb(`cash_safe_ledger?ledger_date=gte.${from}&ledger_date=lte.${to}&select=ledger_date,cash_in,status`);
-  } catch (e) { ledger = []; }
-  const ledgerByDate = {};
-  ledger.forEach(l => { ledgerByDate[l.ledger_date] = l; });
+    ledger = await sb(`cash_safe_ledger?ledger_date=gte.${from}&ledger_date=lte.${to}` +
+      `&select=ledger_date,opening_cash,cash_in,cash_out,counted_cash,status,adjustment_reason&order=ledger_date.desc`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+  if (!ledger.length) { wrap.innerHTML = '<div class="empty-note">No Cash Reconciliation entries for this range yet — this needs the cash custodian to log each day in Cash Reconciliation.</div>'; return; }
 
-  const dates = Array.from(new Set([...Object.keys(salesByDate), ...Object.keys(ledgerByDate)])).sort().reverse();
-  if (!dates.length) { wrap.innerHTML = '<div class="empty-note">No sales or custodian entries for this range yet.</div>'; return; }
-
-  wrap.innerHTML = dates.map(d => {
-    const totalSales = salesByDate[d] || 0;
-    const row = ledgerByDate[d];
-    const received = row ? Number(row.cash_in) || 0 : null;
-    const variance = received != null ? Math.round(received - totalSales) : null;
-    const threshold = Math.max(2000, totalSales * 0.01);
+  wrap.innerHTML = ledger.map(row => {
+    const opening = Number(row.opening_cash) || 0;
+    const cashIn = Number(row.cash_in) || 0;
+    const cashOut = Number(row.cash_out) || 0;
+    const expectedClosing = opening + cashIn - cashOut;
+    const counted = row.counted_cash != null ? Number(row.counted_cash) : null;
+    const variance = counted != null ? Math.round(counted - expectedClosing) : null;
 
     let badge, flagged;
-    if (received == null) {
-      badge = '<span class="pill-badge pill-warn">Not submitted yet</span>';
-      flagged = totalSales > 0;
-    } else if (Math.abs(variance) > threshold) {
+    if (counted == null) {
+      badge = '<span class="pill-badge pill-warn">Not counted yet</span>';
+      flagged = true;
+    } else if (Math.abs(variance) > 1) {
       badge = `<span class="pill-badge pill-err">Off ${variance > 0 ? "+" : ""}${fmtMoney(variance)}</span>`;
       flagged = true;
     } else {
@@ -643,9 +646,10 @@ async function loadDailyCashCheck() {
 
     return `<div class="alert-row">
       <div>
-        <div class="alert-title">${d}</div>
-        <div class="alert-sub">Sales (cash channels): ${fmtMoney(totalSales)} ${received != null ? "&middot; Custodian received: " + fmtMoney(received) : ""}</div>
-        ${flagged ? `<div class="alert-sub" style="margin-top:4px;">${dailyCashCheckGuidance(variance, totalSales)}</div>` : ""}
+        <div class="alert-title">${row.ledger_date} <span style="font-weight:400;color:var(--muted,#888);">&middot; ${row.status}</span></div>
+        <div class="alert-sub">Opening ${fmtMoney(opening)} + In ${fmtMoney(cashIn)} &minus; Out ${fmtMoney(cashOut)} = Expected ${fmtMoney(expectedClosing)}${counted != null ? " &middot; Counted " + fmtMoney(counted) : ""}</div>
+        ${flagged ? `<div class="alert-sub" style="margin-top:4px;">${dailySafeGuidance(row, expectedClosing)}</div>` : ""}
+        ${row.adjustment_reason ? `<div class="alert-sub" style="margin-top:4px;"><em>Custodian's note: ${row.adjustment_reason}</em></div>` : ""}
       </div>
       ${badge}
     </div>`;
