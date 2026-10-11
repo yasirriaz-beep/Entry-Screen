@@ -151,6 +151,18 @@
     font-weight: 600;
   }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .ask-head { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 14px; background: var(--field-bg); }
+  .ask-head-label { font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .ask-head-label .spark { color: var(--accent); }
+  .ask-head textarea { width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 9px 11px; font-size: 0.9rem; font-family: inherit; resize: vertical; min-height: 44px; }
+  .ask-head-btn { margin-top: 8px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-weight: 600; font-size: 0.85rem; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-family: inherit; }
+  .ask-head-btn:disabled { opacity: 0.5; cursor: default; }
+  .ask-head-result { margin-top: 10px; font-size: 0.85rem; padding: 10px 12px; border-radius: 8px; line-height: 1.4; display: none; }
+  .ask-head-result.show { display: block; }
+  .ask-head-result.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .ask-head-result.low { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .ask-head-result.err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .ask-head-result b { font-weight: 700; }
   .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
   .po-card .po-title { font-weight: 600; }
   .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
@@ -197,6 +209,13 @@
       </div>
     </div>
     <div class="hint" style="margin:-8px 0 14px;">Pick the shift this was spent during — it's what the till cash-recon check compares against.</div>
+    <div class="ask-head">
+      <div class="ask-head-label"><span class="spark">✦</span> Not sure which head to pick? Describe the expense</div>
+      <textarea id="ask-head-input" placeholder="e.g. bought a new frying pan for the kitchen"></textarea>
+      <button type="button" class="ask-head-btn" id="ask-head-btn">Suggest the head</button>
+      <div class="ask-head-result" id="ask-head-result"></div>
+    </div>
+
     <div class="field">
       <label>Category</label>
       <select id="f-category"></select>
@@ -343,6 +362,82 @@ async function sbRpc(fn, body) {
   const ct = res.headers.get("content-type") || "";
   return ct.includes("application/json") ? res.json() : null;
 }
+
+async function askExpenseHead() {
+  const input = document.getElementById("ask-head-input");
+  const btn = document.getElementById("ask-head-btn");
+  const resultEl = document.getElementById("ask-head-result");
+  const question = input.value.trim();
+  if (!question) {
+    resultEl.className = "ask-head-result show err";
+    resultEl.textContent = "Type a short description first.";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Thinking…";
+  resultEl.className = "ask-head-result show";
+  resultEl.textContent = "Checking…";
+
+  let result = null;
+  let errorMsg = null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/classify-expense-category`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ question })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || ("HTTP " + res.status));
+    result = data.result;
+  } catch (e) {
+    errorMsg = e.message || String(e);
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Suggest the head";
+
+  if (!result) {
+    resultEl.className = "ask-head-result show err";
+    resultEl.textContent = "Couldn't get a suggestion (" + (errorMsg || "unknown error") + "). Pick the head yourself below.";
+    logExpenseHeadQuery(question, null, null, null, false);
+    return;
+  }
+
+  const catSel = document.getElementById("f-category");
+  const matched = Array.from(catSel.options).some(o => o.value === result.category);
+  if (matched) {
+    catSel.value = result.category;
+    onCategoryChange();
+  }
+
+  const cls = result.confidence === "low" ? "low" : "ok";
+  resultEl.className = "ask-head-result show " + cls;
+  resultEl.innerHTML = `<b>${result.category}</b>${matched ? " (selected below)" : ""} — ${result.reasoning}` +
+    (result.confidence === "low" ? "<br>Low confidence — please double-check this one." : "");
+
+  logExpenseHeadQuery(question, result.category, result.confidence, result.reasoning, matched);
+}
+
+async function logExpenseHeadQuery(question, category, confidence, reasoning, applied) {
+  try {
+    await sb("expense_category_queries", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        location_id: LOCATION_ID,
+        question: question,
+        suggested_category: category,
+        confidence: confidence,
+        reasoning: reasoning,
+        applied: !!applied,
+        asked_by_user_id: state.userId,
+        asked_by_manager_id: state.managerId
+      })
+    });
+  } catch (e) { /* logging is best-effort, never block the employee on it */ }
+}
+document.getElementById("ask-head-btn").addEventListener("click", askExpenseHead);
 
 function todayStr() {
   // Gulberg's business day: before 9:00am PKT still counts as the previous
