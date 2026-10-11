@@ -440,8 +440,17 @@ async function loadEntryList() {
 }
 document.getElementById("f-list-date").addEventListener("change", loadEntryList);
 
-function populateCategories() {
+async function populateCategories() {
   const sel = document.getElementById("f-category");
+  // Categories are managed in Expense Categories (director access) — fall back
+  // to the fixed list below only if that table can't be reached.
+  try {
+    const rows = await sb(`expense_categories?active=eq.true&select=name&order=sort_order`);
+    if (rows && rows.length) {
+      sel.innerHTML = rows.map(r => `<option value="${r.name}">${r.name}</option>`).join("");
+      return;
+    }
+  } catch (e) { /* fall through to the static list */ }
   sel.innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
 }
 
@@ -540,7 +549,17 @@ function openEntry(row) {
 
   document.getElementById("f-date").value = row.expense_date || document.getElementById("f-list-date").value;
   document.getElementById("f-shift").value = row.shift || "";
-  document.getElementById("f-category").value = CATEGORIES.includes(row.category) ? row.category : CATEGORIES[0];
+  const catSel = document.getElementById("f-category");
+  if (row.category && !Array.from(catSel.options).some(o => o.value === row.category)) {
+    // The entry's category has since been renamed or retired — add it back
+    // temporarily so the existing value still shows, instead of silently
+    // swapping it for whatever happens to be first in the list.
+    const opt = document.createElement("option");
+    opt.value = row.category;
+    opt.textContent = `${row.category} (retired)`;
+    catSel.insertBefore(opt, catSel.firstChild);
+  }
+  catSel.value = row.category || (catSel.options[0] ? catSel.options[0].value : "");
   onCategoryChange();
   document.getElementById("f-qty").value = row.qty != null ? row.qty : "";
   document.getElementById("f-rate").value = row.rate != null ? row.rate : "";
@@ -653,8 +672,7 @@ async function saveChanges() {
 }
 document.getElementById("btn-save").addEventListener("click", saveChanges);
 
-populateCategories();
-onCategoryChange();
+populateCategories().then(onCategoryChange);
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);

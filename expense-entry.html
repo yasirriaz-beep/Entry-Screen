@@ -541,8 +541,17 @@ async function loadTodayList() {
   } catch (e) { emptyHint.hidden = false; }
 }
 
-function populateCategories() {
+async function populateCategories() {
   const sel = document.getElementById("f-category");
+  // Categories are managed in Expense Categories (director access) — fall back
+  // to the fixed list below only if that table can't be reached.
+  try {
+    const rows = await sb(`expense_categories?active=eq.true&select=name&order=sort_order`);
+    if (rows && rows.length) {
+      sel.innerHTML = rows.map(r => `<option value="${r.name}">${r.name}</option>`).join("");
+      return;
+    }
+  } catch (e) { /* fall through to the static list */ }
   sel.innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
 }
 
@@ -880,8 +889,7 @@ document.getElementById("btn-another").addEventListener("click", resetForm);
   });
 });
 
-populateCategories();
-onCategoryChange();
+populateCategories().then(onCategoryChange);
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
