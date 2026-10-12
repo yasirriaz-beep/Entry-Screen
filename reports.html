@@ -114,6 +114,8 @@
   .daily-table tfoot td { font-weight: 700; border-top: 2px solid var(--ink); border-bottom: none; background: var(--field-bg); }
   .daily-table td.daily-total, .daily-table th.daily-total-h { font-weight: 700; }
   .daily-date { font-weight: 600; }
+  .daily-date-clickable { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; color: var(--accent); }
+  .daily-date-clickable:hover { text-decoration-style: solid; }
   .daily-row-empty td { color: var(--ink-soft); opacity: 0.55; font-style: italic; }
   .daily-memo-note { font-size: 0.76rem; color: var(--ink-soft); margin: 6px 0 0; }
 </style>
@@ -507,18 +509,45 @@ function buildFixedColsModel(rows, { dateKey, columns, totalField, from, to }) {
   });
   return finalizeDailyModel(dates, columns, matrix, totals);
 }
-function renderDailyTable(model) {
+// `drill` (optional) = { detailId } makes each date clickable — it loads the itemized
+// entries for that one day (including receipt photo links) into a panel below the table.
+// The monthly table only has day totals, so this is the only way back to a single receipt.
+function renderDailyTable(model, drill) {
   const rows = model.dates.map(d => {
     const cells = model.columns.map(c => `<td>${fmtMoney(model.matrix[d][c.key] || 0)}</td>`).join("");
     const empty = model.rowTotal[d] === 0 ? ' class="daily-row-empty"' : "";
-    return `<tr${empty}><td class="daily-date">${fmtDayLabel(d)}</td>${cells}<td class="daily-total">${fmtMoney(model.rowTotal[d])}</td></tr>`;
+    const dateCell = drill
+      ? `<td class="daily-date daily-date-clickable" data-drill-date="${d}">${fmtDayLabel(d)}</td>`
+      : `<td class="daily-date">${fmtDayLabel(d)}</td>`;
+    return `<tr${empty}>${dateCell}${cells}<td class="daily-total">${fmtMoney(model.rowTotal[d])}</td></tr>`;
   }).join("");
   const footCells = model.columns.map(c => `<td>${fmtMoney(model.colTotal[c.key] || 0)}</td>`).join("");
-  return `<div class="daily-table-wrap"><table class="daily-table">
+  const table = `<div class="daily-table-wrap"><table class="daily-table">
     <thead><tr><th>Date</th>${model.columns.map(c => `<th>${escapeHtml(c.label)}</th>`).join("")}<th class="daily-total-h">Total</th></tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr><td>Total</td>${footCells}<td>${fmtMoney(model.grandTotal)}</td></tr></tfoot>
   </table></div>`;
+  if (!drill) return table;
+  return table + `<div class="hint" style="margin:8px 0 2px;">Tap a date above to see that day's line items and receipt photos.</div><div id="${drill.detailId}"></div>`;
+}
+// Shared renderer for a day's itemized entries (used by the drill-down below Expenses,
+// Goods Receipt, and Vendor Payments) — same row-card + photo-link markup the old
+// single-day reports used, so nothing about viewing a receipt has actually changed.
+function renderDayDetailCards(rows, cardFn, emptyMsg) {
+  if (!rows.length) return `<div class="empty-note">${emptyMsg}</div>`;
+  let total = 0;
+  const cards = rows.map(r => { total += Number(r.amount) || 0; return cardFn(r); }).join("");
+  return cards + `<div class="totals-bar"><span>Day total (${rows.length} entries)</span><span>${fmtMoney(total)}</span></div>`;
+}
+function wireDrillDown(resultElId, detailId, loaderFn) {
+  document.getElementById(resultElId).addEventListener("click", (e) => {
+    const cell = e.target.closest(".daily-date-clickable");
+    if (!cell) return;
+    const detailEl = document.getElementById(detailId);
+    if (!detailEl) return;
+    detailEl.innerHTML = '<div class="hint">Loading…</div>';
+    loaderFn(cell.dataset.drillDate, detailEl);
+  });
 }
 function dailyModelToAoa(model, title, from, to) {
   const aoa = [[title], [`Period: ${from} to ${to}`], []];
@@ -602,7 +631,7 @@ async function runExpensesReport() {
   try {
     const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${from}&expense_date=lte.${to}&select=expense_date,category,amount`);
     const model = buildPivotModel(rows, { dateKey: "expense_date", colKeyFn: r => r.category || "Uncategorized", amtKey: "amount", from, to });
-    resultEl.innerHTML = renderDailyTable(model);
+    resultEl.innerHTML = renderDailyTable(model, { detailId: "expenses-detail" });
     state.lastDaily.expenses = { model, from, to, title: "Expenses Report" };
     exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
@@ -610,6 +639,24 @@ async function runExpensesReport() {
 document.getElementById("expenses-run").addEventListener("click", runExpensesReport);
 document.getElementById("expenses-export").addEventListener("click", () => {
   const s = state.lastDaily.expenses; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Expenses");
+});
+wireDrillDown("expenses-result", "expenses-detail", async (date, detailEl) => {
+  try {
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${date}&select=*&order=created_at`);
+    detailEl.innerHTML = renderDayDetailCards(rows, r => {
+      const flagged = r.ai_check_status && r.ai_check_status !== "ok";
+      return `<div class="row-card">
+        <div class="r-title"><span>${r.category || "Expense"}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          ${r.detail ? r.detail + "<br>" : ""}
+          ${r.vendor_id ? "Vendor: " + vendorName(r.vendor_id) + " · " : ""}Payment: ${r.payment_method || "cash"}${r.shift ? " · " + (r.shift === "morning" ? "Morning" : "Evening") : ""}<br>
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
+          ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
+          ${flagged ? `<br><span class="r-flag">Flagged: ${r.ai_check_status}${r.ai_check_reason ? " — " + r.ai_check_reason : ""}</span>` : ""}
+        </div>
+      </div>`;
+    }, "No expenses for this date.");
+  } catch (e) { detailEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 });
 
 // --- Goods Receipt report (monthly, per day, pivoted by vendor) ---
@@ -619,7 +666,7 @@ async function runGoodsReport() {
   try {
     const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=purchase_date,vendor_id,amount`);
     const model = buildPivotModel(rows, { dateKey: "purchase_date", colKeyFn: r => r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned", amtKey: "amount", from, to });
-    resultEl.innerHTML = renderDailyTable(model);
+    resultEl.innerHTML = renderDailyTable(model, { detailId: "goods-detail" });
     state.lastDaily.goods = { model, from, to, title: "Goods Receipt Report" };
     exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
@@ -627,6 +674,20 @@ async function runGoodsReport() {
 document.getElementById("goods-run").addEventListener("click", runGoodsReport);
 document.getElementById("goods-export").addEventListener("click", () => {
   const s = state.lastDaily.goods; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Goods_Receipt");
+});
+wireDrillDown("goods-result", "goods-detail", async (date, detailEl) => {
+  try {
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${date}&select=*&order=created_at`);
+    detailEl.innerHTML = renderDayDetailCards(rows, r => `<div class="row-card">
+        <div class="r-title"><span>${productName(r.product_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          ${r.qty} ${r.unit || ""} @ ${fmtMoney(r.rate)} · Vendor: ${r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned"} · ${r.payment_status === "credit" ? "On credit" : "Paid"}${r.inv_number ? " · Inv# " + r.inv_number : ""}<br>
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
+          ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
+          ${r.variance_note ? `<br><span class="r-flag">Variance: ${r.variance_note}</span>` : ""}
+        </div>
+      </div>`, "No goods received on this date.");
+  } catch (e) { detailEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 });
 
 // --- Issue Entry report (monthly, per day, pivoted by where it was issued to) ---
@@ -653,7 +714,7 @@ async function runVpReport() {
   try {
     const rows = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=gte.${from}&payment_date=lte.${to}&select=payment_date,vendor_id,amount`);
     const model = buildPivotModel(rows, { dateKey: "payment_date", colKeyFn: r => r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned", amtKey: "amount", from, to });
-    resultEl.innerHTML = renderDailyTable(model);
+    resultEl.innerHTML = renderDailyTable(model, { detailId: "vp-detail" });
     state.lastDaily.vp = { model, from, to, title: "Vendor Payments Report" };
     exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
@@ -661,6 +722,19 @@ async function runVpReport() {
 document.getElementById("vp-run").addEventListener("click", runVpReport);
 document.getElementById("vp-export").addEventListener("click", () => {
   const s = state.lastDaily.vp; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Vendor_Payments");
+});
+wireDrillDown("vp-result", "vp-detail", async (date, detailEl) => {
+  try {
+    const rows = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=eq.${date}&select=*&order=created_at`);
+    detailEl.innerHTML = renderDayDetailCards(rows, r => `<div class="row-card">
+        <div class="r-title"><span>${r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned"}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          Method: ${r.method}${r.notes ? " · " + r.notes : ""}<br>
+          Paid by: ${userName(r.paid_by)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
+          ${r.payment_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('vendor-payment-photos','${r.payment_photo_path}')">View Photo</span>` : ""}
+        </div>
+      </div>`, "No vendor payments on this date.");
+  } catch (e) { detailEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 });
 
 // --- Cash Reconciliation report (monthly, per day — fixed columns, Status is text so no
@@ -670,23 +744,23 @@ async function runCrReport() {
   const ctx = rangeAndGuard("cr"); if (!ctx) return;
   const { from, to, resultEl, exportBtn } = ctx;
   try {
-    const rows = await sb(`cash_safe_ledger?ledger_date=gte.${from}&ledger_date=lte.${to}&select=ledger_date,opening_cash,cash_in,cash_out,counted_cash,cash_variance,status&order=ledger_date`);
+    const rows = await sb(`cash_safe_ledger?ledger_date=gte.${from}&ledger_date=lte.${to}&select=ledger_date,opening_cash,cash_in,cash_out,counted_cash,cash_variance,status,safe_photo_path&order=ledger_date`);
     const byDate = {}; rows.forEach(r => { byDate[r.ledger_date] = r; });
     const dates = datesInRange(from, to);
     let sumIn = 0, sumOut = 0, sumVar = 0, flaggedDays = 0;
     const bodyRows = dates.map(d => {
       const r = byDate[d];
-      if (!r) return `<tr class="daily-row-empty"><td class="daily-date">${fmtDayLabel(d)}</td><td colspan="6">No entry</td></tr>`;
+      if (!r) return `<tr class="daily-row-empty"><td class="daily-date">${fmtDayLabel(d)}</td><td colspan="7">No entry</td></tr>`;
       const expected = (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
       const varianceOk = !r.cash_variance || Math.abs(Number(r.cash_variance)) < 1;
       sumIn += Number(r.cash_in) || 0; sumOut += Number(r.cash_out) || 0; sumVar += Number(r.cash_variance) || 0;
       if (!varianceOk) flaggedDays++;
-      return `<tr><td class="daily-date">${fmtDayLabel(d)}</td><td>${fmtMoney(r.opening_cash)}</td><td>${fmtMoney(r.cash_in)}</td><td>${fmtMoney(r.cash_out)}</td><td>${fmtMoney(expected)}</td><td>${r.counted_cash != null ? fmtMoney(r.counted_cash) : "—"}</td><td style="${varianceOk ? "" : "color:var(--err);font-weight:700;"}">${r.cash_variance != null ? fmtMoney(r.cash_variance) : "—"} ${r.status ? `<span class="hint" style="margin:0;">(${r.status})</span>` : ""}</td></tr>`;
+      return `<tr><td class="daily-date">${fmtDayLabel(d)}</td><td>${fmtMoney(r.opening_cash)}</td><td>${fmtMoney(r.cash_in)}</td><td>${fmtMoney(r.cash_out)}</td><td>${fmtMoney(expected)}</td><td>${r.counted_cash != null ? fmtMoney(r.counted_cash) : "—"}</td><td style="${varianceOk ? "" : "color:var(--err);font-weight:700;"}">${r.cash_variance != null ? fmtMoney(r.cash_variance) : "—"} ${r.status ? `<span class="hint" style="margin:0;">(${r.status})</span>` : ""}</td><td>${r.safe_photo_path ? `<span class="photo-link" onclick="viewPhoto('safe-photos','${r.safe_photo_path}')">Photo</span>` : "—"}</td></tr>`;
     }).join("");
     resultEl.innerHTML = `<div class="daily-table-wrap"><table class="daily-table">
-      <thead><tr><th>Date</th><th>Opening</th><th>Cash In</th><th>Cash Out</th><th>Expected</th><th>Counted</th><th>Variance (Status)</th></tr></thead>
+      <thead><tr><th>Date</th><th>Opening</th><th>Cash In</th><th>Cash Out</th><th>Expected</th><th>Counted</th><th>Variance (Status)</th><th>Safe Photo</th></tr></thead>
       <tbody>${bodyRows}</tbody>
-      <tfoot><tr><td>Total</td><td>—</td><td>${fmtMoney(sumIn)}</td><td>${fmtMoney(sumOut)}</td><td>—</td><td>—</td><td style="${flaggedDays ? "color:var(--err);" : ""}">${fmtMoney(sumVar)} ${flaggedDays ? `(${flaggedDays} flagged)` : ""}</td></tr></tfoot>
+      <tfoot><tr><td>Total</td><td>—</td><td>${fmtMoney(sumIn)}</td><td>${fmtMoney(sumOut)}</td><td>—</td><td>—</td><td style="${flaggedDays ? "color:var(--err);" : ""}">${fmtMoney(sumVar)} ${flaggedDays ? `(${flaggedDays} flagged)` : ""}</td><td>—</td></tr></tfoot>
     </table></div>`;
     state.lastDaily.cr = { from, to, rows: dates.map(d => byDate[d] || { ledger_date: d }) };
     exportBtn.disabled = false;
