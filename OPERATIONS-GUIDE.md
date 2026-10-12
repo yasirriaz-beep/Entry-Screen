@@ -103,6 +103,13 @@ their entry.
   Variance) since it's a reconciliation, not a disbursement journal — no row Total.
 - **Payables (Monthly)** stayed as-is — it's already a vendor-by-month view, not a daily one.
 
+**To view a receipt photo**: on Expenses, Goods Receipt, or Vendor Payments, run the monthly
+report, then tap the date you want — a panel opens below the table with that day's itemized
+entries and a "View Photo" link on each one that has a receipt attached. Cash Reconciliation
+shows its safe photo directly as a column in the monthly table (one row per day already, so
+no drill-down needed there). Photos auto-delete after 40 days — the underlying numbers stay
+forever, only the image goes.
+
 ---
 
 ## 5. Open items / things still being built out
