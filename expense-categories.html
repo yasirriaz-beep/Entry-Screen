@@ -305,6 +305,14 @@ function renderCatList() {
             ${c.active ? "Retire" : "Restore"}
           </button>
         </div>
+        <div style="border-top:1px solid var(--border); margin-top:14px; padding-top:12px;">
+          <div class="step-label" style="margin-bottom:8px;">Subcategories</div>
+          <div id="subcats-${c.id}"><div class="hint">Loading…</div></div>
+          <div class="row2" style="margin-top:8px;">
+            <input type="text" class="e-subcat-name" placeholder="New subcategory name">
+            <button type="button" class="btn-primary btn-sm e-subcat-add" style="width:auto;">Add</button>
+          </div>
+        </div>
       </div>`;
     const detail = row.querySelector(".cat-detail");
     row.querySelector(".cat-top").addEventListener("click", async () => {
@@ -320,7 +328,13 @@ function renderCatList() {
               ? "Not used on any expense entry yet — safe to rename or remove freely."
               : `Used on ${n} existing expense ${n === 1 ? "entry" : "entries"} — renaming updates how those entries read, but the amounts/line mapping follow the new name.`;
         }
+        loadSubcats(c);
       }
+    });
+    row.querySelector(".e-subcat-add").addEventListener("click", () => {
+      const input = row.querySelector(".e-subcat-name");
+      addSubcat(c, input.value.trim());
+      input.value = "";
     });
     row.querySelector(".e-save-btn").addEventListener("click", () => saveCategoryEdit(c, row));
     const retireBtn = row.querySelector(".e-retire-btn");
@@ -385,6 +399,86 @@ async function setCategoryActive(c, active) {
     await loadCategories();
   } catch (e) {
     alert("Couldn't update: " + e.message);
+  }
+}
+
+async function subcatUsageCount(categoryName, subName) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/expenses?category=eq.${encodeURIComponent(categoryName)}&subcategory=eq.${encodeURIComponent(subName)}&select=id`, {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, Prefer: "count=exact", Range: "0-0" }
+    });
+    const range = res.headers.get("content-range") || "";
+    const total = range.split("/")[1];
+    return total && total !== "*" ? parseInt(total, 10) : 0;
+  } catch (e) { return null; }
+}
+
+async function loadSubcats(category) {
+  const wrap = document.getElementById(`subcats-${category.id}`);
+  if (!wrap) return;
+  let rows = [];
+  try {
+    rows = await sb(`expense_subcategories?category_id=eq.${category.id}&select=id,name,active,sort_order&order=sort_order`);
+  } catch (e) { wrap.innerHTML = `<div class="hint">Couldn't load: ${e.message}</div>`; return; }
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="hint">No subcategories yet — this category shows no Subcategory dropdown on Expense Entry/Edit until one is added.</div>';
+    return;
+  }
+  wrap.innerHTML = rows.map(s => `
+    <div class="cat-row" style="padding:8px 10px; margin-bottom:6px;" data-subcat-id="${s.id}">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <input type="text" class="e-subcat-rename" value="${s.name.replace(/"/g, "&quot;")}" style="flex:1; padding:7px 9px;">
+        <button type="button" class="btn-primary btn-sm e-subcat-save" style="width:auto;">Save</button>
+        <button type="button" class="btn-sm ${s.active ? "btn-outline-err" : "btn-outline-ok"} e-subcat-toggle" style="width:auto;">${s.active ? "Retire" : "Restore"}</button>
+      </div>
+      ${!s.active ? '<span class="badge">Retired</span>' : ""}
+    </div>`).join("");
+
+  rows.forEach(s => {
+    const rowEl = wrap.querySelector(`[data-subcat-id="${s.id}"]`);
+    rowEl.querySelector(".e-subcat-save").addEventListener("click", async () => {
+      const newName = rowEl.querySelector(".e-subcat-rename").value.trim();
+      if (!newName) return alert("Subcategory name can't be blank.");
+      if (newName === s.name) return;
+      const n = await subcatUsageCount(category.name, s.name);
+      if (n && !confirm(`Rename "${s.name}" to "${newName}"? ${n} existing expense ${n === 1 ? "entry uses" : "entries use"} the old name and won't be updated automatically.`)) return;
+      try {
+        await sb(`expense_subcategories?id=eq.${s.id}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({ name: newName, updated_by_manager_id: state.managerId, updated_at: new Date().toISOString() })
+        });
+        loadSubcats(category);
+      } catch (e) { alert("Couldn't save: " + e.message); }
+    });
+    rowEl.querySelector(".e-subcat-toggle").addEventListener("click", async () => {
+      if (s.active) {
+        const n = await subcatUsageCount(category.name, s.name);
+        const usageMsg = n ? ` ${n} existing expense ${n === 1 ? "entry uses" : "entries use"} it — they keep their history, but no one can pick it for a new entry.` : "";
+        if (!confirm(`Retire "${s.name}"?${usageMsg}`)) return;
+      }
+      try {
+        await sb(`expense_subcategories?id=eq.${s.id}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({ active: !s.active, updated_by_manager_id: state.managerId, updated_at: new Date().toISOString() })
+        });
+        loadSubcats(category);
+      } catch (e) { alert("Couldn't update: " + e.message); }
+    });
+  });
+}
+
+async function addSubcat(category, name) {
+  if (!name) return alert("Enter a subcategory name.");
+  try {
+    const rows = await sb(`expense_subcategories?category_id=eq.${category.id}&select=sort_order&order=sort_order.desc&limit=1`);
+    const nextSort = rows && rows[0] ? rows[0].sort_order + 1 : 1;
+    await sb("expense_subcategories", {
+      method: "POST", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ category_id: category.id, name, sort_order: nextSort, updated_by_manager_id: state.managerId, updated_at: new Date().toISOString() })
+    });
+    loadSubcats(category);
+  } catch (e) {
+    alert("Couldn't add subcategory: " + e.message);
   }
 }
 

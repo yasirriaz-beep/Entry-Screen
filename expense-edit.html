@@ -211,6 +211,22 @@
       <select id="f-category"></select>
     </div>
 
+    <div id="block-subcategory" class="field" hidden>
+      <label>Subcategory</label>
+      <select id="f-subcategory"></select>
+    </div>
+
+    <div id="block-rgm-approval" class="banner banner-warn" hidden>
+      <strong>This category requires RGM sign-off before it can be saved.</strong>
+      <div class="hint" id="rgm-previous-approval" hidden></div>
+      <div id="rgm-approval-pending" style="margin-top:8px;">
+        <input type="password" id="rgm-pin" inputmode="numeric" placeholder="RGM PIN" style="margin-bottom:8px;">
+        <button type="button" class="btn-primary" id="btn-rgm-approve">Get RGM Approval</button>
+        <div class="hint" id="rgm-approval-error" style="color:var(--err);" hidden></div>
+      </div>
+      <div id="rgm-approval-done" class="banner banner-ok" style="margin-top:8px;" hidden></div>
+    </div>
+
     <div id="block-item" class="field" hidden>
       <label>Item Code / Name</label>
       <input type="text" id="f-item-search" placeholder="Start typing an item name...">
@@ -307,9 +323,12 @@ const CATEGORIES = [
 ];
 const ITEM_CODE_CATEGORY = "Inventory Purchase";
 const CHARGED_TO_CATEGORIES = ["Director Draw"];
-const EMPLOYEE_ADVANCE_CATEGORIES = ["Payroll/Employee Charge"];
+const EMPLOYEE_ADVANCE_CATEGORIES = ["Payroll"];
 
-let state = { userId: null, userName: null, managerId: null, products: [], employees: [], currentEntry: null, receiptPhotoPath: null };
+let state = {
+  userId: null, userName: null, managerId: null, products: [], employees: [], currentEntry: null, receiptPhotoPath: null,
+  categoryMeta: {}, subcategoriesByCategory: {}, rgmManager: null, rgmApproval: null
+};
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -421,7 +440,7 @@ async function loadEntryList() {
   emptyHint.hidden = true;
   try {
     const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${date}` +
-      `&select=id,expense_date,category,amount,created_at,detail,shift,vendor_id,payment_method,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path&order=created_at.desc`);
+      `&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at&order=created_at.desc`);
     if (!rows.length) { emptyHint.hidden = false; return; }
     rows.forEach(r => {
       const row = document.createElement("div");
@@ -445,14 +464,101 @@ async function populateCategories() {
   // Categories are managed in Expense Categories (director access) — fall back
   // to the fixed list below only if that table can't be reached.
   try {
-    const rows = await sb(`expense_categories?active=eq.true&select=name&order=sort_order`);
+    const rows = await sb(`expense_categories?active=eq.true&select=name,requires_rgm_approval&order=sort_order`);
     if (rows && rows.length) {
       sel.innerHTML = rows.map(r => `<option value="${r.name}">${r.name}</option>`).join("");
+      state.categoryMeta = {};
+      rows.forEach(r => { state.categoryMeta[r.name] = { requiresRgmApproval: !!r.requires_rgm_approval }; });
       return;
     }
   } catch (e) { /* fall through to the static list */ }
   sel.innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
 }
+
+async function loadSubcategories() {
+  try {
+    const rows = await sb(`expense_subcategories?active=eq.true&select=name,sort_order,category:expense_categories(name)&order=sort_order`);
+    state.subcategoriesByCategory = {};
+    (rows || []).forEach(r => {
+      const catName = r.category && r.category.name;
+      if (!catName) return;
+      (state.subcategoriesByCategory[catName] = state.subcategoriesByCategory[catName] || []).push(r.name);
+    });
+  } catch (e) { state.subcategoriesByCategory = {}; }
+}
+
+async function loadRgmManager() {
+  try {
+    const rows = await sb(`managers?is_rgm=eq.true&active=eq.true&select=id,name&limit=1`);
+    state.rgmManager = rows && rows[0] ? { id: rows[0].id, name: rows[0].name } : null;
+  } catch (e) { state.rgmManager = null; }
+}
+
+function populateSubcategorySelect(category, preselectName) {
+  const list = state.subcategoriesByCategory[category] || [];
+  const sel = document.getElementById("f-subcategory");
+  const block = document.getElementById("block-subcategory");
+  if (!list.length) {
+    block.hidden = true;
+    sel.innerHTML = "";
+    return;
+  }
+  block.hidden = false;
+  let options = list.slice();
+  if (preselectName && !options.includes(preselectName)) options = [preselectName + " (retired)"].concat(options);
+  sel.innerHTML = '<option value="">— pick a subcategory —</option>' +
+    options.map(n => `<option value="${n.replace(" (retired)", "")}">${n}</option>`).join("");
+  if (preselectName) sel.value = preselectName;
+}
+
+function updateRgmApprovalBlock(category) {
+  const meta = state.categoryMeta[category];
+  const block = document.getElementById("block-rgm-approval");
+  state.rgmApproval = null;
+  document.getElementById("rgm-pin").value = "";
+  document.getElementById("rgm-approval-error").hidden = true;
+  document.getElementById("rgm-approval-pending").hidden = false;
+  document.getElementById("rgm-approval-done").hidden = true;
+  if (!meta || !meta.requiresRgmApproval) {
+    block.hidden = true;
+    return;
+  }
+  block.hidden = false;
+  if (!state.rgmManager) {
+    document.getElementById("rgm-approval-error").hidden = false;
+    document.getElementById("rgm-approval-error").textContent = "No RGM is configured for this location — ask the owner to set one up in Manage Access before this category can be used.";
+    document.getElementById("btn-rgm-approve").disabled = true;
+  } else {
+    document.getElementById("btn-rgm-approve").disabled = false;
+  }
+}
+
+async function approveRgm() {
+  const pin = document.getElementById("rgm-pin").value;
+  const errEl = document.getElementById("rgm-approval-error");
+  errEl.hidden = true;
+  if (!state.rgmManager) return;
+  if (!pin) { errEl.hidden = false; errEl.textContent = "Enter the RGM's PIN."; return; }
+  const btn = document.getElementById("btn-rgm-approve");
+  btn.disabled = true;
+  try {
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: state.rgmManager.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("Incorrect RGM PIN.");
+    state.rgmApproval = { managerId: state.rgmManager.id, managerName: state.rgmManager.name, approvedAt: new Date().toISOString() };
+    document.getElementById("rgm-approval-pending").hidden = true;
+    const doneEl = document.getElementById("rgm-approval-done");
+    doneEl.hidden = false;
+    doneEl.textContent = `Approved by ${state.rgmManager.name} at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`;
+  } catch (e) {
+    errEl.hidden = false;
+    errEl.textContent = "Incorrect RGM PIN.";
+    document.getElementById("rgm-pin").value = "";
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btn-rgm-approve").addEventListener("click", approveRgm);
 
 async function loadVendors() {
   try {
@@ -538,6 +644,8 @@ function onCategoryChange() {
   document.getElementById("block-charged-to").hidden = !CHARGED_TO_CATEGORIES.includes(cat);
   document.getElementById("block-employee").hidden = !EMPLOYEE_ADVANCE_CATEGORIES.includes(cat);
   if (isItem && !state.currentEntry) populateItemSelect("");
+  populateSubcategorySelect(cat, state.currentEntry && cat === state.currentEntry.category ? state.currentEntry.subcategory : null);
+  updateRgmApprovalBlock(cat);
   recalcAmount();
 }
 
@@ -572,6 +680,13 @@ function openEntry(row) {
   document.getElementById("f-edit-reason").value = "";
   state.receiptPhotoPath = row.receipt_photo_path || null;
   document.getElementById("save-banner-wrap").innerHTML = "";
+  const prevApprovalEl = document.getElementById("rgm-previous-approval");
+  if (row.rgm_approved_by) {
+    prevApprovalEl.hidden = false;
+    prevApprovalEl.textContent = `This entry was previously approved on ${new Date(row.rgm_approved_at).toLocaleString()} — any further edit needs fresh sign-off.`;
+  } else {
+    prevApprovalEl.hidden = true;
+  }
 
   if (row.category === ITEM_CODE_CATEGORY) {
     populateItemSelect("", row.product_id);
@@ -610,6 +725,14 @@ async function saveChanges() {
   if (EMPLOYEE_ADVANCE_CATEGORIES.includes(cat) && !document.getElementById("f-employee").value) {
     return alert("Pick which employee this advance is for.");
   }
+  const subcatList = state.subcategoriesByCategory[cat] || [];
+  if (subcatList.length && !document.getElementById("f-subcategory").value) {
+    return alert("Pick a subcategory.");
+  }
+  const meta = state.categoryMeta[cat];
+  if (meta && meta.requiresRgmApproval && !state.rgmApproval) {
+    return alert("This category needs RGM approval before it can be saved — enter the RGM's PIN above and get approval first.");
+  }
   if (!editReason) {
     banner.innerHTML = `<div class="banner banner-err">Please say what you're correcting and why — this is required before saving a change to an existing entry.</div>`;
     document.getElementById("f-edit-reason").focus();
@@ -620,11 +743,14 @@ async function saveChanges() {
     expense_date: date,
     shift: document.getElementById("f-shift").value || null,
     category: cat,
+    subcategory: document.getElementById("f-subcategory").value || null,
     amount: amount,
     vendor_id: vendorId,
     detail: detail,
     payment_method: document.getElementById("f-payment-method").value || "cash",
-    edit_reason: editReason
+    edit_reason: editReason,
+    rgm_approved_by: state.rgmApproval ? state.rgmApproval.managerId : null,
+    rgm_approved_at: state.rgmApproval ? state.rgmApproval.approvedAt : null
   };
 
   if (cat === ITEM_CODE_CATEGORY) {
@@ -672,7 +798,7 @@ async function saveChanges() {
 }
 document.getElementById("btn-save").addEventListener("click", saveChanges);
 
-populateCategories().then(onCategoryChange);
+Promise.all([populateCategories(), loadSubcategories(), loadRgmManager()]).then(onCategoryChange);
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);

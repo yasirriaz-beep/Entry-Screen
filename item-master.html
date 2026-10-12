@@ -142,7 +142,8 @@
 
   <div class="card">
     <div class="step-label">Existing Items</div>
-    <input type="text" id="search-items" placeholder="Search by name or code...">
+    <input type="text" id="search-items" placeholder="Search by name, code, or category (e.g. OTHER)...">
+    <div class="hint" style="margin-top:4px;">Tip: search "OTHER" or "Test Category" to find items still waiting on a real category.</div>
     <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
       <input type="checkbox" id="show-inactive" style="width:auto;"> Show retired items too
     </label>
@@ -385,7 +386,7 @@ function renderItemList() {
   const list = document.getElementById("item-list");
   const emptyHint = document.getElementById("item-list-empty");
   const rows = state.products.filter(p =>
-    !search || p.name.toUpperCase().includes(search) || (p.code || "").toUpperCase().includes(search)
+    !search || p.name.toUpperCase().includes(search) || (p.code || "").toUpperCase().includes(search) || (p.category || "").toUpperCase().includes(search)
   );
   list.innerHTML = "";
   if (!rows.length) { emptyHint.hidden = false; return; }

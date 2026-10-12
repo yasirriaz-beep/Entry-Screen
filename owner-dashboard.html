@@ -209,6 +209,12 @@
   </div>
 
   <div class="card">
+    <h2>Charge to Restaurant &mdash; Daily Audit</h2>
+    <div id="charge-to-restaurant-list"><div class="spinner-note">Loading…</div></div>
+    <div class="hint" style="margin-top:8px;">Every entry under this head needs RGM sign-off before it can even be saved. This is the audit trail of what got approved and by whom &mdash; review it daily. Always shows today first, then the rest of the range above.</div>
+  </div>
+
+  <div class="card">
     <h2>Flagged Delivery KM</h2>
     <div id="flagged-km-list"><div class="spinner-note">Loading…</div></div>
     <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="delivery-km-entry.html">Open Delivery KM Log</a>
@@ -452,7 +458,7 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyCashCheck(), loadDailyChecklist(), loadFlaggedKm()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyCashCheck(), loadChargeToRestaurant(), loadDailyChecklist(), loadFlaggedKm()]);
 }
 
 async function loadFlaggedKm() {
@@ -611,6 +617,56 @@ function dailySafeGuidance(row, expectedClosing) {
     return `Counted ${fmtMoney(Math.abs(variance))} less than expected (${pct.toFixed(1)}%) — check for an unlogged cash expense, a till handover that didn't make it into the safe, or a miscount.`;
   }
   return `Counted ${fmtMoney(variance)} more than expected (${pct.toFixed(1)}%) — check for a cash receipt that wasn't logged as Cash In, or a miscount.`;
+}
+
+// Charge to Restaurant requires RGM sign-off to even save (enforced server-side), so this
+// panel is the audit trail rather than a live risk check — but "today" is surfaced first and
+// separately, since the owner asked for a daily look at this category specifically.
+async function loadChargeToRestaurant() {
+  const wrap = document.getElementById("charge-to-restaurant-list");
+  const { from, to } = rangeDates();
+  const today = todayStr();
+
+  let rows = [];
+  try {
+    rows = await sb(`expenses?location_id=eq.${state.locationId}&category=eq.${encodeURIComponent("Charge to Restaurant")}` +
+      `&expense_date=gte.${from}&expense_date=lte.${to}` +
+      `&select=id,expense_date,subcategory,amount,detail,entered_by_manager_id,rgm_approved_by,rgm_approved_at,created_at` +
+      `&order=expense_date.desc,created_at.desc`);
+  } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
+
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty-note">No Charge to Restaurant entries in this range.</div>';
+    return;
+  }
+
+  const managerIds = [...new Set(rows.flatMap(r => [r.entered_by_manager_id, r.rgm_approved_by]).filter(Boolean))];
+  let managerNames = {};
+  if (managerIds.length) {
+    try {
+      const mgrs = await sb(`managers?id=in.(${managerIds.join(",")})&select=id,name`);
+      mgrs.forEach(m => { managerNames[m.id] = m.name; });
+    } catch (e) { /* names are a nicety, not fatal */ }
+  }
+
+  const todayRows = rows.filter(r => r.expense_date === today);
+  const todayTotal = todayRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+  const renderRow = (r) => `<div class="alert-row">
+      <div>
+        <div class="alert-title">${r.expense_date} &middot; ${fmtMoney(Number(r.amount) || 0)}${r.subcategory ? " &middot; " + r.subcategory : ""}</div>
+        <div class="alert-sub">Entered by ${managerNames[r.entered_by_manager_id] || "—"}${r.detail ? " &middot; " + r.detail : ""}</div>
+        <div class="alert-sub">${r.rgm_approved_by ? `Approved by ${managerNames[r.rgm_approved_by] || "RGM"} at ${new Date(r.rgm_approved_at).toLocaleString()}` : '<span style="color:var(--err,#b3261e);">No RGM approval on file</span>'}</div>
+      </div>
+    </div>`;
+
+  const todayBanner = todayRows.length
+    ? `<div class="alert-row" style="background:var(--warn-bg,#fdf1dd);border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+         <div class="alert-title">Today: ${todayRows.length} ${todayRows.length === 1 ? "entry" : "entries"}, ${fmtMoney(todayTotal)} total</div>
+       </div>`
+    : `<div class="empty-note" style="margin-bottom:8px;">Nothing logged under Charge to Restaurant today.</div>`;
+
+  wrap.innerHTML = todayBanner + rows.map(renderRow).join("");
 }
 
 async function loadDailyCashCheck() {
