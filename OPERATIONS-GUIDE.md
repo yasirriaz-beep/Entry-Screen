@@ -112,7 +112,57 @@ forever, only the image goes.
 
 ---
 
-## 5. Open items / things still being built out
+## 5. Till Cash Reconciliation (Sales Entry)
+
+Each shift's till starts at a standard float (PKR 40,000) and should also **end** at that
+same float — the custodian sweeps anything above it out of the till. As of Oct 12, 2026,
+`sales-entry.html` has a dedicated **"Cash left in till for next shift"** field, separate from
+"Closing cash in till (physical count)":
+
+- **Closing cash in till** = the full physical count before any of it leaves the till.
+- **Cash left in till for next shift** (defaults to 40,000) = what's deliberately kept behind
+  as next shift's opening float. This is what actually carries forward as the next shift's
+  opening balance (previously the system carried forward the raw closing count, which silently
+  propagated any miscount or shortfall into the next shift).
+
+Formula: `Implied cash expenses = Opening + Cash Sales + Custodian ± − Closing + Leftover`.
+Leaving the full 40,000 float no longer looks like an unexplained cash shortfall — it's added
+back in. This should match what the Cash Custodian separately recorded as cash expenses paid
+directly out of the till; a mismatch means a recount is needed.
+
+The Owner Dashboard's cash-recon audit list and the "Morning shift" recap shown to the evening
+manager both use the same corrected formula.
+
+**Older rows** (saved before Oct 12, 2026) have no `till_leftover_amount` — the system falls
+back to their raw `closing_cash_till` for continuity, same as before.
+
+---
+
+## 6. Cash Reconciliation (the Safe page) — why Cash In / Cash Out can read PKR 0
+
+`cash-reconciliation.html` tracks the **safe**, one level up from the till. Its Cash In and
+Cash Out are pulled automatically — there's nothing to type in on that page itself — and they
+depend on upstream data existing for that same day:
+
+- **Cash In** comes from the till-to-safe handover (`custodian_cash_amount` on `daily_sales`).
+  It stays PKR 0 until a shift manager actually fills in and saves the Till Cash Reconciliation
+  section on `sales-entry.html` for that shift (custodian amount + closing cash). Sales amounts
+  alone (covers/revenue) don't trigger this — the handover has to be entered and saved
+  separately, same shift.
+- **Cash Out** only counts expenses and vendor payments paid **directly from the safe**
+  (`shift` left blank on the expense). A shift-tied expense was already paid out of the
+  cashier's till during the shift, and shows up as a *smaller* Cash In instead — counting it
+  again here would deduct it twice. So a day where every cash expense was logged against a
+  shift will correctly show Cash Out = 0; that's by design, not a bug.
+
+If both read 0 on a day with real activity, check: (1) has every shift for that day actually
+saved its Till Cash Reconciliation section, and (2) were the day's cash expenses meant to be
+paid from the safe directly (no shift) or from a till during a shift (shift set) — only the
+former shows up here.
+
+---
+
+## 7. Open items / things still being built out
 
 This system is being built incrementally. When something needed isn't there yet, it gets
 listed here until it's resolved — treat this as the punch list, not just a changelog.

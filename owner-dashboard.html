@@ -544,7 +544,7 @@ async function loadCashReconHistory() {
   let sales = [];
   try {
     sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&shift=not.is.null` +
-      `&select=sale_date,shift,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale,card_amount,opening_cash_till,closing_cash_till,custodian_cash_amount` +
+      `&select=sale_date,shift,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale,card_amount,opening_cash_till,closing_cash_till,custodian_cash_amount,till_leftover_amount` +
       `&order=sale_date.desc,shift.asc`);
   } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
   if (!sales.length) { wrap.innerHTML = '<div class="empty-note">No shift cash-recon entries for this range yet.</div>'; return; }
@@ -568,7 +568,8 @@ async function loadCashReconHistory() {
     const custodian = Number(s.custodian_cash_amount) || 0;
     const opening = Number(s.opening_cash_till) || 0;
     const closing = s.closing_cash_till != null ? Number(s.closing_cash_till) : null;
-    const implied = closing != null ? opening + cashSales + custodian - closing : null;
+    const leftover = s.till_leftover_amount != null ? Number(s.till_leftover_amount) : 0;
+    const implied = closing != null ? opening + cashSales + custodian - closing + leftover : null;
     const actual = actualByKey[s.sale_date + "|" + s.shift] || 0;
     const diff = implied != null ? Math.round(implied - actual) : null;
     const shiftLabel = s.shift === "morning" ? "Morning" : "Evening";
@@ -579,10 +580,10 @@ async function loadCashReconHistory() {
         ? `<span class="pill-badge pill-err">Off ${diff > 0 ? "+" : ""}${fmtMoney(diff)}</span>`
         : '<span class="pill-badge pill-ok">OK</span>';
     }
-    // The till should always start and end at the fixed PKR 40,000 float — anything else means
-    // the cashier didn't hand over the full excess, or a prior shift left it short/over.
-    const floatNote = closing != null && Math.abs(closing - 40000) > 1
-      ? `<div class="alert-sub" style="margin-top:4px;">Till closed at ${fmtMoney(closing)}, not the PKR 40,000 float — the difference should have been handed to the custodian.</div>`
+    // The till should always be left with the fixed PKR 40,000 float for the next shift —
+    // anything else means the cashier didn't leave the full standard float behind.
+    const floatNote = closing != null && Math.abs(leftover - 40000) > 1
+      ? `<div class="alert-sub" style="margin-top:4px;">Left ${fmtMoney(leftover)} in the till for next shift, not the PKR 40,000 float.</div>`
       : "";
     return `<div class="alert-row">
       <div>

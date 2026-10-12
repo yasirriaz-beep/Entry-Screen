@@ -196,10 +196,15 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
       <label for="closingCash">Closing cash in till (physical count)</label>
       <input type="number" id="closingCash" min="0" inputmode="decimal" placeholder="0">
     </div>
+    <div class="field" style="margin-top:10px">
+      <label for="leftoverCash">Cash left in till for next shift (float carried forward)</label>
+      <input type="number" id="leftoverCash" min="0" inputmode="decimal" placeholder="40000" value="40000">
+      <p class="muted" style="margin:4px 0 0;font-size:.78rem">Standard float is PKR 40,000. This stays in the till when the custodian sweeps the rest out, and becomes the next shift's opening balance.</p>
+    </div>
     <div class="field" style="margin-top:12px;background:var(--surface-2);border-radius:9px;padding:12px">
       <label style="margin-bottom:2px">Implied cash expenses this shift</label>
       <div class="num" id="impliedExpenses" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
-      <p class="muted" style="margin:6px 0 0;font-size:.78rem">Opening + Cash Sales + Custodian &minus; Closing. Should match what Cash Custodian recorded as cash expenses for this shift — if it doesn't, recount before saving.</p>
+      <p class="muted" style="margin:6px 0 0;font-size:.78rem">Opening + Cash Sales + Custodian &minus; Closing + Leftover left in till. Should match what Cash Custodian recorded as cash expenses for this shift — if it doesn't, recount before saving.</p>
     </div>
   </div>
 
@@ -293,7 +298,8 @@ function recalcCashRecon(){
 
   const closingEntered = document.getElementById("closingCash").value !== "";
   const closing = n("closingCash");
-  const implied = openingCashTill + cashSales + custodianSigned - closing;
+  const leftover = n("leftoverCash");
+  const implied = openingCashTill + cashSales + custodianSigned - closing + leftover;
 
   const impliedEl = document.getElementById("impliedExpenses");
   impliedEl.textContent = closingEntered ? "PKR " + Math.round(implied).toLocaleString() : "PKR 0";
@@ -304,6 +310,7 @@ function resetForm(){
   ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount","custodianAmount","closingCash"]
     .forEach(id => document.getElementById(id).value = "");
   document.getElementById("custodianDirection").value = "given";
+  document.getElementById("leftoverCash").value = "40000"; // standard float, resets here same as a fresh shift
   existingEntryId = null;
   recalcSummary();
 }
@@ -372,17 +379,24 @@ const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
 async function fetchOpeningCash(saleDate, shift){
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&select=sale_date,shift,closing_cash_till&order=sale_date.desc&limit=20`,
+      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&select=sale_date,shift,closing_cash_till,till_leftover_amount&order=sale_date.desc&limit=20`,
       { headers }
     );
     if (!res.ok) throw new Error(String(res.status));
     const rows = await res.json();
     const cur = [saleDate, SHIFT_ORDER[shift]];
     const prior = rows
-      .map(r => ({ key: [r.sale_date, SHIFT_ORDER[r.shift]], closing: r.closing_cash_till }))
+      .map(r => ({ key: [r.sale_date, SHIFT_ORDER[r.shift]], closing: r.closing_cash_till, leftover: r.till_leftover_amount }))
       .filter(r => r.key[0] < cur[0] || (r.key[0] === cur[0] && r.key[1] < cur[1]))
       .sort((a, b) => (a.key[0] < b.key[0] ? 1 : a.key[0] > b.key[0] ? -1 : b.key[1] - a.key[1]));
-    return prior.length && prior[0].closing != null ? Number(prior[0].closing) : 40000;
+    if (!prior.length) return 40000;
+    // Next shift's opening is whatever the previous shift deliberately left in the till —
+    // not the raw physical closing count, which includes cash the custodian swept out.
+    // Older rows saved before this field existed fall back to closing_cash_till so history
+    // doesn't break.
+    const last = prior[0];
+    if (last.leftover != null) return Number(last.leftover);
+    return last.closing != null ? Number(last.closing) : 40000;
   } catch (e) {
     return 40000;
   }
@@ -399,7 +413,7 @@ async function loadShiftEntry(){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.${shift}` +
-      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount`,
+      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,till_leftover_amount`,
       { headers }
     );
     if (res.ok) {
@@ -427,6 +441,7 @@ async function loadShiftEntry(){
     document.getElementById("custodianDirection").value = custodian < 0 ? "picked" : "given";
     document.getElementById("custodianAmount").value = custodian ? Math.abs(custodian) : "";
     document.getElementById("closingCash").value = existing.closing_cash_till != null ? existing.closing_cash_till : "";
+    document.getElementById("leftoverCash").value = existing.till_leftover_amount != null ? existing.till_leftover_amount : "40000";
 
     const total = existing.total_sale != null ? existing.total_sale : (existing.dine_in_amount + existing.takeaway_amount + existing.delivery_amount + existing.third_party_amount + (existing.food_panda_amount || 0));
     body.innerHTML = `
@@ -442,6 +457,7 @@ async function loadShiftEntry(){
   } else {
     existingEntryId = null;
     openingCashTill = await fetchOpeningCash(saleDate, shift);
+    document.getElementById("leftoverCash").value = "40000";
     todayCard.hidden = true;
   }
 
@@ -460,7 +476,7 @@ async function loadMorningReconCard(saleDate, shift){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.morning` +
-      `&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount`,
+      `&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,till_leftover_amount`,
       { headers }
     );
     if (!res.ok) throw new Error(String(res.status));
@@ -477,7 +493,8 @@ async function loadMorningReconCard(saleDate, shift){
     const custodian = Number(m.custodian_cash_amount) || 0;
     const opening = Number(m.opening_cash_till) || 0;
     const closing = m.closing_cash_till != null ? Number(m.closing_cash_till) : null;
-    const implied = closing != null ? (opening + cashSales + custodian - closing) : null;
+    const leftover = m.till_leftover_amount != null ? Number(m.till_leftover_amount) : 0;
+    const implied = closing != null ? (opening + cashSales + custodian - closing + leftover) : null;
 
     body.innerHTML = `
       Dine-in: PKR ${Math.round(m.dine_in_amount || 0).toLocaleString()} &middot;
@@ -546,7 +563,7 @@ document.getElementById("dateInput").addEventListener("change", loadShiftEntry);
 ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount"]
   .forEach(id => document.getElementById(id).addEventListener("input", recalcSummary));
 
-["cardAmount","custodianAmount","closingCash"]
+["cardAmount","custodianAmount","closingCash","leftoverCash"]
   .forEach(id => document.getElementById(id).addEventListener("input", recalcCashRecon));
 document.getElementById("custodianDirection").addEventListener("change", recalcCashRecon);
 
@@ -572,6 +589,8 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
   const direction = document.getElementById("custodianDirection").value;
   const custodianSigned = direction === "picked" ? -n("custodianAmount") : n("custodianAmount");
   const closingEntered = document.getElementById("closingCash").value !== "";
+  const leftoverEntered = document.getElementById("leftoverCash").value !== "";
+  const leftoverAmount = leftoverEntered ? n("leftoverCash") : 40000;
 
   const payload = {
     location_id: locationId,
@@ -592,6 +611,7 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
     card_amount: n("cardAmount"),
     custodian_cash_amount: custodianSigned,
     closing_cash_till: closingEntered ? n("closingCash") : null,
+    till_leftover_amount: leftoverAmount,
     entered_by_user_id: whoId,
     entered_by_manager_id: resolvedManagerId,
   };
