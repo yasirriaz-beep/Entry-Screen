@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
@@ -76,6 +77,33 @@
   table.simple th, table.simple td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--border); }
   table.simple th { color: var(--ink-soft); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .retention-note { font-size: 0.76rem; color: var(--ink-soft); margin: -6px 0 14px; }
+
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .btn-preset { background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 999px; padding: 8px 14px; font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-preset:hover { border-color: var(--accent); }
+  .pl-period-hdr { margin-bottom: 12px; font-family: 'Zilla Slab', Georgia, serif; }
+  .pl-period-hdr .hint { margin: 2px 0 0; }
+  .pl-section-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); font-weight: 700; margin: 14px 0 2px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .pl-section-title.pl-warn-title { color: var(--err); border-bottom-color: var(--err); }
+  .pl-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 0; font-size: 0.88rem; }
+  .pl-row.clickable { cursor: pointer; }
+  .pl-row.clickable:hover { background: var(--field-bg); border-radius: 6px; }
+  .pl-label { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+  .pl-caret { display: inline-block; width: 12px; font-size: 0.7rem; transition: transform 0.15s ease; color: var(--ink-soft); flex-shrink: 0; }
+  .pl-caret.open { transform: rotate(90deg); }
+  .pl-amt-wrap { display: flex; gap: 10px; align-items: baseline; flex-shrink: 0; }
+  .pl-pct { font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 0.75rem; width: 44px; text-align: right; }
+  .pl-amt { font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; }
+  .lvl-0 { font-weight: 700; }
+  .lvl-1 { padding-left: 16px; }
+  .lvl-2 { padding-left: 32px; color: var(--ink-soft); font-size: 0.82rem; }
+  .pl-subtotal { border-top: 1px solid var(--border); margin-top: 2px; padding-top: 7px; }
+  .pl-grandtotal { border-top: 2px solid var(--ink); margin-top: 8px; padding-top: 9px; font-family: 'Zilla Slab', Georgia, serif; font-size: 1.02rem; }
+  .pl-net-income { background: var(--ok-bg); border-radius: 8px; padding: 10px 8px; margin-top: 12px; color: var(--ok); border-top: none; }
+  .pl-children[hidden] { display: none; }
+  .pl-memo-box { background: var(--warn-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 16px; }
+  .pl-memo-box .pl-row .pl-amt, .pl-memo-box .pl-row .pl-label { color: var(--warn); }
+  .pl-uncat-banner { border: 1px solid var(--err); background: var(--err-bg); color: var(--err); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; font-weight: 600; margin-bottom: 14px; }
 </style>
 </head>
 <body>
@@ -104,6 +132,7 @@
     <button class="tab-btn" data-tab="vendor_payments">Vendor Payments</button>
     <button class="tab-btn" data-tab="cash_recon">Cash Recon</button>
     <button class="tab-btn" data-tab="payables">Payables (Monthly)</button>
+    <button class="tab-btn" data-tab="income_statement">Income Statement</button>
   </div>
 
   <!-- Sales -->
@@ -180,6 +209,26 @@
         <div><button class="btn-primary" id="pay-run" type="button">Run Report</button></div>
       </div>
       <div id="pay-result"><div class="hint">Pick a month and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Income Statement -->
+  <div class="report-panel" data-panel="income_statement">
+    <div class="card">
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-preset="this_year">This Year</button>
+      </div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="is-from"></div>
+        <div><label>To</label><input type="date" id="is-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="is-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="is-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="is-result"><div class="hint">Pick a period and run the report, or tap a quick range above.</div></div>
     </div>
   </div>
 
@@ -322,6 +371,8 @@ function afterLogin(userId, name, managerId, role) {
   const d = todayStr();
   ["sales-date", "expenses-date", "goods-date", "issue-date", "vp-date", "cr-date"].forEach(id => { document.getElementById(id).value = d; });
   document.getElementById("pay-month").value = d.slice(0, 7);
+  document.getElementById("is-from").value = d.slice(0, 8) + "01";
+  document.getElementById("is-to").value = d;
   loadLookups();
 }
 
@@ -535,6 +586,280 @@ async function runPayReport() {
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 }
 document.getElementById("pay-run").addEventListener("click", runPayReport);
+
+// --- Income Statement (QuickBooks-style P&L) ---
+// Built from expense_categories' code/group_name (Cost of Sales / Payroll & Benefits /
+// Occupancy / Operating Expenses / Marketing & Delivery / G&A / Below-the-line) and
+// daily_sales' channel columns. Deliberately NOT built off chart_of_accounts/journal_entries
+// — those tables exist but nothing in this app posts to them, so they're not the source of truth.
+const OPEX_GROUP_ORDER = ["Payroll & Benefits", "Occupancy", "Operating Expenses", "Marketing & Delivery", "G&A / Other"];
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function pctOf(amount, base) { return base ? (amount / base * 100).toFixed(1) + "%" : "—"; }
+function pctNum(amount, base) { return base ? Number((amount / base * 100).toFixed(1)) : ""; }
+function roundNum(n) { return Math.round(Number(n) || 0); }
+function fmtDateLabel(d) {
+  const dt = new Date(d + "T00:00:00");
+  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+async function computeIncomeStatementModel(from, to) {
+  const [cats, exps, salesRows] = await Promise.all([
+    sb(`expense_categories?select=name,code,group_name,is_below_the_line&order=sort_order`),
+    sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${from}&expense_date=lte.${to}&select=category,subcategory,amount`),
+    sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale`)
+  ]);
+
+  const catMap = {};
+  cats.forEach(c => { catMap[c.name] = c; });
+
+  let sDineIn = 0, sTakeaway = 0, sDelivery = 0, sThird = 0, sPanda = 0, sBakery = 0;
+  salesRows.forEach(r => {
+    sDineIn += Number(r.dine_in_amount) || 0;
+    sTakeaway += Number(r.takeaway_amount) || 0;
+    sDelivery += Number(r.delivery_amount) || 0;
+    sThird += Number(r.third_party_amount) || 0;
+    sPanda += Number(r.food_panda_amount) || 0;
+    sBakery += Number(r.bakery_sale) || 0;
+  });
+  const revenueLinesRaw = [
+    { label: "Dine In", amount: sDineIn },
+    { label: "Takeaway", amount: sTakeaway },
+    { label: "Delivery", amount: sDelivery },
+    { label: "Third Party / Careem", amount: sThird },
+    { label: "Food Panda", amount: sPanda },
+    { label: "Bakery", amount: sBakery }
+  ];
+  const revenueLines = revenueLinesRaw.filter(l => Math.abs(l.amount) > 0.004);
+  const totalRevenue = revenueLinesRaw.reduce((a, l) => a + l.amount, 0);
+
+  const groups = {};
+  let uncategorizedTotal = 0;
+  exps.forEach(e => {
+    const amt = Number(e.amount) || 0;
+    const meta = catMap[e.category];
+    const groupName = meta && meta.group_name ? meta.group_name : "Uncategorized / Needs Review";
+    if (!meta || !meta.group_name) uncategorizedTotal += amt;
+    if (!groups[groupName]) groups[groupName] = { total: 0, categories: {} };
+    groups[groupName].total += amt;
+    const catName = e.category || "Uncategorized";
+    if (!groups[groupName].categories[catName]) groups[groupName].categories[catName] = { total: 0, code: meta ? meta.code : "", subcats: {} };
+    groups[groupName].categories[catName].total += amt;
+    if (e.subcategory) {
+      groups[groupName].categories[catName].subcats[e.subcategory] = (groups[groupName].categories[catName].subcats[e.subcategory] || 0) + amt;
+    }
+  });
+
+  function categoriesArray(catObj) {
+    return Object.keys(catObj)
+      .sort((a, b) => (catObj[a].code || "").localeCompare(catObj[b].code || "") || a.localeCompare(b))
+      .map(name => ({
+        name,
+        total: catObj[name].total,
+        subcats: Object.keys(catObj[name].subcats).sort().map(s => ({ name: s, amount: catObj[name].subcats[s] }))
+      }));
+  }
+
+  const cogsGroup = groups["Cost of Sales"];
+  const cogsCategories = cogsGroup ? categoriesArray(cogsGroup.categories) : [];
+  const cogsTotal = cogsGroup ? cogsGroup.total : 0;
+
+  const belowGroup = groups["Below-the-line"];
+  const belowLines = belowGroup ? categoriesArray(belowGroup.categories) : [];
+  const belowTotal = belowGroup ? belowGroup.total : 0;
+
+  const handled = new Set(["Cost of Sales", "Below-the-line"]);
+  const opexGroups = [];
+  OPEX_GROUP_ORDER.forEach(name => {
+    if (groups[name]) { opexGroups.push({ name, total: groups[name].total, categories: categoriesArray(groups[name].categories) }); handled.add(name); }
+  });
+  Object.keys(groups).forEach(name => {
+    if (!handled.has(name)) opexGroups.push({ name, total: groups[name].total, categories: categoriesArray(groups[name].categories) });
+  });
+
+  const totalOpex = opexGroups.reduce((a, g) => a + g.total, 0);
+  const grossProfit = totalRevenue - cogsTotal;
+  const netOperatingIncome = grossProfit - totalOpex;
+
+  return {
+    revenueLines, totalRevenue, cogsCategories, cogsTotal, grossProfit,
+    opexGroups, totalOpex, netOperatingIncome, belowLines, belowTotal,
+    netIncome: netOperatingIncome, uncategorizedTotal
+  };
+}
+
+let plToggleId = 0;
+function plRow({ label, amount, pct, level, boldClass, clickable, childrenHTML }) {
+  plToggleId++;
+  const cid = `pl-c-${plToggleId}`;
+  const caret = clickable
+    ? `<span class="pl-caret" data-caret>&#9656;</span>`
+    : `<span class="pl-caret" style="visibility:hidden">&#9656;</span>`;
+  const header = `<div class="pl-row lvl-${level} ${boldClass || ""} ${clickable ? "clickable" : ""}" ${clickable ? `data-toggle="${cid}"` : ""}>
+      <span class="pl-label">${caret}${escapeHtml(label)}</span>
+      <span class="pl-amt-wrap"><span class="pl-pct">${pct == null ? "" : pct}</span><span class="pl-amt">${fmtMoney(amount)}</span></span>
+    </div>`;
+  const children = clickable ? `<div class="pl-children" id="${cid}" hidden>${childrenHTML}</div>` : "";
+  return header + children;
+}
+
+function renderIncomeStatement(model, from, to) {
+  plToggleId = 0;
+  const R = model.totalRevenue;
+  let html = "";
+
+  if (model.uncategorizedTotal) {
+    html += `<div class="pl-uncat-banner">&#9888; ${fmtMoney(model.uncategorizedTotal)} in expenses fell under a category with no income-statement group assigned &mdash; check Expense Categories.</div>`;
+  }
+
+  html += `<div class="pl-period-hdr"><strong>Forks N Knives &mdash; Gulberg</strong><br><span class="hint">Income Statement &middot; ${fmtDateLabel(from)} to ${fmtDateLabel(to)}</span></div>`;
+
+  html += `<div class="pl-section-title">Revenue</div>`;
+  model.revenueLines.forEach(l => { html += plRow({ label: l.label, amount: l.amount, pct: pctOf(l.amount, R), level: 1 }); });
+  html += plRow({ label: "Total Revenue", amount: R, pct: pctOf(R, R), level: 0, boldClass: "pl-subtotal" });
+
+  html += `<div class="pl-section-title">Cost of Sales</div>`;
+  model.cogsCategories.forEach(c => {
+    const hasSub = c.subcats.length > 0;
+    const childHtml = hasSub ? c.subcats.map(s => plRow({ label: s.name, amount: s.amount, pct: pctOf(s.amount, R), level: 2 })).join("") : "";
+    html += plRow({ label: c.name, amount: c.total, pct: pctOf(c.total, R), level: 1, clickable: hasSub, childrenHTML: childHtml });
+  });
+  html += plRow({ label: "Total Cost of Sales", amount: model.cogsTotal, pct: pctOf(model.cogsTotal, R), level: 0, boldClass: "pl-subtotal" });
+  html += plRow({ label: "Gross Profit", amount: model.grossProfit, pct: pctOf(model.grossProfit, R), level: 0, boldClass: "pl-grandtotal" });
+
+  model.opexGroups.forEach(g => {
+    const isWarn = g.name.indexOf("Uncategorized") === 0;
+    html += `<div class="pl-section-title${isWarn ? " pl-warn-title" : ""}">${escapeHtml(g.name)}</div>`;
+    g.categories.forEach(c => {
+      const hasSub = c.subcats.length > 0;
+      const childHtml = hasSub ? c.subcats.map(s => plRow({ label: s.name, amount: s.amount, pct: pctOf(s.amount, R), level: 2 })).join("") : "";
+      html += plRow({ label: c.name, amount: c.total, pct: pctOf(c.total, R), level: 1, clickable: hasSub, childrenHTML: childHtml });
+    });
+    html += plRow({ label: `Total ${g.name}`, amount: g.total, pct: pctOf(g.total, R), level: 0, boldClass: "pl-subtotal" });
+  });
+
+  html += plRow({ label: "Total Operating Expenses", amount: model.totalOpex, pct: pctOf(model.totalOpex, R), level: 0, boldClass: "pl-subtotal" });
+  html += plRow({ label: "Net Operating Income", amount: model.netOperatingIncome, pct: pctOf(model.netOperatingIncome, R), level: 0, boldClass: "pl-grandtotal" });
+
+  if (model.belowLines.length) {
+    html += `<div class="pl-memo-box">
+      <div class="pl-section-title" style="margin-top:0;">Memo &mdash; Non-Operating Cash Movements <span class="hint" style="margin:2px 0 0;">(not included in Net Income &mdash; Director Draw, payable settlements, and interstore transfers aren't real revenue or expense)</span></div>
+      ${model.belowLines.map(c => plRow({ label: c.name, amount: c.total, level: 1 })).join("")}
+      ${plRow({ label: "Total Non-Operating", amount: model.belowTotal, level: 0, boldClass: "pl-subtotal" })}
+    </div>`;
+  }
+
+  html += plRow({ label: "Net Income", amount: model.netIncome, pct: pctOf(model.netIncome, R), level: 0, boldClass: "pl-grandtotal pl-net-income" });
+  return html;
+}
+
+function modelToAoa(model, from, to) {
+  const R = model.totalRevenue;
+  const aoa = [];
+  aoa.push(["Forks N Knives — Gulberg"]);
+  aoa.push(["Income Statement"]);
+  aoa.push([`Period: ${from} to ${to}`]);
+  aoa.push([]);
+  aoa.push(["Line", "Amount (PKR)", "% of Revenue"]);
+  aoa.push(["Revenue"]);
+  model.revenueLines.forEach(l => aoa.push([`  ${l.label}`, roundNum(l.amount), pctNum(l.amount, R)]));
+  aoa.push(["Total Revenue", roundNum(R), pctNum(R, R)]);
+  aoa.push([]);
+  aoa.push(["Cost of Sales"]);
+  model.cogsCategories.forEach(c => {
+    aoa.push([`  ${c.name}`, roundNum(c.total), pctNum(c.total, R)]);
+    c.subcats.forEach(s => aoa.push([`    ${s.name}`, roundNum(s.amount), pctNum(s.amount, R)]));
+  });
+  aoa.push(["Total Cost of Sales", roundNum(model.cogsTotal), pctNum(model.cogsTotal, R)]);
+  aoa.push([]);
+  aoa.push(["Gross Profit", roundNum(model.grossProfit), pctNum(model.grossProfit, R)]);
+  aoa.push([]);
+  model.opexGroups.forEach(g => {
+    aoa.push([g.name]);
+    g.categories.forEach(c => {
+      aoa.push([`  ${c.name}`, roundNum(c.total), pctNum(c.total, R)]);
+      c.subcats.forEach(s => aoa.push([`    ${s.name}`, roundNum(s.amount), pctNum(s.amount, R)]));
+    });
+    aoa.push([`Total ${g.name}`, roundNum(g.total), pctNum(g.total, R)]);
+    aoa.push([]);
+  });
+  aoa.push(["Total Operating Expenses", roundNum(model.totalOpex), pctNum(model.totalOpex, R)]);
+  aoa.push([]);
+  aoa.push(["Net Operating Income", roundNum(model.netOperatingIncome), pctNum(model.netOperatingIncome, R)]);
+  aoa.push([]);
+  if (model.belowLines.length) {
+    aoa.push(["Memo — Non-Operating (not included above)"]);
+    model.belowLines.forEach(c => aoa.push([`  ${c.name}`, roundNum(c.total)]));
+    aoa.push(["Total Non-Operating", roundNum(model.belowTotal)]);
+    aoa.push([]);
+  }
+  aoa.push(["Net Income", roundNum(model.netIncome), pctNum(model.netIncome, R)]);
+  if (model.uncategorizedTotal) {
+    aoa.push([]);
+    aoa.push([`NOTE: PKR ${roundNum(model.uncategorizedTotal)} in expenses had no category group assigned — review Expense Categories.`]);
+  }
+  return aoa;
+}
+
+function exportIncomeStatementToExcel(model, from, to) {
+  const aoa = modelToAoa(model, from, to);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 36 }, { wch: 16 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Income Statement");
+  XLSX.writeFile(wb, `Gulberg_Income_Statement_${from}_to_${to}.xlsx`);
+}
+
+async function runIncomeStatement() {
+  const from = document.getElementById("is-from").value;
+  const to = document.getElementById("is-to").value;
+  const resultEl = document.getElementById("is-result");
+  const exportBtn = document.getElementById("is-export");
+  exportBtn.disabled = true;
+  if (!from || !to) { resultEl.innerHTML = '<div class="hint">Pick a period and run the report.</div>'; return; }
+  if (from > to) { resultEl.innerHTML = '<div class="empty-note">"From" date must be on or before "To" date.</div>'; return; }
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const model = await computeIncomeStatementModel(from, to);
+    resultEl.innerHTML = renderIncomeStatement(model, from, to);
+    state.lastISModel = model; state.lastISFrom = from; state.lastISTo = to;
+    exportBtn.disabled = false;
+  } catch (e) {
+    resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`;
+  }
+}
+document.getElementById("is-run").addEventListener("click", runIncomeStatement);
+document.getElementById("is-export").addEventListener("click", () => {
+  if (state.lastISModel) exportIncomeStatementToExcel(state.lastISModel, state.lastISFrom, state.lastISTo);
+});
+document.getElementById("is-result").addEventListener("click", (e) => {
+  const row = e.target.closest(".pl-row[data-toggle]");
+  if (!row) return;
+  const target = document.getElementById(row.dataset.toggle);
+  if (!target) return;
+  target.hidden = !target.hidden;
+  const caret = row.querySelector("[data-caret]");
+  if (caret) caret.classList.toggle("open", !target.hidden);
+});
+document.querySelectorAll(".btn-preset").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const today = todayStr();
+    const [y, m] = today.split("-").map(Number);
+    let from, to;
+    if (btn.dataset.preset === "this_month") { from = `${y}-${String(m).padStart(2, "0")}-01`; to = today; }
+    else if (btn.dataset.preset === "last_month") {
+      const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
+      const lastDay = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+      from = `${py}-${String(pm).padStart(2, "0")}-01`;
+      to = `${py}-${String(pm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    } else { from = `${y}-01-01`; to = today; }
+    document.getElementById("is-from").value = from;
+    document.getElementById("is-to").value = to;
+    runIncomeStatement();
+  });
+});
 
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
