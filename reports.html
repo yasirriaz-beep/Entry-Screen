@@ -104,6 +104,7 @@
   .pl-memo-box { background: var(--warn-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 16px; }
   .pl-memo-box .pl-row .pl-amt, .pl-memo-box .pl-row .pl-label { color: var(--warn); }
   .pl-uncat-banner { border: 1px solid var(--err); background: var(--err-bg); color: var(--err); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; font-weight: 600; margin-bottom: 14px; }
+  .pl-recon-note { padding: 2px 0 6px 32px; font-size: 0.76rem; color: var(--ink-soft); }
 </style>
 </head>
 <body>
@@ -593,6 +594,13 @@ document.getElementById("pay-run").addEventListener("click", runPayReport);
 // daily_sales' channel columns. Deliberately NOT built off chart_of_accounts/journal_entries
 // — those tables exist but nothing in this app posts to them, so they're not the source of truth.
 const OPEX_GROUP_ORDER = ["Payroll & Benefits", "Occupancy", "Operating Expenses", "Marketing & Delivery", "G&A / Other"];
+// Bakery items sold at Gulberg are already counted inside Dine-In/Takeaway/Delivery/etc
+// (bakery_sale on daily_sales is a memo breakdown, not a separate channel — see the comment
+// in sales-entry.html). So it must NOT be added again as revenue. It's deducted here as a
+// Cost of Sales line instead (what Gulberg owes its sister bakery entity for those goods),
+// and compared against FNK BAKERY's actual Goods Receipt purchases for the same period —
+// the two should converge to ~0 variance at month end.
+const FNK_BAKERY_VENDOR_ID = "a36f9863-aae0-5a58-ba7c-a97c6b259757";
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -606,10 +614,11 @@ function fmtDateLabel(d) {
 }
 
 async function computeIncomeStatementModel(from, to) {
-  const [cats, exps, salesRows] = await Promise.all([
+  const [cats, exps, salesRows, bakeryPurchaseRows] = await Promise.all([
     sb(`expense_categories?select=name,code,group_name,is_below_the_line&order=sort_order`),
     sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${from}&expense_date=lte.${to}&select=category,subcategory,amount`),
-    sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale`)
+    sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale`),
+    sb(`purchases?location_id=eq.${LOCATION_ID}&vendor_id=eq.${FNK_BAKERY_VENDOR_ID}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=amount`)
   ]);
 
   const catMap = {};
@@ -624,16 +633,18 @@ async function computeIncomeStatementModel(from, to) {
     sPanda += Number(r.food_panda_amount) || 0;
     sBakery += Number(r.bakery_sale) || 0;
   });
+  // sBakery is deliberately excluded from revenue — see the note above OPEX_GROUP_ORDER.
   const revenueLinesRaw = [
     { label: "Dine In", amount: sDineIn },
     { label: "Takeaway", amount: sTakeaway },
     { label: "Delivery", amount: sDelivery },
     { label: "Third Party / Careem", amount: sThird },
-    { label: "Food Panda", amount: sPanda },
-    { label: "Bakery", amount: sBakery }
+    { label: "Food Panda", amount: sPanda }
   ];
   const revenueLines = revenueLinesRaw.filter(l => Math.abs(l.amount) > 0.004);
   const totalRevenue = revenueLinesRaw.reduce((a, l) => a + l.amount, 0);
+  const bakeryBilled = bakeryPurchaseRows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  const bakeryVariance = sBakery - bakeryBilled;
 
   const groups = {};
   let uncategorizedTotal = 0;
@@ -664,7 +675,13 @@ async function computeIncomeStatementModel(from, to) {
 
   const cogsGroup = groups["Cost of Sales"];
   const cogsCategories = cogsGroup ? categoriesArray(cogsGroup.categories) : [];
-  const cogsTotal = cogsGroup ? cogsGroup.total : 0;
+  if (Math.abs(sBakery) > 0.004) {
+    cogsCategories.push({
+      name: "Bakery (Intercompany — FNK Bakery)", total: sBakery, subcats: [],
+      isBakeryRecon: true, billed: bakeryBilled, variance: bakeryVariance
+    });
+  }
+  const cogsTotal = (cogsGroup ? cogsGroup.total : 0) + sBakery;
 
   const belowGroup = groups["Below-the-line"];
   const belowLines = belowGroup ? categoriesArray(belowGroup.categories) : [];
@@ -686,7 +703,7 @@ async function computeIncomeStatementModel(from, to) {
   return {
     revenueLines, totalRevenue, cogsCategories, cogsTotal, grossProfit,
     opexGroups, totalOpex, netOperatingIncome, belowLines, belowTotal,
-    netIncome: netOperatingIncome, uncategorizedTotal
+    netIncome: netOperatingIncome, uncategorizedTotal, bakerySale: sBakery, bakeryBilled, bakeryVariance
   };
 }
 
@@ -725,6 +742,10 @@ function renderIncomeStatement(model, from, to) {
     const hasSub = c.subcats.length > 0;
     const childHtml = hasSub ? c.subcats.map(s => plRow({ label: s.name, amount: s.amount, pct: pctOf(s.amount, R), level: 2 })).join("") : "";
     html += plRow({ label: c.name, amount: c.total, pct: pctOf(c.total, R), level: 1, clickable: hasSub, childrenHTML: childHtml });
+    if (c.isBakeryRecon) {
+      const flagged = Math.abs(c.variance) > Math.max(500, 0.02 * Math.abs(c.total || 1));
+      html += `<div class="pl-recon-note">FNK Bakery invoiced this period: ${fmtMoney(c.billed)} &middot; Variance: <strong style="color:${flagged ? "var(--err)" : "var(--ok)"}">${fmtMoney(c.variance)}</strong>${flagged ? " &#9888; check against their invoice" : " &#10003; matches"}</div>`;
+    }
   });
   html += plRow({ label: "Total Cost of Sales", amount: model.cogsTotal, pct: pctOf(model.cogsTotal, R), level: 0, boldClass: "pl-subtotal" });
   html += plRow({ label: "Gross Profit", amount: model.grossProfit, pct: pctOf(model.grossProfit, R), level: 0, boldClass: "pl-grandtotal" });
@@ -771,6 +792,10 @@ function modelToAoa(model, from, to) {
   model.cogsCategories.forEach(c => {
     aoa.push([`  ${c.name}`, roundNum(c.total), pctNum(c.total, R)]);
     c.subcats.forEach(s => aoa.push([`    ${s.name}`, roundNum(s.amount), pctNum(s.amount, R)]));
+    if (c.isBakeryRecon) {
+      aoa.push([`    FNK Bakery invoiced this period`, roundNum(c.billed)]);
+      aoa.push([`    Variance (bakery_sale vs FNK Bakery invoice)`, roundNum(c.variance)]);
+    }
   });
   aoa.push(["Total Cost of Sales", roundNum(model.cogsTotal), pctNum(model.cogsTotal, R)]);
   aoa.push([]);
