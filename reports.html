@@ -105,6 +105,17 @@
   .pl-memo-box .pl-row .pl-amt, .pl-memo-box .pl-row .pl-label { color: var(--warn); }
   .pl-uncat-banner { border: 1px solid var(--err); background: var(--err-bg); color: var(--err); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; font-weight: 600; margin-bottom: 14px; }
   .pl-recon-note { padding: 2px 0 6px 32px; font-size: 0.76rem; color: var(--ink-soft); }
+
+  .daily-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 4px; }
+  .daily-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .daily-table th, .daily-table td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .daily-table th:first-child, .daily-table td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+  .daily-table thead th { color: var(--ink-soft); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.02em; border-bottom: 2px solid var(--border); background: var(--surface); }
+  .daily-table tfoot td { font-weight: 700; border-top: 2px solid var(--ink); border-bottom: none; background: var(--field-bg); }
+  .daily-table td.daily-total, .daily-table th.daily-total-h { font-weight: 700; }
+  .daily-date { font-weight: 600; }
+  .daily-row-empty td { color: var(--ink-soft); opacity: 0.55; font-style: italic; }
+  .daily-memo-note { font-size: 0.76rem; color: var(--ink-soft); margin: 6px 0 0; }
 </style>
 </head>
 <body>
@@ -139,66 +150,120 @@
   <!-- Sales -->
   <div class="report-panel active" data-panel="sales">
     <div class="card">
-      <div class="row2 field">
-        <div><label>Date</label><input type="date" id="sales-date"></div>
-        <div><button class="btn-primary" id="sales-run" type="button">Run Report</button></div>
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="sales" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="sales" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="sales" data-range-preset="this_year">This Year</button>
       </div>
-      <div id="sales-result"><div class="hint">Pick a date and run the report.</div></div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="sales-from"></div>
+        <div><label>To</label><input type="date" id="sales-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="sales-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="sales-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="sales-result"><div class="hint">Pick a period and run the report.</div></div>
     </div>
   </div>
 
   <!-- Expenses -->
   <div class="report-panel" data-panel="expenses">
     <div class="card">
-      <div class="row2 field">
-        <div><label>Date</label><input type="date" id="expenses-date"></div>
-        <div><button class="btn-primary" id="expenses-run" type="button">Run Report</button></div>
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="expenses" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="expenses" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="expenses" data-range-preset="this_year">This Year</button>
       </div>
-      <div id="expenses-result"><div class="hint">Pick a date and run the report.</div></div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="expenses-from"></div>
+        <div><label>To</label><input type="date" id="expenses-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="expenses-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="expenses-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="expenses-result"><div class="hint">Pick a period and run the report.</div></div>
     </div>
   </div>
 
   <!-- Goods Receipt -->
   <div class="report-panel" data-panel="goods_receipt">
     <div class="card">
-      <div class="row2 field">
-        <div><label>Date</label><input type="date" id="goods-date"></div>
-        <div><button class="btn-primary" id="goods-run" type="button">Run Report</button></div>
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="goods" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="goods" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="goods" data-range-preset="this_year">This Year</button>
       </div>
-      <div id="goods-result"><div class="hint">Pick a date and run the report.</div></div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="goods-from"></div>
+        <div><label>To</label><input type="date" id="goods-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="goods-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="goods-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="goods-result"><div class="hint">Pick a period and run the report.</div></div>
     </div>
   </div>
 
   <!-- Issue Entry -->
   <div class="report-panel" data-panel="issue_entry">
     <div class="card">
-      <div class="row2 field">
-        <div><label>Date</label><input type="date" id="issue-date"></div>
-        <div><button class="btn-primary" id="issue-run" type="button">Run Report</button></div>
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="issue" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="issue" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="issue" data-range-preset="this_year">This Year</button>
       </div>
-      <div id="issue-result"><div class="hint">Pick a date and run the report.</div></div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="issue-from"></div>
+        <div><label>To</label><input type="date" id="issue-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="issue-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="issue-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="issue-result"><div class="hint">Pick a period and run the report.</div></div>
     </div>
   </div>
 
   <!-- Vendor Payments -->
   <div class="report-panel" data-panel="vendor_payments">
     <div class="card">
-      <div class="row2 field">
-        <div><label>Date</label><input type="date" id="vp-date"></div>
-        <div><button class="btn-primary" id="vp-run" type="button">Run Report</button></div>
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="vp" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="vp" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="vp" data-range-preset="this_year">This Year</button>
       </div>
-      <div id="vp-result"><div class="hint">Pick a date and run the report.</div></div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="vp-from"></div>
+        <div><label>To</label><input type="date" id="vp-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="vp-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="vp-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="vp-result"><div class="hint">Pick a period and run the report.</div></div>
     </div>
   </div>
 
   <!-- Cash Recon -->
   <div class="report-panel" data-panel="cash_recon">
     <div class="card">
-      <div class="row2 field">
-        <div><label>Date</label><input type="date" id="cr-date"></div>
-        <div><button class="btn-primary" id="cr-run" type="button">Run Report</button></div>
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="cr" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="cr" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="cr" data-range-preset="this_year">This Year</button>
       </div>
-      <div id="cr-result"><div class="hint">Pick a date and run the report.</div></div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="cr-from"></div>
+        <div><label>To</label><input type="date" id="cr-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="cr-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="cr-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="cr-result"><div class="hint">Pick a period and run the report.</div></div>
     </div>
   </div>
 
@@ -242,7 +307,7 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const PAGE_KEY = "reports";
 
-let state = { userId: null, userName: null, managerId: null, role: null, users: {}, managers: {}, vendors: {}, products: {} };
+let state = { userId: null, userName: null, managerId: null, role: null, users: {}, managers: {}, vendors: {}, products: {}, lastDaily: {} };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -370,10 +435,12 @@ function afterLogin(userId, name, managerId, role) {
   document.getElementById("step-name").hidden = true;
   document.getElementById("panel-main").hidden = false;
   const d = todayStr();
-  ["sales-date", "expenses-date", "goods-date", "issue-date", "vp-date", "cr-date"].forEach(id => { document.getElementById(id).value = d; });
+  const monthStartStr = d.slice(0, 8) + "01";
+  ["sales", "expenses", "goods", "issue", "vp", "cr", "is"].forEach(p => {
+    document.getElementById(`${p}-from`).value = monthStartStr;
+    document.getElementById(`${p}-to`).value = d;
+  });
   document.getElementById("pay-month").value = d.slice(0, 7);
-  document.getElementById("is-from").value = d.slice(0, 8) + "01";
-  document.getElementById("is-to").value = d;
   loadLookups();
 }
 
@@ -387,157 +454,260 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   });
 });
 
-// --- Sales report ---
-async function runSalesReport() {
-  const date = document.getElementById("sales-date").value;
-  const resultEl = document.getElementById("sales-result");
+// --- Shared daily-table engine (date rows x column(s) x Total-on-the-right) ---
+// Used by every monthly/range report below, and by its matching Excel export, so each
+// report only has to say which table to query and how to bucket it by day.
+function datesInRange(from, to) {
+  const dates = [];
+  let d = new Date(from + "T00:00:00Z");
+  const end = new Date(to + "T00:00:00Z");
+  while (d <= end) { dates.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); }
+  return dates;
+}
+function fmtDayLabel(d) {
+  const dt = new Date(d + "T00:00:00");
+  return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+function finalizeDailyModel(dates, columns, matrix, totals) {
+  const rowTotal = {}, colTotal = {}; let grandTotal = 0;
+  dates.forEach(d => {
+    const rt = totals && totals[d] != null ? totals[d] : columns.reduce((a, c) => a + (matrix[d][c.key] || 0), 0);
+    rowTotal[d] = rt; grandTotal += rt;
+    columns.forEach(c => { colTotal[c.key] = (colTotal[c.key] || 0) + (matrix[d][c.key] || 0); });
+  });
+  return { dates, columns, matrix, rowTotal, colTotal, grandTotal };
+}
+// Dynamic-column pivot: one column per distinct value of colKeyFn(row), e.g. category or vendor.
+function buildPivotModel(rows, { dateKey, colKeyFn, amtKey, from, to }) {
+  const dates = datesInRange(from, to);
+  const matrix = {}; dates.forEach(d => { matrix[d] = {}; });
+  const colLabels = {};
+  rows.forEach(r => {
+    const d = r[dateKey];
+    if (!matrix[d]) return;
+    const key = colKeyFn(r) || "Unspecified";
+    colLabels[key] = key;
+    matrix[d][key] = (matrix[d][key] || 0) + (Number(r[amtKey]) || 0);
+  });
+  const columns = Object.keys(colLabels).sort((a, b) => a.localeCompare(b)).map(k => ({ key: k, label: k }));
+  return finalizeDailyModel(dates, columns, matrix);
+}
+// Fixed-column daily table: sums named source fields per day. If totalField is given, the
+// Total column comes straight from that field (summed) instead of summing the shown columns —
+// needed when a shown column is a memo breakdown already counted elsewhere (bakery, card split).
+function buildFixedColsModel(rows, { dateKey, columns, totalField, from, to }) {
+  const dates = datesInRange(from, to);
+  const matrix = {}; dates.forEach(d => { matrix[d] = {}; });
+  const totals = totalField ? {} : null;
+  rows.forEach(r => {
+    const d = r[dateKey];
+    if (!matrix[d]) return;
+    columns.forEach(c => { matrix[d][c.key] = (matrix[d][c.key] || 0) + (Number(r[c.field]) || 0); });
+    if (totalField) totals[d] = (totals[d] || 0) + (Number(r[totalField]) || 0);
+  });
+  return finalizeDailyModel(dates, columns, matrix, totals);
+}
+function renderDailyTable(model) {
+  const rows = model.dates.map(d => {
+    const cells = model.columns.map(c => `<td>${fmtMoney(model.matrix[d][c.key] || 0)}</td>`).join("");
+    const empty = model.rowTotal[d] === 0 ? ' class="daily-row-empty"' : "";
+    return `<tr${empty}><td class="daily-date">${fmtDayLabel(d)}</td>${cells}<td class="daily-total">${fmtMoney(model.rowTotal[d])}</td></tr>`;
+  }).join("");
+  const footCells = model.columns.map(c => `<td>${fmtMoney(model.colTotal[c.key] || 0)}</td>`).join("");
+  return `<div class="daily-table-wrap"><table class="daily-table">
+    <thead><tr><th>Date</th>${model.columns.map(c => `<th>${escapeHtml(c.label)}</th>`).join("")}<th class="daily-total-h">Total</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td>Total</td>${footCells}<td>${fmtMoney(model.grandTotal)}</td></tr></tfoot>
+  </table></div>`;
+}
+function dailyModelToAoa(model, title, from, to) {
+  const aoa = [[title], [`Period: ${from} to ${to}`], []];
+  aoa.push(["Date", ...model.columns.map(c => c.label), "Total"]);
+  model.dates.forEach(d => {
+    aoa.push([d, ...model.columns.map(c => roundNum(model.matrix[d][c.key] || 0)), roundNum(model.rowTotal[d])]);
+  });
+  aoa.push(["Total", ...model.columns.map(c => roundNum(model.colTotal[c.key] || 0)), roundNum(model.grandTotal)]);
+  return aoa;
+}
+function exportDailyToExcel(model, title, from, to, filenamePrefix) {
+  const aoa = dailyModelToAoa(model, title, from, to);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 14 }, ...model.columns.map(() => ({ wch: 16 })), { wch: 16 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, title.slice(0, 31));
+  XLSX.writeFile(wb, `Gulberg_${filenamePrefix}_${from}_to_${to}.xlsx`);
+}
+function presetRange(preset) {
+  const today = todayStr();
+  const [y, m] = today.split("-").map(Number);
+  if (preset === "this_month") return [`${y}-${String(m).padStart(2, "0")}-01`, today];
+  if (preset === "last_month") {
+    const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
+    const lastDay = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+    return [`${py}-${String(pm).padStart(2, "0")}-01`, `${py}-${String(pm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`];
+  }
+  return [`${y}-01-01`, today];
+}
+function wireRangePreset(btn) {
+  btn.addEventListener("click", () => {
+    const prefix = btn.dataset.rangeTarget;
+    const [from, to] = presetRange(btn.dataset.rangePreset);
+    document.getElementById(`${prefix}-from`).value = from;
+    document.getElementById(`${prefix}-to`).value = to;
+    document.getElementById(`${prefix}-run`).click();
+  });
+}
+function rangeAndGuard(prefix) {
+  const from = document.getElementById(`${prefix}-from`).value;
+  const to = document.getElementById(`${prefix}-to`).value;
+  const resultEl = document.getElementById(`${prefix}-result`);
+  const exportBtn = document.getElementById(`${prefix}-export`);
+  exportBtn.disabled = true;
+  if (!from || !to) { resultEl.innerHTML = '<div class="hint">Pick a period and run the report.</div>'; return null; }
+  if (from > to) { resultEl.innerHTML = '<div class="empty-note">"From" must be on or before "To".</div>'; return null; }
   resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  return { from, to, resultEl, exportBtn };
+}
+
+// --- Sales report (monthly, per day; Bakery/Card shown as memo, not summed into Total) ---
+async function runSalesReport() {
+  const ctx = rangeAndGuard("sales"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
   try {
-    const rows = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=eq.${date}&select=*&order=shift`);
-    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No sales entry for this date.</div>'; return; }
-    let totalSale = 0;
-    resultEl.innerHTML = rows.map(r => {
-      totalSale += Number(r.total_sale) || 0;
-      return `<div class="row-card">
-        <div class="r-title"><span>${r.shift === "morning" ? "Morning" : "Evening"} shift</span><span class="r-amt">${fmtMoney(r.total_sale)}</span></div>
-        <div class="r-sub">
-          Dine-in: ${fmtMoney(r.dine_in_amount)} (${r.dine_in_covers || 0} covers) · Takeaway: ${fmtMoney(r.takeaway_amount)} (${r.takeaway_covers || 0}) ·
-          Delivery: ${fmtMoney(r.delivery_amount)} (${r.delivery_covers || 0}) · Careem/3rd Party: ${fmtMoney(r.third_party_amount)} (${r.third_party_covers || 0}) ·
-          Food Panda: ${fmtMoney(r.food_panda_amount)} (${r.food_panda_covers || 0}) · Bakery: ${fmtMoney(r.bakery_sale)}<br>
-          Card: ${fmtMoney(r.card_amount)} · Opening till: ${fmtMoney(r.opening_cash_till)} · Closing till: ${r.closing_cash_till != null ? fmtMoney(r.closing_cash_till) : "not entered"} ·
-          Custodian handover: ${fmtMoney(r.custodian_cash_amount)}<br>
-          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
-        </div>
-      </div>`;
-    }).join("") + `<div class="totals-bar"><span>Day total</span><span>${fmtMoney(totalSale)}</span></div>`;
+    const rows = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale`);
+    const columns = [
+      { key: "dine_in", label: "Dine In", field: "dine_in_amount" },
+      { key: "takeaway", label: "Takeaway", field: "takeaway_amount" },
+      { key: "delivery", label: "Delivery", field: "delivery_amount" },
+      { key: "third_party", label: "3rd Party", field: "third_party_amount" },
+      { key: "food_panda", label: "Food Panda", field: "food_panda_amount" },
+      { key: "bakery", label: "Bakery*", field: "bakery_sale" },
+      { key: "card", label: "Card*", field: "card_amount" }
+    ];
+    const model = buildFixedColsModel(rows, { dateKey: "sale_date", columns, totalField: "total_sale", from, to });
+    resultEl.innerHTML = renderDailyTable(model) + `<div class="daily-memo-note">*Bakery and Card are memo breakdowns already included inside the channel amounts — they are not added into Total.</div>`;
+    state.lastDaily.sales = { model, from, to, title: "Sales Report" };
+    exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 }
 document.getElementById("sales-run").addEventListener("click", runSalesReport);
+document.getElementById("sales-export").addEventListener("click", () => {
+  const s = state.lastDaily.sales; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Sales");
+});
 
-// --- Expenses report ---
+// --- Expenses report (monthly, per day, pivoted by category) ---
 async function runExpensesReport() {
-  const date = document.getElementById("expenses-date").value;
-  const resultEl = document.getElementById("expenses-result");
-  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  const ctx = rangeAndGuard("expenses"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
   try {
-    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${date}&select=*&order=created_at`);
-    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No expenses for this date.</div>'; return; }
-    let total = 0;
-    resultEl.innerHTML = rows.map(r => {
-      total += Number(r.amount) || 0;
-      const flagged = r.ai_check_status && r.ai_check_status !== "ok";
-      return `<div class="row-card">
-        <div class="r-title"><span>${r.category || "Expense"}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
-        <div class="r-sub">
-          ${r.detail ? r.detail + "<br>" : ""}
-          ${r.vendor_id ? "Vendor: " + vendorName(r.vendor_id) + " · " : ""}Payment: ${r.payment_method || "cash"}${r.shift ? " · " + (r.shift === "morning" ? "Morning" : "Evening") : ""}<br>
-          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
-          ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
-          ${flagged ? `<br><span class="r-flag">Flagged: ${r.ai_check_status}${r.ai_check_reason ? " — " + r.ai_check_reason : ""}</span>` : ""}
-        </div>
-      </div>`;
-    }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} entries)</span><span>${fmtMoney(total)}</span></div>`;
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${from}&expense_date=lte.${to}&select=expense_date,category,amount`);
+    const model = buildPivotModel(rows, { dateKey: "expense_date", colKeyFn: r => r.category || "Uncategorized", amtKey: "amount", from, to });
+    resultEl.innerHTML = renderDailyTable(model);
+    state.lastDaily.expenses = { model, from, to, title: "Expenses Report" };
+    exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 }
 document.getElementById("expenses-run").addEventListener("click", runExpensesReport);
+document.getElementById("expenses-export").addEventListener("click", () => {
+  const s = state.lastDaily.expenses; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Expenses");
+});
 
-// --- Goods Receipt report ---
+// --- Goods Receipt report (monthly, per day, pivoted by vendor) ---
 async function runGoodsReport() {
-  const date = document.getElementById("goods-date").value;
-  const resultEl = document.getElementById("goods-result");
-  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  const ctx = rangeAndGuard("goods"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
   try {
-    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${date}&select=*&order=created_at`);
-    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No goods received on this date.</div>'; return; }
-    let total = 0;
-    resultEl.innerHTML = rows.map(r => {
-      total += Number(r.amount) || 0;
-      return `<div class="row-card">
-        <div class="r-title"><span>${productName(r.product_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
-        <div class="r-sub">
-          ${r.qty} ${r.unit || ""} @ ${fmtMoney(r.rate)} · Vendor: ${vendorName(r.vendor_id)} · ${r.payment_status === "credit" ? "On credit" : "Paid"}${r.inv_number ? " · Inv# " + r.inv_number : ""}<br>
-          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
-          ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
-          ${r.variance_note ? `<br><span class="r-flag">Variance: ${r.variance_note}</span>` : ""}
-        </div>
-      </div>`;
-    }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} line items)</span><span>${fmtMoney(total)}</span></div>`;
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=purchase_date,vendor_id,amount`);
+    const model = buildPivotModel(rows, { dateKey: "purchase_date", colKeyFn: r => r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned", amtKey: "amount", from, to });
+    resultEl.innerHTML = renderDailyTable(model);
+    state.lastDaily.goods = { model, from, to, title: "Goods Receipt Report" };
+    exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 }
 document.getElementById("goods-run").addEventListener("click", runGoodsReport);
+document.getElementById("goods-export").addEventListener("click", () => {
+  const s = state.lastDaily.goods; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Goods_Receipt");
+});
 
-// --- Issue Entry report ---
+// --- Issue Entry report (monthly, per day, pivoted by where it was issued to) ---
 async function runIssueReport() {
-  const date = document.getElementById("issue-date").value;
-  const resultEl = document.getElementById("issue-result");
-  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  const ctx = rangeAndGuard("issue"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
   try {
-    const rows = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&issue_date=eq.${date}&select=*&order=created_at`);
-    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No stock issued on this date.</div>'; return; }
-    let total = 0;
-    resultEl.innerHTML = rows.map(r => {
-      total += Number(r.amount) || 0;
-      return `<div class="row-card">
-        <div class="r-title"><span>${productName(r.product_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
-        <div class="r-sub">
-          ${r.qty} @ ${fmtMoney(r.rate)} · Issued to: ${r.issued_to || "—"}<br>
-          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
-        </div>
-      </div>`;
-    }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} line items)</span><span>${fmtMoney(total)}</span></div>`;
+    const rows = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&issue_date=gte.${from}&issue_date=lte.${to}&select=issue_date,issued_to,amount`);
+    const model = buildPivotModel(rows, { dateKey: "issue_date", colKeyFn: r => r.issued_to || "Unspecified", amtKey: "amount", from, to });
+    resultEl.innerHTML = renderDailyTable(model);
+    state.lastDaily.issue = { model, from, to, title: "Issue Entry Report" };
+    exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 }
 document.getElementById("issue-run").addEventListener("click", runIssueReport);
+document.getElementById("issue-export").addEventListener("click", () => {
+  const s = state.lastDaily.issue; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Issue_Entry");
+});
 
-// --- Vendor Payments report ---
+// --- Vendor Payments report (monthly, per day, pivoted by vendor) ---
 async function runVpReport() {
-  const date = document.getElementById("vp-date").value;
-  const resultEl = document.getElementById("vp-result");
-  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  const ctx = rangeAndGuard("vp"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
   try {
-    const rows = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=eq.${date}&select=*&order=created_at`);
-    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No vendor payments on this date.</div>'; return; }
-    let total = 0;
-    resultEl.innerHTML = rows.map(r => {
-      total += Number(r.amount) || 0;
-      return `<div class="row-card">
-        <div class="r-title"><span>${vendorName(r.vendor_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
-        <div class="r-sub">
-          Method: ${r.method}${r.notes ? " · " + r.notes : ""}<br>
-          Paid by: ${userName(r.paid_by)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
-          ${r.payment_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('vendor-payment-photos','${r.payment_photo_path}')">View Photo</span>` : ""}
-        </div>
-      </div>`;
-    }).join("") + `<div class="totals-bar"><span>Day total (${rows.length} payments)</span><span>${fmtMoney(total)}</span></div>`;
+    const rows = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=gte.${from}&payment_date=lte.${to}&select=payment_date,vendor_id,amount`);
+    const model = buildPivotModel(rows, { dateKey: "payment_date", colKeyFn: r => r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned", amtKey: "amount", from, to });
+    resultEl.innerHTML = renderDailyTable(model);
+    state.lastDaily.vp = { model, from, to, title: "Vendor Payments Report" };
+    exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 }
 document.getElementById("vp-run").addEventListener("click", runVpReport);
+document.getElementById("vp-export").addEventListener("click", () => {
+  const s = state.lastDaily.vp; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Vendor_Payments");
+});
 
-// --- Cash Reconciliation report ---
+// --- Cash Reconciliation report (monthly, per day — fixed columns, Status is text so no
+// row Total column; cash_safe_ledger is Gulberg-wide, so there's no location filter here,
+// matching the single-day report this replaces) ---
 async function runCrReport() {
-  const date = document.getElementById("cr-date").value;
-  const resultEl = document.getElementById("cr-result");
-  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  const ctx = rangeAndGuard("cr"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
   try {
-    const rows = await sb(`cash_safe_ledger?ledger_date=eq.${date}&select=*`);
-    if (!rows.length) { resultEl.innerHTML = '<div class="empty-note">No cash reconciliation entry for this date.</div>'; return; }
-    const r = rows[0];
-    const varianceOk = !r.cash_variance || Math.abs(Number(r.cash_variance)) < 1;
-    resultEl.innerHTML = `<div class="row-card">
-      <div class="r-title"><span>Status: ${r.status}</span><span class="r-amt" style="${varianceOk ? "" : "color:var(--err)"}">${r.cash_variance != null ? "Variance " + fmtMoney(r.cash_variance) : ""}</span></div>
-      <div class="r-sub">
-        Opening: ${fmtMoney(r.opening_cash)} · Cash In: ${fmtMoney(r.cash_in)} · Cash Out: ${fmtMoney(r.cash_out)} ·
-        Expected: ${fmtMoney((Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0))} ·
-        Counted: ${r.counted_cash != null ? fmtMoney(r.counted_cash) : "not counted"}<br>
-        ${r.adjustment_reason ? "Adjustment note: " + r.adjustment_reason + "<br>" : ""}
-        Entered by: ${userName(r.entered_by_user_id)}${r.updated_by_user_id ? " · Updated by: " + userName(r.updated_by_user_id) : ""}
-        ${r.safe_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('safe-photos','${r.safe_photo_path}')">View Safe Photo</span>` : ""}
-        ${r.safe_photo_note ? `<br>AI photo check: ${r.safe_photo_note}` : ""}
-      </div>
-    </div>`;
+    const rows = await sb(`cash_safe_ledger?ledger_date=gte.${from}&ledger_date=lte.${to}&select=ledger_date,opening_cash,cash_in,cash_out,counted_cash,cash_variance,status&order=ledger_date`);
+    const byDate = {}; rows.forEach(r => { byDate[r.ledger_date] = r; });
+    const dates = datesInRange(from, to);
+    let sumIn = 0, sumOut = 0, sumVar = 0, flaggedDays = 0;
+    const bodyRows = dates.map(d => {
+      const r = byDate[d];
+      if (!r) return `<tr class="daily-row-empty"><td class="daily-date">${fmtDayLabel(d)}</td><td colspan="6">No entry</td></tr>`;
+      const expected = (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
+      const varianceOk = !r.cash_variance || Math.abs(Number(r.cash_variance)) < 1;
+      sumIn += Number(r.cash_in) || 0; sumOut += Number(r.cash_out) || 0; sumVar += Number(r.cash_variance) || 0;
+      if (!varianceOk) flaggedDays++;
+      return `<tr><td class="daily-date">${fmtDayLabel(d)}</td><td>${fmtMoney(r.opening_cash)}</td><td>${fmtMoney(r.cash_in)}</td><td>${fmtMoney(r.cash_out)}</td><td>${fmtMoney(expected)}</td><td>${r.counted_cash != null ? fmtMoney(r.counted_cash) : "—"}</td><td style="${varianceOk ? "" : "color:var(--err);font-weight:700;"}">${r.cash_variance != null ? fmtMoney(r.cash_variance) : "—"} ${r.status ? `<span class="hint" style="margin:0;">(${r.status})</span>` : ""}</td></tr>`;
+    }).join("");
+    resultEl.innerHTML = `<div class="daily-table-wrap"><table class="daily-table">
+      <thead><tr><th>Date</th><th>Opening</th><th>Cash In</th><th>Cash Out</th><th>Expected</th><th>Counted</th><th>Variance (Status)</th></tr></thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot><tr><td>Total</td><td>—</td><td>${fmtMoney(sumIn)}</td><td>${fmtMoney(sumOut)}</td><td>—</td><td>—</td><td style="${flaggedDays ? "color:var(--err);" : ""}">${fmtMoney(sumVar)} ${flaggedDays ? `(${flaggedDays} flagged)` : ""}</td></tr></tfoot>
+    </table></div>`;
+    state.lastDaily.cr = { from, to, rows: dates.map(d => byDate[d] || { ledger_date: d }) };
+    exportBtn.disabled = false;
   } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
 }
 document.getElementById("cr-run").addEventListener("click", runCrReport);
+document.getElementById("cr-export").addEventListener("click", () => {
+  const s = state.lastDaily.cr; if (!s) return;
+  const aoa = [["Cash Reconciliation Report"], [`Period: ${s.from} to ${s.to}`], [],
+    ["Date", "Opening", "Cash In", "Cash Out", "Expected", "Counted", "Variance", "Status"]];
+  s.rows.forEach(r => {
+    const expected = (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
+    aoa.push([r.ledger_date, roundNum(r.opening_cash), roundNum(r.cash_in), roundNum(r.cash_out), roundNum(expected), r.counted_cash != null ? roundNum(r.counted_cash) : "", r.cash_variance != null ? roundNum(r.cash_variance) : "", r.status || ""]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Cash Reconciliation");
+  XLSX.writeFile(wb, `Gulberg_Cash_Reconciliation_${s.from}_to_${s.to}.xlsx`);
+});
+document.querySelectorAll(".btn-preset[data-range-target]").forEach(wireRangePreset);
 
 // --- Monthly Payables report ---
 async function runPayReport() {
@@ -614,12 +784,19 @@ function fmtDateLabel(d) {
 }
 
 async function computeIncomeStatementModel(from, to) {
-  const [cats, exps, salesRows, bakeryPurchaseRows] = await Promise.all([
+  const [cats, exps, salesRows, purchaseRows] = await Promise.all([
     sb(`expense_categories?select=name,code,group_name,is_below_the_line&order=sort_order`),
     sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${from}&expense_date=lte.${to}&select=category,subcategory,amount`),
     sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale`),
-    sb(`purchases?location_id=eq.${LOCATION_ID}&vendor_id=eq.${FNK_BAKERY_VENDOR_ID}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=amount`)
+    sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=vendor_id,amount`)
   ]);
+  // Goods Receipt (purchases table) is a completely separate feed from expenses — nothing in
+  // expenses is linked to it (checked: linked_purchase_id is unused in this app's data), so
+  // every purchases row is additive cost, not a duplicate of an expense. FNK Bakery's rows are
+  // pulled out separately because that cost is already represented via the bakery_sale line
+  // above (see the reconciliation note) — counting them again here would double it.
+  const bakeryPurchaseRows = purchaseRows.filter(r => r.vendor_id === FNK_BAKERY_VENDOR_ID);
+  const goodsReceiptRows = purchaseRows.filter(r => r.vendor_id !== FNK_BAKERY_VENDOR_ID);
 
   const catMap = {};
   cats.forEach(c => { catMap[c.name] = c; });
@@ -681,7 +858,21 @@ async function computeIncomeStatementModel(from, to) {
       isBakeryRecon: true, billed: bakeryBilled, variance: bakeryVariance
     });
   }
-  const cogsTotal = (cogsGroup ? cogsGroup.total : 0) + sBakery;
+  // Goods Receipt: real vendor deliveries (purchases table), broken down by vendor so a
+  // runaway or unusual vendor total is visible at a glance, not just buried in one number.
+  const goodsReceiptTotal = goodsReceiptRows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  if (Math.abs(goodsReceiptTotal) > 0.004) {
+    const byVendor = {};
+    goodsReceiptRows.forEach(r => {
+      const vname = r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned";
+      byVendor[vname] = (byVendor[vname] || 0) + (Number(r.amount) || 0);
+    });
+    cogsCategories.push({
+      name: "Goods Receipt (Vendor Purchases)", total: goodsReceiptTotal,
+      subcats: Object.keys(byVendor).sort((a, b) => byVendor[b] - byVendor[a]).map(v => ({ name: v, amount: byVendor[v] }))
+    });
+  }
+  const cogsTotal = (cogsGroup ? cogsGroup.total : 0) + sBakery + goodsReceiptTotal;
 
   const belowGroup = groups["Below-the-line"];
   const belowLines = belowGroup ? categoriesArray(belowGroup.categories) : [];
