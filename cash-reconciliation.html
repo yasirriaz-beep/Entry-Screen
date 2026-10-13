@@ -100,6 +100,14 @@
   .till-total-line { display: flex; justify-content: space-between; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border); font-weight: 700; font-family: 'Zilla Slab', Georgia, serif; }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .acm-row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .acm-row:last-child { border-bottom: none; }
+  .acm-left { min-width: 0; }
+  .acm-meta { color: var(--ink-soft); font-size: 0.72rem; margin-top: 2px; }
+  .acm-right { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .acm-tag { display: inline-block; font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+  .acm-tag-safe1 { background: var(--ok-bg); color: var(--ok); }
+  .acm-tag-safe2 { background: var(--warn-bg); color: var(--warn); }
   .login-field + .login-field { margin-top: 10px; }
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
   .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
@@ -130,6 +138,24 @@
 
   <div class="banner banner-warn" id="status-banner" hidden></div>
   <div class="banner banner-warn" id="source-drift-warning" hidden></div>
+
+  <div class="card" id="all-cash-card">
+    <div class="step-label" style="margin-bottom:10px;">All Cash Movements — Both Safes</div>
+    <div class="row2" style="margin-bottom:10px;">
+      <div>
+        <label>From</label>
+        <input type="date" id="acm-from">
+      </div>
+      <div>
+        <label>To</label>
+        <input type="date" id="acm-to">
+      </div>
+    </div>
+    <button class="btn-ghost" id="acm-load" type="button" style="margin-top:0;">Refresh</button>
+    <div id="acm-list" style="margin-top:12px;"><div class="hint">Loading…</div></div>
+    <div class="total-line"><span class="lbl">Total cash out, this range</span><span class="num" id="acm-total">PKR 0</span></div>
+    <div class="hint">Every cash vendor payment, cash goods receipt, and cash expense recorded for Gulberg in this range — both safes, independent of whether that day's reconciliation has been opened or saved. This is the place to catch a late or advance payment your staff reports after the fact, without having to hunt down which date it landed on.</div>
+  </div>
 
   <div class="card" id="till-summary-card">
     <div class="step-label" style="margin-bottom:12px;">Safe 1 — Till (Shift Manager's responsibility)</div>
@@ -336,6 +362,13 @@ function afterLogin(userId, name, managerId, role) {
   loadDay(todayStr());
   loadHistory();
   loadTillSummary(todayStr());
+
+  const today = todayStr();
+  const fromDate = new Date(today + "T00:00:00Z");
+  fromDate.setUTCDate(fromDate.getUTCDate() - 13);
+  document.getElementById("acm-from").value = fromDate.toISOString().slice(0, 10);
+  document.getElementById("acm-to").value = today;
+  loadAllCashMovements();
 }
 
 function backToNames() {
@@ -532,6 +565,53 @@ async function fetchPreviousClosing(dateStr) {
     return (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
   } catch (e) { return 0; }
 }
+
+// A running, date-range log of every cash movement recorded for Gulberg — both safes —
+// independent of the per-day reconciliation flow above. That flow only shows a day's cash
+// once you navigate to that specific date, and a "draft" day saved before a late entry lands
+// can silently go stale (the drift banner only fires when someone happens to reopen that
+// exact day). This card exists so a late-reported advance or vendor payment (the "staff told
+// me after the fact" case) is visible immediately, without hunting for the date. Added 2026-10-13.
+async function loadAllCashMovements() {
+  const from = document.getElementById("acm-from").value;
+  const to = document.getElementById("acm-to").value;
+  const listEl = document.getElementById("acm-list");
+  const totalEl = document.getElementById("acm-total");
+  if (!from || !to) return;
+  listEl.innerHTML = `<div class="hint">Loading…</div>`;
+  try {
+    const [vendorRows, receiptRows, expenseRows] = await Promise.all([
+      sb(`vendor_payments?location_id=eq.${GULBERG_ID}&method=eq.cash&payment_date=gte.${from}&payment_date=lte.${to}&select=payment_date,amount,vendors(name)`),
+      sb(`purchases?location_id=eq.${GULBERG_ID}&payment_status=eq.paid&payment_method=eq.cash&purchase_date=gte.${from}&purchase_date=lte.${to}&select=purchase_date,amount,vendors(name)`),
+      sb(`expenses?location_id=eq.${GULBERG_ID}&payment_method=eq.cash&expense_date=gte.${from}&expense_date=lte.${to}&select=expense_date,amount,category,detail,paid_from_safe`)
+    ]);
+    const rows = [];
+    (vendorRows || []).forEach(r => rows.push({ date: r.payment_date, label: (r.vendors?.name || "Vendor") + " — cash payment", amount: Number(r.amount) || 0, safe: "safe2" }));
+    (receiptRows || []).forEach(r => rows.push({ date: r.purchase_date, label: (r.vendors?.name || "Goods Receipt") + " — paid now, cash", amount: Number(r.amount) || 0, safe: "safe2" }));
+    (expenseRows || []).forEach(r => {
+      const safe = r.paid_from_safe === "safe2" ? "safe2" : "safe1";
+      rows.push({ date: r.expense_date, label: (r.category || "Expense") + (r.detail ? " — " + r.detail : ""), amount: Number(r.amount) || 0, safe });
+    });
+    rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.amount - a.amount));
+    if (!rows.length) {
+      listEl.innerHTML = `<div class="hint">No cash movements recorded in this range.</div>`;
+    } else {
+      listEl.innerHTML = rows.map(r => `
+        <div class="acm-row">
+          <div class="acm-left">
+            ${r.label}<span class="acm-tag acm-tag-${r.safe}">${r.safe === "safe2" ? "Safe 2" : "Safe 1"}</span>
+            <div class="acm-meta">${r.date}</div>
+          </div>
+          <div class="acm-right">${fmtMoney(r.amount)}</div>
+        </div>`).join("");
+    }
+    const total = rows.reduce((s, r) => s + r.amount, 0);
+    totalEl.textContent = fmtMoney(total);
+  } catch (e) {
+    listEl.innerHTML = `<div class="hint">Couldn't load: ${e.message}</div>`;
+  }
+}
+document.getElementById("acm-load").addEventListener("click", loadAllCashMovements);
 
 function renderBreakdown(elId, lines, emptyMsg) {
   const el = document.getElementById(elId);
