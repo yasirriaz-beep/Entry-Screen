@@ -365,11 +365,19 @@ there sets `status = 'Received'`.
 ### Advance payment at the Order step (added Oct 13, 2026)
 
 Some vendors (e.g. **K&N**, flagged `vendors.requires_advance = true`) won't deliver without an
-advance. The Order card has a **"Pay an advance now"** checkbox — auto-checked and pre-filled at
-the full agreed amount (qty × rate) for a vendor flagged this way, but any vendor can have it
-checked by hand for a one-off advance. If a flagged vendor's box is left unchecked, the director
-gets a confirmation prompt before the order goes through anyway (not a hard block — there can be
-legitimate reasons to skip it).
+advance. The Order card has a **"Pay an advance now"** checkbox — auto-checked for a vendor
+flagged this way, but any vendor can have it checked by hand for a one-off advance. If a flagged
+vendor's box is left unchecked, the person ordering gets a confirmation prompt before the order
+goes through anyway (not a hard block — there can be legitimate reasons to skip it).
+
+**The Advance Amount field is left blank on purpose — it does NOT auto-fill from qty × rate.**
+Changed Oct 13, 2026: it used to pre-fill the full agreed amount, but K&N's rate moves daily with
+the market and the "Agreed Rate" field pre-fills from the product master's `current_rate`, which
+goes stale between Item Master updates. On Oct 13, 2026 three K&N advances auto-computed from a
+stale rate totaled PKR 45,976 when Zeeshan had actually paid PKR 43,000 cash — the three
+`purchase_orders.advance_amount` / linked `vendor_payments.amount` rows had to be corrected by
+hand (scaled proportionally to sum to the real 43,000 paid). Whoever places the order now has to
+type in the actual amount handed over, not trust a calculated number.
 
 Confirming "Mark as Ordered" with the box checked does two things in one step:
 - Saves `advance_amount`, `advance_paid_at`, `advance_payment_method`, `advance_paid_by` on the

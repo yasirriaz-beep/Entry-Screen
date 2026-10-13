@@ -720,7 +720,7 @@ async function loadAuthorizedList() {
             <div class="row2">
               <div>
                 <label>Advance Amount (PKR)</label>
-                <input type="number" class="order-advance-amount" step="any" min="0">
+                <input type="number" class="order-advance-amount" step="any" min="0" placeholder="Enter today's actual amount">
               </div>
               <div>
                 <label>Paid How</label>
@@ -730,7 +730,7 @@ async function loadAuthorizedList() {
                 </select>
               </div>
             </div>
-            <p class="hint" style="margin:4px 0 0;">Recorded as a vendor payment — nets against this PO's bill automatically once it's received, and a cash advance counts on Safe 2's Cash Out same as any vendor payment.</p>
+            <p class="hint" style="margin:4px 0 0;">Type in the actual amount being handed over today — rates like K&N's move daily, so don't rely on the Agreed Rate above to calculate it. Recorded as a vendor payment — nets against this PO's bill automatically once it's received, and a cash advance counts on Safe 2's Cash Out same as any vendor payment.</p>
           </div>
           <button type="button" class="btn-primary btn-sm order-confirm-btn">Mark as Ordered</button>
         </div>`;
@@ -745,19 +745,18 @@ async function loadAuthorizedList() {
       const advanceBlock = card.querySelector(".order-advance-block");
       const advanceAmountEl = card.querySelector(".order-advance-amount");
       // Suggest the vendor's requirement the moment one is picked — a vendor flagged
-      // requires_advance gets the box pre-checked and pre-filled at the full agreed amount
-      // (the director can still lower it or uncheck it); any other vendor can still have the
-      // box ticked by hand for a one-off advance. Added 2026-10-13 for vendors like K&N.
+      // requires_advance gets the box pre-checked, but the amount is left BLANK for manual
+      // entry rather than auto-filled as qty × rate. Changed 2026-10-13: K&N's rate moves
+      // daily with the market, and the product master's current_rate it used to pre-fill
+      // from goes stale — three advances were auto-computed from that stale rate on
+      // 2026-10-13 and came to 45,976 when only 43,000 was actually paid. Whoever orders
+      // now has to type in today's real amount instead of trusting a number that might be
+      // wrong, for this vendor and any other flagged requires_advance.
       function applyVendorAdvanceDefaults(vendorId) {
         const vendor = state.vendors.find(v => v.id === vendorId);
         const requires = !!(vendor && vendor.requires_advance);
         advanceToggle.checked = requires;
         advanceBlock.hidden = !requires;
-        if (requires) {
-          const qtyVal = parseFloat(card.querySelector(".order-qty").value) || 0;
-          const rateVal = parseFloat(card.querySelector(".order-rate").value) || 0;
-          if (!advanceAmountEl.value) advanceAmountEl.value = (qtyVal * rateVal) || "";
-        }
       }
       vendorSel.addEventListener("change", (e) => {
         handleOrderVendorAddNew(e, vendorSel);
@@ -769,11 +768,6 @@ async function loadAuthorizedList() {
       if (vendorSel.value) applyVendorAdvanceDefaults(vendorSel.value);
       advanceToggle.addEventListener("change", () => {
         advanceBlock.hidden = !advanceToggle.checked;
-        if (advanceToggle.checked && !advanceAmountEl.value) {
-          const qtyVal = parseFloat(card.querySelector(".order-qty").value) || 0;
-          const rateVal = parseFloat(card.querySelector(".order-rate").value) || 0;
-          advanceAmountEl.value = (qtyVal * rateVal) || "";
-        }
       });
       card.querySelector(".order-confirm-btn").addEventListener("click", () => markOrdered(po, card));
       list.appendChild(card);
