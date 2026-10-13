@@ -41,6 +41,7 @@
   }
   * { box-sizing: border-box; }
   body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  body.has-stage-nav { max-width: 880px; }
   h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
   .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
@@ -88,6 +89,22 @@
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
   .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
   .btn-login:disabled { opacity: 0.6; cursor: default; }
+
+  /* Stage tabs — shown for a director, who has all three stages available.
+     Nav sits on the left, the active stage's content shows on the right;
+     stacks (nav row on top, content below) at phone width. */
+  .stage-shell { display: flex; gap: 18px; align-items: flex-start; }
+  .stage-nav { display: flex; flex-direction: column; gap: 6px; flex: 0 0 170px; position: sticky; top: 16px; }
+  .stage-tab { display: flex; align-items: center; gap: 8px; text-align: left; background: var(--surface); border: 1px solid var(--border); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-weight: 600; font-size: 0.88rem; cursor: pointer; width: 100%; }
+  .stage-tab .stage-tab-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; background: var(--field-bg); border: 1px solid var(--border); font-size: 0.72rem; flex: none; }
+  .stage-tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .stage-tab.active .stage-tab-num { background: var(--accent-ink); color: var(--accent); border-color: var(--accent-ink); }
+  .stage-content { flex: 1 1 auto; min-width: 0; }
+  @media (max-width: 700px) {
+    .stage-shell { flex-direction: column; }
+    .stage-nav { flex-direction: row; flex: none; width: 100%; position: static; }
+    .stage-tab { flex: 1; justify-content: center; }
+  }
 </style>
 </head>
 <body>
@@ -104,6 +121,15 @@
     <button type="submit" class="btn-login" id="login-submit">Log in</button>
   </form>
 </div>
+
+<div id="stage-shell" class="stage-shell">
+<div id="stage-nav" class="stage-nav" hidden>
+  <button type="button" class="stage-tab" data-stage="panel-demand"><span class="stage-tab-num">1</span> Demand</button>
+  <button type="button" class="stage-tab" data-stage="panel-authorize"><span class="stage-tab-num">2</span> Authorize</button>
+  <button type="button" class="stage-tab" data-stage="panel-order"><span class="stage-tab-num">3</span> Order</button>
+</div>
+
+<div id="stage-content">
 
 <!-- AUDITOR / DIRECTOR : create demand -->
 <div id="panel-demand" hidden>
@@ -167,6 +193,9 @@
   </div>
   <button class="btn-ghost" id="btn-order-back" type="button">Change Person</button>
 </div>
+
+</div><!-- /stage-content -->
+</div><!-- /stage-shell -->
 
 <div id="step-success" class="card success-wrap" hidden>
   <div class="check">✓</div>
@@ -270,20 +299,38 @@ function afterLogin(userId, name, managerId, role) {
   state.userName = name;
   state.managerId = managerId;
   document.getElementById("step-name").hidden = true;
-  // Director gets all three stages stacked (raise, authorize, and place the order).
+  // Director gets all three stages, as tabs on the left with the active one's content
+  // on the right (added 2026-10-13 — previously all three were stacked top to bottom).
   // Anyone else who reaches this point has already been granted the purchase_order
   // page via Manage Access — that grant is what lets them raise a demand, regardless
-  // of role (auditor, cash custodian, etc). Fixed 2026-10-13: this used to only
-  // recognize role === "auditor", so a granted manager with any other role (e.g.
-  // Zeeshan, "cash_custodian") saw a blank page after logging in.
+  // of role (auditor, cash custodian, etc), and they just get the single Demand panel,
+  // no tabs needed. Fixed 2026-10-13: this used to only recognize role === "auditor",
+  // so a granted manager with any other role (e.g. Zeeshan, "cash_custodian") saw a
+  // blank page after logging in.
   if (role === "director") {
     enterDemandPanel();
     enterAuthorizePanel();
     enterOrderPanel();
+    document.body.classList.add("has-stage-nav");
+    document.getElementById("stage-nav").hidden = false;
+    showStage("panel-demand");
   } else {
     enterDemandPanel();
   }
 }
+
+function showStage(stageId) {
+  ["panel-demand", "panel-authorize", "panel-order"].forEach(id => {
+    document.getElementById(id).hidden = (id !== stageId);
+  });
+  document.querySelectorAll(".stage-tab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.stage === stageId);
+  });
+}
+
+document.querySelectorAll(".stage-tab").forEach(btn => {
+  btn.addEventListener("click", () => showStage(btn.dataset.stage));
+});
 
 function backToNames() {
   state.userId = null; state.userRole = null; state.userName = null;
@@ -293,6 +340,8 @@ function backToNames() {
   document.getElementById("panel-order").hidden = true;
   document.getElementById("step-success").hidden = true;
   document.getElementById("step-name").hidden = false;
+  document.getElementById("stage-nav").hidden = true;
+  document.body.classList.remove("has-stage-nav");
 }
 
 async function loadProducts() {
@@ -591,7 +640,7 @@ async function rejectDemand(po) {
 
 function enterAuthorizePanelAgain() {
   document.getElementById("step-success").hidden = true;
-  document.getElementById("panel-authorize").hidden = false;
+  showStage("panel-authorize");
   loadDemandList();
 }
 
@@ -812,7 +861,7 @@ async function markOrdered(po, cardEl) {
 
 function enterOrderPanelAgain() {
   document.getElementById("step-success").hidden = true;
-  document.getElementById("panel-order").hidden = false;
+  showStage("panel-order");
   loadAuthorizedList();
 }
 
