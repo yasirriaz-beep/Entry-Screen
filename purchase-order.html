@@ -183,7 +183,7 @@
   <button class="btn-ghost" id="btn-authorize-back" type="button">Change Person</button>
 </div>
 
-<!-- DIRECTOR ONLY : place order -->
+<!-- ANYONE WITH PAGE ACCESS : place order on an authorized demand -->
 <div id="panel-order" hidden>
   <div class="banner banner-warn" id="order-stuck-banner" hidden></div>
   <div class="card">
@@ -299,24 +299,25 @@ function afterLogin(userId, name, managerId, role) {
   state.userName = name;
   state.managerId = managerId;
   document.getElementById("step-name").hidden = true;
-  // Director gets all three stages, as tabs on the left with the active one's content
-  // on the right (added 2026-10-13 — previously all three were stacked top to bottom).
-  // Anyone else who reaches this point has already been granted the purchase_order
-  // page via Manage Access — that grant is what lets them raise a demand, regardless
-  // of role (auditor, cash custodian, etc), and they just get the single Demand panel,
-  // no tabs needed. Fixed 2026-10-13: this used to only recognize role === "auditor",
-  // so a granted manager with any other role (e.g. Zeeshan, "cash_custodian") saw a
-  // blank page after logging in.
-  if (role === "director") {
-    enterDemandPanel();
-    enterAuthorizePanel();
-    enterOrderPanel();
-    document.body.classList.add("has-stage-nav");
-    document.getElementById("stage-nav").hidden = false;
-    showStage("panel-demand");
-  } else {
-    enterDemandPanel();
-  }
+  // Everyone who reaches this point has already been granted the purchase_order page
+  // via Manage Access — that grant is what lets them raise a demand AND place an order
+  // once something's authorized, regardless of role (auditor, cash custodian, etc).
+  // Authorize stays director-only here (anyone else needing to authorize uses the
+  // separate po-authorize.html page, gated by its own Manage Access grant).
+  // Updated 2026-10-13: Order used to be director-only too — now it's open to anyone
+  // with page access, since authorizing (director) and ordering (anyone granted) are
+  // different jobs. Fixed 2026-10-13: this used to only recognize role === "auditor"
+  // for the Demand panel, so a granted manager with any other role (e.g. Zeeshan,
+  // "cash_custodian") saw a blank page after logging in.
+  const isDirector = role === "director";
+  enterDemandPanel();
+  enterOrderPanel();
+  if (isDirector) enterAuthorizePanel();
+
+  document.querySelector('.stage-tab[data-stage="panel-authorize"]').hidden = !isDirector;
+  document.body.classList.add("has-stage-nav");
+  document.getElementById("stage-nav").hidden = false;
+  showStage("panel-demand");
 }
 
 function showStage(stageId) {
@@ -646,7 +647,7 @@ function enterAuthorizePanelAgain() {
 
 document.getElementById("btn-authorize-back").addEventListener("click", backToNames);
 
-/* ---------- ORDER (director only) ---------- */
+/* ---------- ORDER (anyone with page access) ---------- */
 
 async function enterOrderPanel() {
   document.getElementById("panel-order").hidden = false;
