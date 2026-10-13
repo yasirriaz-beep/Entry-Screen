@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gulberg Sales Entry</title>
 <style>
-/* Layout: single-column form, two gated steps (who / what), sticky summary bar pinned above submit */
+/* Layout: login card, then Morning / Evening / Totals shown side by side (desktop) or
+   stacked Morning -> Evening -> Totals (mobile). Each shift is its own self-contained
+   card with its own Save / Close Shift / Director Unlock controls. */
 :root{
   --bg:#17211c; --surface:#1f2b24; --surface-2:#263429; --border:#35473b;
   --fg:#eef3ee; --fg-muted:#9db3a4; --accent:#d88a3f; --accent-fg:#241505;
@@ -33,9 +35,10 @@
   color-scheme: dark;
 }
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font-family:'Libre Franklin',system-ui,sans-serif;padding-inline:16px;padding-block:20px 100px;max-width:560px;margin:0 auto}
+body{background:var(--bg);color:var(--fg);font-family:'Libre Franklin',system-ui,sans-serif;padding-inline:16px;padding-block:20px 60px;max-width:1240px;margin:0 auto}
 h1,h2,.display{font-family:'Zilla Slab',Georgia,serif}
 h1{font-size:1.5rem;margin:0 0 2px;text-wrap:balance}
+h2{font-size:1.15rem;margin:0}
 .eyebrow{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-muted);margin:0 0 6px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px}
 .field{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -45,6 +48,7 @@ select,input[type=number],input[type=date],input[type=text],input[type=password]
   border-radius:9px;padding:11px 12px;font-size:1rem;font-family:inherit;width:100%;
 }
 select:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
+input:disabled{opacity:.6}
 .login-error{font-size:.82rem;color:var(--danger,#d33)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .channel{border-top:1px solid var(--border);padding-top:14px;margin-top:14px}
@@ -57,9 +61,9 @@ button.primary{
 }
 button.primary:disabled{opacity:.5;cursor:default}
 button.ghost{background:none;border:1px solid var(--border);color:var(--fg);border-radius:9px;padding:9px 14px;font-family:inherit;cursor:pointer;font-size:.85rem}
-.summary{position:sticky;bottom:12px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;box-shadow:0 8px 24px -8px rgba(0,0,0,.4)}
-.summary .num{font-family:'Zilla Slab',Georgia,serif;font-size:1.4rem;font-variant-numeric:tabular-nums}
-.summary .lbl{font-size:.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.06em}
+button.ghost:disabled{opacity:.5;cursor:default}
+.num{font-family:'Zilla Slab',Georgia,serif;font-variant-numeric:tabular-nums}
+.lbl{font-size:.7rem;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.06em}
 .banner{border-radius:10px;padding:12px 14px;font-size:.88rem;margin-bottom:14px;display:none}
 .banner.show{display:block}
 .banner.success{background:var(--success-bg);color:var(--success)}
@@ -68,28 +72,30 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
 .who-row{display:flex;gap:10px;align-items:flex-end}
 .who-row .field{flex:1}
 .muted{color:var(--fg-muted);font-size:.82rem}
+.status-badge{display:inline-block;font-size:.72rem;padding:3px 10px;border-radius:20px;letter-spacing:.03em;white-space:nowrap}
+.status-badge.draft{background:var(--surface-2);color:var(--fg-muted)}
+.status-badge.closed{background:var(--success-bg);color:var(--success)}
+.recon-box{margin-top:12px;background:var(--surface-2);border-radius:10px;padding:12px}
+.shift-grid{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
+@media (min-width:980px){
+  .shift-grid{grid-template-columns:1fr 1fr 320px}
+}
+.totals-panel{position:sticky;top:16px}
+@media (max-width:979px){
+  .totals-panel{position:static}
+}
 </style>
 </head>
 <body>
 
 <div class="eyebrow">Forks N Knives &middot; Gulberg</div>
 <h1>Shift Sales &amp; Cash Entry</h1>
-<p class="muted" style="margin:4px 0 18px">One entry per shift &mdash; sales by channel, then the till cash reconciliation.</p>
+<p class="muted" style="margin:4px 0 18px">Morning and Evening side by side &mdash; sales by channel, then each shift's till cash reconciliation.</p>
 
 <div id="banner" class="banner"></div>
 <div id="taskBanner" class="banner"></div>
 
-<div class="card" id="todayCard" hidden>
-  <h3 style="margin:0 0 10px">Today's Entry So Far</h3>
-  <div id="todayBody" class="muted"></div>
-</div>
-
-<div class="card" id="morningCard" hidden>
-  <h3 style="margin:0 0 10px">Morning Shift &mdash; for reconciliation</h3>
-  <div id="morningBody" class="muted"></div>
-</div>
-
-<div class="card" id="whoCard">
+<div class="card" id="whoCard" style="max-width:480px;margin-left:auto;margin-right:auto">
   <div class="who-row">
     <div class="field">
       <label for="loginName">Entered by</label>
@@ -105,119 +111,14 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
     <input type="password" id="loginPin" placeholder="PIN" autocomplete="current-password" inputmode="numeric">
   </div>
   <div class="login-error" id="login-error" hidden style="margin-top:8px">Incorrect code or PIN.</div>
-  <div class="field" style="margin-top:12px">
-    <label for="shiftSelect">Shift</label>
-    <select id="shiftSelect">
-      <option value="morning">Morning (9:00 AM &ndash; 6:00 PM)</option>
-      <option value="evening">Evening (6:00 PM &ndash; 3:00 AM)</option>
-    </select>
-  </div>
   <button class="primary" id="continueBtn" style="margin-top:14px" disabled>Continue</button>
 </div>
 
-<form id="salesForm" hidden>
-  <div class="card">
-    <div class="channel">
-      <h3><span class="dot"></span>Dine-in</h3>
-      <div class="row2">
-        <div class="field"><label for="diCovers">Covers</label><input type="number" id="diCovers" min="0" inputmode="numeric" placeholder="0"></div>
-        <div class="field"><label for="diAmount">Amount (PKR)</label><input type="number" id="diAmount" min="0" inputmode="decimal" placeholder="0"></div>
-      </div>
-    </div>
-    <div class="channel">
-      <h3><span class="dot"></span>Takeaway</h3>
-      <div class="row2">
-        <div class="field"><label for="taCovers">Covers</label><input type="number" id="taCovers" min="0" inputmode="numeric" placeholder="0"></div>
-        <div class="field"><label for="taAmount">Amount (PKR)</label><input type="number" id="taAmount" min="0" inputmode="decimal" placeholder="0"></div>
-      </div>
-    </div>
-    <div class="channel">
-      <h3><span class="dot"></span>Delivery (own riders)</h3>
-      <div class="row2">
-        <div class="field"><label for="dlCovers">Covers</label><input type="number" id="dlCovers" min="0" inputmode="numeric" placeholder="0"></div>
-        <div class="field"><label for="dlAmount">Amount (PKR)</label><input type="number" id="dlAmount" min="0" inputmode="decimal" placeholder="0"></div>
-      </div>
-    </div>
-    <div class="channel">
-      <h3><span class="dot"></span>Food Panda</h3>
-      <div class="row2">
-        <div class="field"><label for="fpCovers">Covers</label><input type="number" id="fpCovers" min="0" inputmode="numeric" placeholder="0"></div>
-        <div class="field"><label for="fpAmount">Amount (PKR)</label><input type="number" id="fpAmount" min="0" inputmode="decimal" placeholder="0"></div>
-      </div>
-    </div>
-    <div class="channel">
-      <h3><span class="dot"></span>Third Party (Careem / other)</h3>
-      <div class="row2">
-        <div class="field"><label for="tpCovers">Covers</label><input type="number" id="tpCovers" min="0" inputmode="numeric" placeholder="0"></div>
-        <div class="field"><label for="tpAmount">Amount (PKR)</label><input type="number" id="tpAmount" min="0" inputmode="decimal" placeholder="0"></div>
-      </div>
-    </div>
-    <div class="channel">
-      <h3><span class="dot"></span>Bakery</h3>
-      <div class="field"><label for="bakeryAmount">Sale (PKR)</label><input type="number" id="bakeryAmount" min="0" inputmode="decimal" placeholder="0"></div>
-    </div>
-    <div class="channel">
-      <h3><span class="dot"></span>Paid by Card</h3>
-      <div class="field">
-        <label for="cardAmount">Card portion already included above (PKR)</label>
-        <input type="number" id="cardAmount" min="0" inputmode="decimal" placeholder="0">
-      </div>
-      <p class="muted" style="margin:6px 0 0">Doesn't change the total — just flags how much of it isn't cash in the till (settles to the bank later, like Food Panda). Third Party (Careem/other) is cash in hand and is included in the till recon below.</p>
-    </div>
-  </div>
-
-  <div class="card" id="cashCard">
-    <h3 style="margin:0 0 4px">Till Cash Reconciliation</h3>
-    <p class="muted" style="margin:0 0 14px">Standard float is PKR 40,000, start and end. This is an audit check — almost everything below fills in on its own. You just count the till and enter what's physically there.</p>
-    <div class="row2">
-      <div class="field">
-        <label for="openingCashDisplay">Opening cash in till</label>
-        <input type="text" id="openingCashDisplay" value="&mdash;" disabled>
-      </div>
-      <div class="field">
-        <label for="cashSalesDisplay">Cash sales this shift</label>
-        <input type="text" id="cashSalesDisplay" value="PKR 0" disabled>
-      </div>
-    </div>
-    <div class="field" style="margin-top:10px">
-      <label for="tillExpensesDisplay">Cash expenses this shift (from Daily Expense, this shift only)</label>
-      <input type="text" id="tillExpensesDisplay" value="PKR 0" disabled>
-    </div>
-
-    <div class="field" style="margin-top:12px;background:var(--surface-2);border-radius:9px;padding:12px">
-      <div class="row2">
-        <div>
-          <label style="margin-bottom:2px">Cash to give cash custodian</label>
-          <div class="num" id="autoHandoverDisplay" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
-          <p class="muted" style="margin:4px 0 0;font-size:.78rem">Auto: Cash Sales &minus; Cash Expenses</p>
-        </div>
-        <div class="field" style="margin:0">
-          <label for="custodianAmount">Actual cash handover to custodian</label>
-          <input type="number" id="custodianAmount" inputmode="decimal" placeholder="0">
-        </div>
-      </div>
-      <p class="muted" id="handoverVarianceNote" style="margin:8px 0 0;font-size:.78rem"></p>
-    </div>
-
-    <div class="field" style="margin-top:10px">
-      <label for="closingCash">Actual physical cash present in till &mdash; only field you have to enter</label>
-      <input type="number" id="closingCash" min="0" inputmode="decimal" placeholder="0">
-      <p class="muted" id="closingVarianceNote" style="margin:4px 0 0;font-size:.78rem"></p>
-    </div>
-  </div>
-
-  <div class="summary">
-    <div>
-      <div class="lbl">Total covers</div>
-      <div class="num" id="sumCovers">0</div>
-    </div>
-    <div>
-      <div class="lbl">Total sale</div>
-      <div class="num" id="sumAmount">PKR 0</div>
-    </div>
-    <button class="primary" id="submitBtn" style="width:auto;padding:12px 22px">Save entry</button>
-  </div>
-</form>
+<div id="shiftsContainer" class="shift-grid" hidden>
+  <div class="card" id="panel_morning"></div>
+  <div class="card" id="panel_evening"></div>
+  <div class="card totals-panel" id="panel_totals"></div>
+</div>
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap">
 <script src="session.js"></script>
@@ -238,13 +139,21 @@ const PAGE_KEY = "sales_entry";
 // manager physically counts is a flagged variance for that shift alone, 2026-10-13.
 const STANDARD_TILL_FLOAT = 40000;
 
+const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
+const SHIFT_TIME = { morning: "9:00 AM &ndash; 6:00 PM", evening: "6:00 PM &ndash; 3:00 AM" };
+const FIELD_BASES = ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount"];
+
 let locationId = null;
-let openingCashTill = STANDARD_TILL_FLOAT; // always the standard float for a new shift; a reopened shift overrides this from its saved row
-let tillCashExpenses = 0; // this shift's actual cash expenses, pulled live from Daily Expense entries — the source of truth "B" the custodian handover is calculated against
-let custodianTouched = false; // true once the shift manager edits the custodian fields themselves, so we stop overwriting with the auto-suggestion
-let existingEntryId = null; // set when this shift already has a row today, so closing-cash edits patch it
 let resolvedUserId = null;   // the real app_users.id, set only after the chosen manager's PIN verifies
 let resolvedManagerId = null;
+
+// Per-shift state. Morning and Evening are tracked completely independently — each has its
+// own opening float, its own real cash-expense total, its own "has the custodian field been
+// hand-edited" flag, and its own lock status. Added 2026-10-13 for the side-by-side redesign.
+const state = {
+  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft" },
+  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft" },
+};
 
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -269,19 +178,177 @@ function hideBanner(){
   document.getElementById("banner").className = "banner";
 }
 
-function n(id){
-  const v = document.getElementById(id).value;
+// --- per-shift field helpers (every field id is "<base>_<shift>") ---
+function fid(base, shift){ return base + "_" + shift; }
+function nS(base, shift){
+  const el = document.getElementById(fid(base, shift));
+  const v = el ? el.value : "";
   return v === "" ? 0 : parseFloat(v);
 }
+function setVal(base, shift, v){
+  document.getElementById(fid(base, shift)).value = (v === null || v === undefined) ? "" : v;
+}
 
-function recalcSummary(){
-  const covers = Math.round(n("diCovers") + n("taCovers") + n("dlCovers") + n("tpCovers") + n("fpCovers"));
+function panelInnerHTML(shift, label){
+  const s = shift;
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px">
+      <h2>${label} Shift</h2>
+      <span class="status-badge draft" id="statusBadge_${s}">Draft</span>
+    </div>
+    <p class="muted" style="margin:0 0 12px">${SHIFT_TIME[s]}</p>
+    <div class="muted" id="lockedNote_${s}" style="margin:0 0 12px;color:var(--danger)" hidden></div>
+
+    <div class="channel" style="border-top:none;padding-top:0;margin-top:0">
+      <h3><span class="dot"></span>Dine-in</h3>
+      <div class="row2">
+        <div class="field"><label for="diCovers_${s}">Covers</label><input type="number" id="diCovers_${s}" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="diAmount_${s}">Amount (PKR)</label><input type="number" id="diAmount_${s}" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Takeaway</h3>
+      <div class="row2">
+        <div class="field"><label for="taCovers_${s}">Covers</label><input type="number" id="taCovers_${s}" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="taAmount_${s}">Amount (PKR)</label><input type="number" id="taAmount_${s}" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Delivery (own riders)</h3>
+      <div class="row2">
+        <div class="field"><label for="dlCovers_${s}">Covers</label><input type="number" id="dlCovers_${s}" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="dlAmount_${s}">Amount (PKR)</label><input type="number" id="dlAmount_${s}" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Food Panda</h3>
+      <div class="row2">
+        <div class="field"><label for="fpCovers_${s}">Covers</label><input type="number" id="fpCovers_${s}" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="fpAmount_${s}">Amount (PKR)</label><input type="number" id="fpAmount_${s}" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Third Party (Careem / other)</h3>
+      <div class="row2">
+        <div class="field"><label for="tpCovers_${s}">Covers</label><input type="number" id="tpCovers_${s}" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label for="tpAmount_${s}">Amount (PKR)</label><input type="number" id="tpAmount_${s}" min="0" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Bakery</h3>
+      <div class="field"><label for="bakeryAmount_${s}">Sale (PKR)</label><input type="number" id="bakeryAmount_${s}" min="0" inputmode="decimal" placeholder="0"></div>
+    </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Paid by Card</h3>
+      <div class="field">
+        <label for="cardAmount_${s}">Card portion already included above (PKR)</label>
+        <input type="number" id="cardAmount_${s}" min="0" inputmode="decimal" placeholder="0">
+      </div>
+      <p class="muted" style="margin:6px 0 0">Doesn't change the total &mdash; just flags how much of it isn't cash in the till. Third Party (Careem/other) is cash in hand and is included in the till recon below.</p>
+    </div>
+
+    <div class="recon-box">
+      <h3 style="margin:0 0 4px;font-size:.95rem">Till Cash Reconciliation</h3>
+      <p class="muted" style="margin:0 0 12px">Standard float is PKR 40,000, start and end. Almost everything below fills in on its own &mdash; you just count the till and enter what's physically there.</p>
+      <div class="row2">
+        <div class="field">
+          <label for="openingCashDisplay_${s}">Opening cash</label>
+          <input type="text" id="openingCashDisplay_${s}" value="&mdash;" disabled>
+        </div>
+        <div class="field">
+          <label for="cashSalesDisplay_${s}">Cash sales</label>
+          <input type="text" id="cashSalesDisplay_${s}" value="PKR 0" disabled>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label for="tillExpensesDisplay_${s}">Cash expenses this shift (from Daily Expense)</label>
+        <input type="text" id="tillExpensesDisplay_${s}" value="PKR 0" disabled>
+      </div>
+
+      <div class="field" style="margin-top:12px;background:var(--surface);border-radius:9px;padding:12px">
+        <div class="row2">
+          <div>
+            <label style="margin-bottom:2px">Cash to give custodian</label>
+            <div class="num" id="autoHandoverDisplay_${s}" style="font-size:1.1rem">PKR 0</div>
+            <p class="muted" style="margin:4px 0 0;font-size:.76rem">Auto: Cash Sales &minus; Cash Expenses</p>
+          </div>
+          <div class="field" style="margin:0">
+            <label for="custodianAmount_${s}">Actual handover</label>
+            <input type="number" id="custodianAmount_${s}" inputmode="decimal" placeholder="0">
+          </div>
+        </div>
+        <p class="muted" id="handoverVarianceNote_${s}" style="margin:8px 0 0;font-size:.76rem"></p>
+      </div>
+
+      <div class="field" style="margin-top:10px">
+        <label for="closingCash_${s}">Actual physical cash present in till &mdash; only field you have to enter</label>
+        <input type="number" id="closingCash_${s}" min="0" inputmode="decimal" placeholder="0">
+        <p class="muted" id="closingVarianceNote_${s}" style="margin:4px 0 0;font-size:.76rem"></p>
+      </div>
+    </div>
+
+    <div class="row2" style="margin-top:14px">
+      <div><div class="lbl">Covers</div><div class="num" id="sumCovers_${s}" style="font-size:1.2rem">0</div></div>
+      <div><div class="lbl">Total sale</div><div class="num" id="sumAmount_${s}" style="font-size:1.2rem">PKR 0</div></div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <button type="button" class="primary" id="saveBtn_${s}" style="flex:1;min-width:110px">Save</button>
+      <button type="button" class="ghost" id="closeBtn_${s}">Close Shift</button>
+    </div>
+    <button type="button" class="ghost" id="unlockBtn_${s}" hidden style="margin-top:10px;width:100%">Director Unlock</button>
+  `;
+}
+
+function totalsPanelHTML(){
+  return `
+    <h2 style="margin:0 0 4px">Whole Day Totals</h2>
+    <p class="muted" style="margin:0 0 16px">Morning + Evening combined &mdash; updates live as either shift is edited. For the director: this is the number that matters, not either shift alone.</p>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div><div class="lbl">Total covers</div><div class="num" id="totalCovers" style="font-size:1.3rem">0</div></div>
+      <div><div class="lbl">Total sale</div><div class="num" id="totalSale" style="font-size:1.3rem">PKR 0</div></div>
+      <div><div class="lbl">Cash sales (both shifts)</div><div class="num" id="totalCashSales" style="font-size:1.1rem">PKR 0</div></div>
+      <div><div class="lbl">Cash expenses (both shifts)</div><div class="num" id="totalCashExpenses" style="font-size:1.1rem">PKR 0</div></div>
+      <div><div class="lbl">Handed to custodian (both shifts)</div><div class="num" id="totalHandover" style="font-size:1.1rem">PKR 0</div></div>
+    </div>
+    <div class="muted" id="shiftStatusSummary" style="margin-top:18px;font-size:.82rem;border-top:1px solid var(--border);padding-top:12px"></div>
+  `;
+}
+
+function buildPanels(){
+  document.getElementById("panel_morning").innerHTML = panelInnerHTML("morning", "Morning");
+  document.getElementById("panel_evening").innerHTML = panelInnerHTML("evening", "Evening");
+  document.getElementById("panel_totals").innerHTML = totalsPanelHTML();
+  wireShift("morning");
+  wireShift("evening");
+}
+
+function wireShift(shift){
+  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount"]
+    .forEach(base => document.getElementById(fid(base, shift)).addEventListener("input", () => recalcSummary(shift)));
+  ["cardAmount","closingCash"]
+    .forEach(base => document.getElementById(fid(base, shift)).addEventListener("input", () => { recalcCashRecon(shift); recalcTotals(); }));
+  // Typing in the custodian field is what marks it as a manual override — after that, the
+  // auto-suggestion stops overwriting it for the rest of this shift.
+  document.getElementById(fid("custodianAmount", shift)).addEventListener("input", () => {
+    state[shift].custodianTouched = true;
+    recalcCashRecon(shift);
+    recalcTotals();
+  });
+  document.getElementById("saveBtn_" + shift).addEventListener("click", () => saveShift(shift, false));
+  document.getElementById("closeBtn_" + shift).addEventListener("click", () => saveShift(shift, true));
+  document.getElementById("unlockBtn_" + shift).addEventListener("click", () => unlockShift(shift));
+}
+
+function recalcSummary(shift){
+  const covers = Math.round(nS("diCovers",shift) + nS("taCovers",shift) + nS("dlCovers",shift) + nS("tpCovers",shift) + nS("fpCovers",shift));
   // Bakery Sale Amount is a memo breakdown of items already included in Dine-In/Takeaway/
   // Delivery amounts (confirmed with the owner 2026-10-11) — never added to the total.
-  const amount = n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") + n("fpAmount");
-  document.getElementById("sumCovers").textContent = covers.toLocaleString();
-  document.getElementById("sumAmount").textContent = "PKR " + Math.round(amount).toLocaleString();
-  recalcCashRecon();
+  const amount = nS("diAmount",shift) + nS("taAmount",shift) + nS("dlAmount",shift) + nS("tpAmount",shift) + nS("fpAmount",shift);
+  document.getElementById("sumCovers_" + shift).textContent = covers.toLocaleString();
+  document.getElementById("sumAmount_" + shift).textContent = "PKR " + Math.round(amount).toLocaleString();
+  recalcCashRecon(shift);
+  recalcTotals();
 }
 
 // Cash actually received in the till: the channels that land in hand, minus the card
@@ -289,27 +356,28 @@ function recalcSummary(){
 // included here. Food Panda still settles externally, so it's excluded entirely. Bakery
 // Sale Amount is a memo breakdown already inside Dine-In/Takeaway/Delivery (confirmed
 // 2026-10-11) — it is NOT added again here.
-function cashSalesTotal(){
-  return n("diAmount") + n("taAmount") + n("dlAmount") + n("tpAmount") - n("cardAmount");
+function cashSalesTotal(shift){
+  return nS("diAmount",shift) + nS("taAmount",shift) + nS("dlAmount",shift) + nS("tpAmount",shift) - nS("cardAmount",shift);
 }
 
-function recalcCashRecon(){
-  const cashSales = cashSalesTotal();
-  document.getElementById("cashSalesDisplay").value = "PKR " + Math.round(cashSales).toLocaleString();
-  document.getElementById("tillExpensesDisplay").value = "PKR " + Math.round(tillCashExpenses).toLocaleString();
+function recalcCashRecon(shift){
+  const st = state[shift];
+  const cashSales = cashSalesTotal(shift);
+  document.getElementById("cashSalesDisplay_" + shift).value = "PKR " + Math.round(cashSales).toLocaleString();
+  document.getElementById("tillExpensesDisplay_" + shift).value = "PKR " + Math.round(st.tillCashExpenses).toLocaleString();
 
   // Auto-generated: what should go to the custodian to keep the till at the 40,000 float.
-  const autoHandover = cashSales - tillCashExpenses;
-  document.getElementById("autoHandoverDisplay").textContent = "PKR " + Math.round(autoHandover).toLocaleString();
+  const autoHandover = cashSales - st.tillCashExpenses;
+  document.getElementById("autoHandoverDisplay_" + shift).textContent = "PKR " + Math.round(autoHandover).toLocaleString();
 
   // Pre-fills the actual-handover field until the shift manager edits it themselves —
   // after that we leave their number alone (it's a record of what really happened).
-  if (!custodianTouched) {
-    document.getElementById("custodianAmount").value = Math.round(autoHandover);
+  if (!st.custodianTouched) {
+    setVal("custodianAmount", shift, Math.round(autoHandover));
   }
-  const actualHandover = n("custodianAmount"); // positive = custodian took cash out; negative = custodian topped the till up
+  const actualHandover = nS("custodianAmount", shift); // positive = custodian took cash out; negative = custodian topped the till up
 
-  const handoverNote = document.getElementById("handoverVarianceNote");
+  const handoverNote = document.getElementById("handoverVarianceNote_" + shift);
   const handoverDiff = Math.round(actualHandover - autoHandover);
   if (Math.abs(handoverDiff) > 1) {
     handoverNote.style.color = "var(--danger)";
@@ -320,10 +388,10 @@ function recalcCashRecon(){
   }
 
   // What should physically be left in the till once the actual handover has been taken out.
-  const expectedClosing = openingCashTill + cashSales - tillCashExpenses - actualHandover;
-  const closingEntered = document.getElementById("closingCash").value !== "";
-  const closing = n("closingCash");
-  const closingNote = document.getElementById("closingVarianceNote");
+  const expectedClosing = st.openingCashTill + cashSales - st.tillCashExpenses - actualHandover;
+  const closingEntered = document.getElementById("closingCash_" + shift).value !== "";
+  const closing = nS("closingCash", shift);
+  const closingNote = document.getElementById("closingVarianceNote_" + shift);
 
   if (closingEntered) {
     const closingDiff = Math.round(closing - expectedClosing);
@@ -340,12 +408,44 @@ function recalcCashRecon(){
   }
 }
 
-function resetForm(){
-  ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount","custodianAmount","closingCash"]
-    .forEach(id => document.getElementById(id).value = "");
-  custodianTouched = false; // next shift gets a fresh auto-suggested handover again
-  existingEntryId = null;
-  recalcSummary();
+// Combines both shifts live from whatever is currently in each shift's fields — this is
+// the whole-day figure the director cares about, not either shift in isolation.
+function recalcTotals(){
+  let covers = 0, sale = 0, cashSales = 0, cashExpenses = 0, handover = 0;
+  ["morning","evening"].forEach(s => {
+    covers += Math.round(nS("diCovers",s) + nS("taCovers",s) + nS("dlCovers",s) + nS("tpCovers",s) + nS("fpCovers",s));
+    sale += nS("diAmount",s) + nS("taAmount",s) + nS("dlAmount",s) + nS("tpAmount",s) + nS("fpAmount",s);
+    cashSales += cashSalesTotal(s);
+    cashExpenses += state[s].tillCashExpenses;
+    handover += nS("custodianAmount", s);
+  });
+  document.getElementById("totalCovers").textContent = covers.toLocaleString();
+  document.getElementById("totalSale").textContent = "PKR " + Math.round(sale).toLocaleString();
+  document.getElementById("totalCashSales").textContent = "PKR " + Math.round(cashSales).toLocaleString();
+  document.getElementById("totalCashExpenses").textContent = "PKR " + Math.round(cashExpenses).toLocaleString();
+  document.getElementById("totalHandover").textContent = "PKR " + Math.round(handover).toLocaleString();
+
+  const summaryEl = document.getElementById("shiftStatusSummary");
+  if (summaryEl) {
+    summaryEl.innerHTML = ["morning","evening"].map(s =>
+      `${SHIFT_LABELS[s]}: <strong>${state[s].status === "closed" ? "Closed — locked" : "Draft"}</strong>`
+    ).join(" &middot; ");
+  }
+}
+
+function applyLockUI(shift){
+  const closed = state[shift].status === "closed";
+  const lockFields = FIELD_BASES.concat(["custodianAmount","closingCash"]);
+  lockFields.forEach(base => { document.getElementById(fid(base, shift)).disabled = closed; });
+  document.getElementById("saveBtn_" + shift).hidden = closed;
+  document.getElementById("closeBtn_" + shift).hidden = closed;
+  document.getElementById("unlockBtn_" + shift).hidden = !closed;
+  const badge = document.getElementById("statusBadge_" + shift);
+  badge.textContent = closed ? "Closed — locked" : "Draft";
+  badge.className = "status-badge " + (closed ? "closed" : "draft");
+  const note = document.getElementById("lockedNote_" + shift);
+  note.hidden = !closed;
+  if (closed) note.textContent = "This shift is closed and can't be edited. A director can unlock it below.";
 }
 
 // Shift Manager's own pending-tasks banner — reflects the same checklist the Owner
@@ -396,16 +496,12 @@ async function init(){
     locationId = locs[0].id;
 
     document.getElementById("continueBtn").disabled = false;
-    loadShiftEntry();
     loadTaskBanner();
   } catch (err) {
     showBanner("Could not load the location (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations' allows anon SELECT if this persists.", "danger");
     document.getElementById("continueBtn").disabled = false;
   }
 }
-
-const SHIFT_ORDER = { morning: 0, evening: 1 };
-const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
 
 // The real, recorded cash expenses for this shift — entered independently at the Daily
 // Expense window, not derived from the till math. This is the "actual" figure the
@@ -425,18 +521,16 @@ async function fetchTillCashExpenses(saleDate, shift){
   }
 }
 
-async function loadShiftEntry(){
-  const todayCard = document.getElementById("todayCard");
-  const body = document.getElementById("todayBody");
-  if (!locationId) { todayCard.hidden = true; return; }
+async function loadShiftEntry(shift){
+  if (!locationId) return;
   const saleDate = document.getElementById("dateInput").value;
-  const shift = document.getElementById("shiftSelect").value;
+  const st = state[shift];
 
   let existing = null;
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.${shift}` +
-      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount`,
+      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,status,closed_at`,
       { headers }
     );
     if (res.ok) {
@@ -445,104 +539,133 @@ async function loadShiftEntry(){
     }
   } catch (e) { /* fall through */ }
 
-  tillCashExpenses = await fetchTillCashExpenses(saleDate, shift);
+  st.tillCashExpenses = await fetchTillCashExpenses(saleDate, shift);
 
   if (existing) {
-    existingEntryId = existing.id;
-    openingCashTill = Number(existing.opening_cash_till) || STANDARD_TILL_FLOAT;
-    document.getElementById("diCovers").value = existing.dine_in_covers || "";
-    document.getElementById("diAmount").value = existing.dine_in_amount || "";
-    document.getElementById("taCovers").value = existing.takeaway_covers || "";
-    document.getElementById("taAmount").value = existing.takeaway_amount || "";
-    document.getElementById("dlCovers").value = existing.delivery_covers || "";
-    document.getElementById("dlAmount").value = existing.delivery_amount || "";
-    document.getElementById("tpCovers").value = existing.third_party_covers || "";
-    document.getElementById("tpAmount").value = existing.third_party_amount || "";
-    document.getElementById("fpCovers").value = existing.food_panda_covers || "";
-    document.getElementById("fpAmount").value = existing.food_panda_amount || "";
-    document.getElementById("bakeryAmount").value = existing.bakery_sale || "";
-    document.getElementById("cardAmount").value = existing.card_amount || "";
+    st.existingEntryId = existing.id;
+    st.openingCashTill = Number(existing.opening_cash_till) || STANDARD_TILL_FLOAT;
+    st.status = existing.status || "draft";
+    setVal("diCovers", shift, existing.dine_in_covers || "");
+    setVal("diAmount", shift, existing.dine_in_amount || "");
+    setVal("taCovers", shift, existing.takeaway_covers || "");
+    setVal("taAmount", shift, existing.takeaway_amount || "");
+    setVal("dlCovers", shift, existing.delivery_covers || "");
+    setVal("dlAmount", shift, existing.delivery_amount || "");
+    setVal("tpCovers", shift, existing.third_party_covers || "");
+    setVal("tpAmount", shift, existing.third_party_amount || "");
+    setVal("fpCovers", shift, existing.food_panda_covers || "");
+    setVal("fpAmount", shift, existing.food_panda_amount || "");
+    setVal("bakeryAmount", shift, existing.bakery_sale || "");
+    setVal("cardAmount", shift, existing.card_amount || "");
     // custodian_cash_amount is stored negative when cash left the till (the normal case) —
     // flip the sign back to "actual handover", where positive means cash went to the custodian.
-    document.getElementById("custodianAmount").value = -(Number(existing.custodian_cash_amount) || 0);
-    document.getElementById("closingCash").value = existing.closing_cash_till != null ? existing.closing_cash_till : "";
-    custodianTouched = true; // this shift already has a real saved handover — don't clobber it with a fresh suggestion
-
-    const total = existing.total_sale != null ? existing.total_sale : (existing.dine_in_amount + existing.takeaway_amount + existing.delivery_amount + existing.third_party_amount + (existing.food_panda_amount || 0));
-    body.innerHTML = `
-      ${SHIFT_LABELS[shift]} shift &middot; Dine-in: PKR ${Math.round(existing.dine_in_amount || 0).toLocaleString()} &middot;
-      Takeaway: PKR ${Math.round(existing.takeaway_amount || 0).toLocaleString()} &middot;
-      Delivery: PKR ${Math.round(existing.delivery_amount || 0).toLocaleString()} &middot;
-      Third Party: PKR ${Math.round(existing.third_party_amount || 0).toLocaleString()} &middot;
-      Food Panda: PKR ${Math.round(existing.food_panda_amount || 0).toLocaleString()} &middot;
-      Bakery: PKR ${Math.round(existing.bakery_sale || 0).toLocaleString()}<br>
-      <strong>Total so far: PKR ${Math.round(total).toLocaleString()}</strong>
-      — saving again for this shift updates this same record.`;
-    todayCard.hidden = false;
+    setVal("custodianAmount", shift, -(Number(existing.custodian_cash_amount) || 0));
+    setVal("closingCash", shift, existing.closing_cash_till != null ? existing.closing_cash_till : "");
+    st.custodianTouched = true; // this shift already has a real saved handover — don't clobber it with a fresh suggestion
   } else {
-    existingEntryId = null;
-    openingCashTill = STANDARD_TILL_FLOAT;
-    document.getElementById("custodianAmount").value = "";
-    custodianTouched = false; // fresh shift — let the auto-suggestion fill the custodian handover
-    todayCard.hidden = true;
+    st.existingEntryId = null;
+    st.openingCashTill = STANDARD_TILL_FLOAT;
+    st.status = "draft";
+    FIELD_BASES.forEach(base => setVal(base, shift, ""));
+    setVal("custodianAmount", shift, "");
+    setVal("closingCash", shift, "");
+    st.custodianTouched = false; // fresh shift — let the auto-suggestion fill the custodian handover
   }
 
-  document.getElementById("openingCashDisplay").value = "PKR " + Math.round(openingCashTill).toLocaleString();
-  recalcSummary();
-  loadMorningReconCard(saleDate, shift);
+  document.getElementById("openingCashDisplay_" + shift).value = "PKR " + Math.round(st.openingCashTill).toLocaleString();
+  applyLockUI(shift);
+  recalcSummary(shift);
 }
 
-// When closing the evening shift, show the morning shift's numbers alongside so the
-// evening manager can reconcile the day as a whole, not just their own half of it.
-async function loadMorningReconCard(saleDate, shift){
-  const card = document.getElementById("morningCard");
-  const body = document.getElementById("morningBody");
-  if (shift !== "evening" || !locationId) { card.hidden = true; return; }
+function loadBothShifts(){
+  loadShiftEntry("morning");
+  loadShiftEntry("evening");
+}
+
+async function saveShift(shift, close){
+  const whoId = resolvedUserId;
+  if (!whoId){
+    showBanner("Enter your code and PIN under \"Entered by\" before saving.", "danger");
+    return;
+  }
+  if (close && document.getElementById(fid("closingCash", shift)).value === ""){
+    alert("Enter the actual physical cash present in the till before closing this shift.");
+    return;
+  }
+
+  const btn = document.getElementById((close ? "closeBtn_" : "saveBtn_") + shift);
+  const prevText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = close ? "Closing…" : "Saving…";
+
+  const saleDate = document.getElementById("dateInput").value;
+  const dow = new Date(saleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
+
+  // Actual handover is positive when cash left the till (the normal case) — stored negative
+  // in custodian_cash_amount to match the sign convention cash-reconciliation.html expects.
+  const custodianSigned = -nS("custodianAmount", shift);
+  const closingEntered = document.getElementById(fid("closingCash", shift)).value !== "";
+
+  const payload = {
+    location_id: locationId,
+    sale_date: saleDate,
+    shift: shift,
+    day_of_week: dow,
+    dine_in_covers: Math.round(nS("diCovers", shift)),
+    dine_in_amount: nS("diAmount", shift),
+    takeaway_covers: Math.round(nS("taCovers", shift)),
+    takeaway_amount: nS("taAmount", shift),
+    delivery_covers: Math.round(nS("dlCovers", shift)),
+    delivery_amount: nS("dlAmount", shift),
+    third_party_covers: Math.round(nS("tpCovers", shift)),
+    third_party_amount: nS("tpAmount", shift),
+    food_panda_covers: Math.round(nS("fpCovers", shift)),
+    food_panda_amount: nS("fpAmount", shift),
+    bakery_sale: nS("bakeryAmount", shift),
+    card_amount: nS("cardAmount", shift),
+    // opening_cash_till is NOT sent — the DB trigger (daily_sales_compute_opening_cash) always
+    // sets it to the standard PKR 40,000 float on insert, and locks it on update.
+    custodian_cash_amount: custodianSigned,
+    closing_cash_till: closingEntered ? nS("closingCash", shift) : null,
+    entered_by_user_id: whoId,
+    entered_by_manager_id: resolvedManagerId,
+  };
+  if (close) {
+    payload.status = "closed";
+    payload.closed_at = new Date().toISOString();
+    payload.closed_by_manager_id = resolvedManagerId;
+  }
 
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.morning` +
-      `&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount`,
-      { headers }
-    );
-    if (!res.ok) throw new Error(String(res.status));
-    const rows = await res.json();
-    if (!rows.length) {
-      body.innerHTML = "Morning shift hasn't been entered yet for " + saleDate + ".";
-      card.hidden = false;
-      return;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_sales?on_conflict=location_id,sale_date,shift`, {
+      method: "POST",
+      headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(res.status + ": " + errText.slice(0, 200));
     }
-    const m = rows[0];
-    const total = m.total_sale != null ? m.total_sale :
-      (m.dine_in_amount + m.takeaway_amount + m.delivery_amount + m.third_party_amount + (m.food_panda_amount || 0));
-    const cashSales = (m.dine_in_amount || 0) + (m.takeaway_amount || 0) + (m.delivery_amount || 0) + (m.third_party_amount || 0) - (m.card_amount || 0);
-    const actualHandover = -(Number(m.custodian_cash_amount) || 0); // positive = cash left the till
-    const opening = Number(m.opening_cash_till) || STANDARD_TILL_FLOAT;
-    const closing = m.closing_cash_till != null ? Number(m.closing_cash_till) : null;
-    const morningActual = await fetchTillCashExpenses(saleDate, "morning");
-    const autoHandover = cashSales - morningActual;
-    const expectedClosing = opening + cashSales - morningActual - actualHandover;
-    const closingVariance = closing != null ? Math.round(closing - expectedClosing) : null;
+    showBanner((close ? "Closed — " : "Saved — ") + SHIFT_LABELS[shift] + " shift, " + saleDate + "." + (close ? " Only a director can reopen it now." : " You can keep adding to this same entry."), "success");
+    await loadShiftEntry(shift);
+  } catch (err) {
+    showBanner("Could not save: " + err.message, "danger");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevText;
+  }
+}
 
-    body.innerHTML = `
-      Dine-in: PKR ${Math.round(m.dine_in_amount || 0).toLocaleString()} &middot;
-      Takeaway: PKR ${Math.round(m.takeaway_amount || 0).toLocaleString()} &middot;
-      Delivery: PKR ${Math.round(m.delivery_amount || 0).toLocaleString()} &middot;
-      Third Party: PKR ${Math.round(m.third_party_amount || 0).toLocaleString()} &middot;
-      Food Panda: PKR ${Math.round(m.food_panda_amount || 0).toLocaleString()} &middot;
-      Bakery: PKR ${Math.round(m.bakery_sale || 0).toLocaleString()}<br>
-      <strong>Morning total: PKR ${Math.round(total).toLocaleString()}</strong><br><br>
-      Opening till: PKR ${Math.round(opening).toLocaleString()} &middot;
-      Cash sales: PKR ${Math.round(cashSales).toLocaleString()} &middot;
-      Cash expenses: PKR ${Math.round(morningActual).toLocaleString()} &middot;
-      Handed to custodian: PKR ${Math.round(actualHandover).toLocaleString()} (auto-suggested PKR ${Math.round(autoHandover).toLocaleString()}) &middot;
-      Closing till: ${closing != null ? "PKR " + Math.round(closing).toLocaleString() : "not yet entered"}<br>
-      ${closing != null ? `<strong>Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till</strong>${Math.abs(closingVariance) > 1 ? ` <span style="color:var(--danger)">(off by PKR ${Math.abs(closingVariance).toLocaleString()})</span>` : ""}` : ""}
-      ${closing == null ? "<span style=\"color:var(--danger)\">Morning hasn't closed their till yet.</span>" : ""}`;
-    card.hidden = false;
+async function unlockShift(shift){
+  const pin = prompt("Director PIN to unlock the " + SHIFT_LABELS[shift] + " shift:");
+  if (!pin) return;
+  const saleDate = document.getElementById("dateInput").value;
+  try {
+    await sbRpc("admin_unlock_shift_v1", { p_owner_pin: pin, p_location_id: locationId, p_sale_date: saleDate, p_shift: shift });
+    showBanner(SHIFT_LABELS[shift] + " shift unlocked — it can be edited again.", "success");
+    await loadShiftEntry(shift);
   } catch (e) {
-    body.innerHTML = "Couldn't load morning shift (" + e.message + ").";
-    card.hidden = false;
+    showBanner("Could not unlock: " + e.message, "danger");
   }
 }
 
@@ -550,10 +673,12 @@ function afterLogin(userId, name, managerId, role) {
   resolvedUserId = userId;
   resolvedManagerId = managerId;
   document.getElementById("whoCard").hidden = true;
-  document.getElementById("salesForm").hidden = false;
+  document.getElementById("shiftsContainer").hidden = false;
   hideBanner();
-  loadShiftEntry();
+  loadBothShifts();
 }
+
+buildPanels();
 
 document.getElementById("continueBtn").addEventListener("click", async () => {
   const nameInput = document.getElementById("loginName");
@@ -586,96 +711,7 @@ document.getElementById("continueBtn").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
-document.getElementById("shiftSelect").addEventListener("change", loadShiftEntry);
-document.getElementById("dateInput").addEventListener("change", loadShiftEntry);
-
-["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount"]
-  .forEach(id => document.getElementById(id).addEventListener("input", recalcSummary));
-
-["cardAmount","closingCash"]
-  .forEach(id => document.getElementById(id).addEventListener("input", recalcCashRecon));
-
-// Typing in the custodian field is what marks it as a manual override — after that, the
-// auto-suggestion stops overwriting it for the rest of this shift.
-document.getElementById("custodianAmount").addEventListener("input", () => { custodianTouched = true; recalcCashRecon(); });
-
-document.getElementById("salesForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const whoId = resolvedUserId;
-  if (!whoId){
-    showBanner("Your login got cleared after the last save — enter your code and PIN again under \"Entered by\" before saving.", "danger");
-    document.getElementById("salesForm").hidden = true;
-    document.getElementById("whoCard").hidden = false;
-    return;
-  }
-
-  const btn = document.getElementById("submitBtn");
-  btn.disabled = true;
-  btn.textContent = "Saving…";
-
-  const saleDate = document.getElementById("dateInput").value;
-  const shift = document.getElementById("shiftSelect").value;
-  const dow = new Date(saleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
-
-  // Actual handover is positive when cash left the till (the normal case) — stored negative
-  // in custodian_cash_amount to match the sign convention cash-reconciliation.html expects
-  // (it reads a negative custodian_cash_amount as cash handed OUT of the till TO the safe).
-  const custodianSigned = -n("custodianAmount");
-  const closingEntered = document.getElementById("closingCash").value !== "";
-
-  const payload = {
-    location_id: locationId,
-    sale_date: saleDate,
-    shift: shift,
-    day_of_week: dow,
-    dine_in_covers: Math.round(n("diCovers")),
-    dine_in_amount: n("diAmount"),
-    takeaway_covers: Math.round(n("taCovers")),
-    takeaway_amount: n("taAmount"),
-    delivery_covers: Math.round(n("dlCovers")),
-    delivery_amount: n("dlAmount"),
-    third_party_covers: Math.round(n("tpCovers")),
-    third_party_amount: n("tpAmount"),
-    food_panda_covers: Math.round(n("fpCovers")),
-    food_panda_amount: n("fpAmount"),
-    bakery_sale: n("bakeryAmount"),
-    card_amount: n("cardAmount"),
-    // opening_cash_till is NOT sent — the DB trigger (daily_sales_compute_opening_cash) always
-    // sets it to the standard PKR 40,000 float on insert, and locks it on update.
-    custodian_cash_amount: custodianSigned,
-    closing_cash_till: closingEntered ? n("closingCash") : null,
-    entered_by_user_id: whoId,
-    entered_by_manager_id: resolvedManagerId,
-  };
-
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_sales?on_conflict=location_id,sale_date,shift`, {
-      method: "POST",
-      headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(res.status + ": " + errText.slice(0, 200));
-    }
-    showBanner("Saved — " + SHIFT_LABELS[shift] + " shift, " + saleDate + ". You can keep adding to this same entry (e.g. closing cash later), or pick a different name to switch.", "success");
-    resetForm();
-    document.getElementById("salesForm").hidden = true;
-    document.getElementById("whoCard").hidden = false;
-    // Deliberately NOT clearing loginName — clearing it here is what caused saves to
-    // silently fail with an RLS error when someone came back to add closing cash
-    // without noticing they'd need to retype their name first. The PIN still has
-    // to be re-entered each time, same as every other screen.
-    document.getElementById("loginPin").value = "";
-    loadShiftEntry();
-  } catch (err) {
-    showBanner("Could not save: " + err.message, "danger");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Save entry";
-  }
-});
+document.getElementById("dateInput").addEventListener("change", loadBothShifts);
 
 init().then(() => {
   const existing = FNKSession.get();

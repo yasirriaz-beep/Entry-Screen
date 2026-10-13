@@ -165,6 +165,31 @@ used — the custodian amount is now a single signed field (positive = cash left
 opening is always the fixed float, decided server-side. The `till_leftover_amount` column still
 exists in the DB but nothing reads or writes it going forward.
 
+### Side-by-side shifts, Save vs. Close, and Director Unlock (as of Oct 13, 2026)
+
+`sales-entry.html` no longer has a Morning/Evening dropdown. Morning and Evening are shown as
+two full, independent panels side by side (stacked Morning → Evening on a phone), each with its
+own sales fields and its own Till Cash Reconciliation. A third panel, **Whole Day Totals**,
+sits to the right (last on a phone) and combines both shifts live — covers, total sale, cash
+sales, cash expenses, and cash handed to the custodian — because the director cares about the
+whole day, not either shift alone.
+
+- **Save** behaves exactly as before and stays fully repeatable — a shift manager can keep
+  re-saving the same shift all day (e.g. adding the closing count later) with no lock.
+- **Close Shift** is a separate, explicit button, only enabled once the physical cash count is
+  filled in. It saves the shift's current numbers and marks it `status = 'closed'` (with
+  `closed_at` and which manager closed it) — after that the whole panel goes read-only and
+  shows a "Closed — locked" badge. This was a deliberate change from the original ask ("locks on
+  save") — locking on every save would have broken the documented workflow of saving mid-shift
+  and coming back later to add the closing count, so locking only happens on this explicit,
+  separate action.
+- **Director Unlock** appears on a closed shift in place of Save/Close. It prompts for the
+  owner PIN (same PIN/pattern as "Lock/Unlock Day" on `cash-reconciliation.html`) and calls the
+  `admin_unlock_shift_v1` RPC, which resets that one shift back to `status = 'draft'` so it can
+  be edited and saved again.
+- The old "evening manager sees a read-only Morning recap" card is gone — now redundant, since
+  both shifts are always visible together on the same screen.
+
 ### Safe 2 — Cash Reconciliation (Zeeshan's safe)
 
 Unchanged in mechanics: Opening (carried from yesterday's count) + Cash In (the day's till
