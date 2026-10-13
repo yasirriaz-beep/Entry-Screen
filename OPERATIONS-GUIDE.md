@@ -38,9 +38,15 @@ editable from `expense-categories.html` (director access only). Each category ca
   (Director Draw, Payable Payment, Interstore Transfers). These show as a separate memo on
   the Income Statement and are never netted into Net Income.
 - **`requires_rgm_approval`** — true only for "Charge to Restaurant". An entry under this
-  head cannot be saved without the RGM entering their PIN first (enforced both in the UI and
-  by a database trigger — it fails even if someone bypasses the app and hits the database
-  directly). The Owner Dashboard shows a daily audit panel of every approval.
+  head cannot be saved without sign-off first (enforced both in the UI and by a database
+  trigger — it fails even if someone bypasses the app and hits the database directly). The
+  Owner Dashboard shows a daily audit panel of every approval.
+  **Who can approve**, as of Oct 13, 2026: the configured RGM (PIN entry, same as before), OR
+  **any director** — a director logged in under their own PIN self-approves instantly, no
+  separate PIN needed, on both `expense-entry.html` (new entry) and `expense-edit.html`
+  (fixing an existing one). Before this, a director correcting a miscategorized entry into
+  "Charge to Restaurant" was stuck behind the same RGM gate as everyone else, including being
+  fully blocked on days no RGM was configured.
 
 **Subcategories** are managed inside the same page (expand a category → Subcategories
 section). A category with no subcategories just skips that dropdown on the entry form.

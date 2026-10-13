@@ -329,7 +329,7 @@ const CHARGED_TO_CATEGORIES = ["Director Draw"];
 const EMPLOYEE_ADVANCE_CATEGORIES = ["Payroll"];
 
 let state = {
-  userId: null, userName: null, managerId: null, products: [], employees: [], currentEntry: null, receiptPhotoPath: null,
+  userId: null, userName: null, managerId: null, role: null, products: [], employees: [], currentEntry: null, receiptPhotoPath: null,
   categoryMeta: {}, subcategoriesByCategory: {}, rgmManager: null, rgmApproval: null, listRows: []
 };
 
@@ -422,6 +422,7 @@ function afterLogin(userId, name, managerId, role) {
   state.userId = userId;
   state.userName = name;
   state.managerId = managerId;
+  state.role = role;
   document.getElementById("step-name").hidden = true;
   showList();
   document.getElementById("f-list-date").value = todayStr();
@@ -610,9 +611,22 @@ function updateRgmApprovalBlock(category) {
     return;
   }
   block.hidden = false;
+
+  // A director is already logged in under their own PIN — no need to separately re-enter
+  // an RGM's PIN to approve their own entry. Directors can self-approve this category.
+  // Added 2026-10-13.
+  if (state.role === "director") {
+    state.rgmApproval = { managerId: state.managerId, managerName: state.userName, approvedAt: new Date().toISOString() };
+    document.getElementById("rgm-approval-pending").hidden = true;
+    const doneEl = document.getElementById("rgm-approval-done");
+    doneEl.hidden = false;
+    doneEl.textContent = `Approved — ${state.userName} is logged in as director.`;
+    return;
+  }
+
   if (!state.rgmManager) {
     document.getElementById("rgm-approval-error").hidden = false;
-    document.getElementById("rgm-approval-error").textContent = "No RGM is configured for this location — ask the owner to set one up in Manage Access before this category can be used.";
+    document.getElementById("rgm-approval-error").textContent = "No RGM is configured for this location — ask the owner to set one up in Manage Access, or have a director log in to approve this instead.";
     document.getElementById("btn-rgm-approve").disabled = true;
   } else {
     document.getElementById("btn-rgm-approve").disabled = false;
