@@ -70,6 +70,26 @@
     max-width: 640px;
     margin: 0 auto;
   }
+  body.wide { max-width: 980px; }
+  .layout { display: flex; gap: 20px; align-items: flex-start; }
+  .main-col { flex: 1; min-width: 0; }
+  .side-col { flex: 0 0 320px; min-width: 0; position: sticky; top: 20px; }
+  @media (max-width: 860px) {
+    body.wide { max-width: 640px; }
+    .layout { display: block; }
+    .side-col { position: static; margin-top: 16px; }
+  }
+  .today-total-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: 10px;
+    margin-top: 6px;
+    border-top: 2px solid var(--border);
+    font-family: 'Zilla Slab', Georgia, serif;
+  }
+  .today-total-line .ttl-label { font-size: 0.8rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.02em; }
+  .today-total-line .ttl-value { font-size: 1.15rem; font-weight: 600; }
   h1 {
     font-family: 'Zilla Slab', Georgia, serif;
     font-size: 1.5rem;
@@ -177,7 +197,7 @@
   .btn-login:disabled { opacity: 0.6; cursor: default; }
 </style>
 </head>
-<body>
+<body class="wide">
 
 <h1>Gulberg Expense Entry</h1>
 <div class="sub">Forks N Knives — daily expense log</div>
@@ -193,6 +213,8 @@
 </div>
 
 <div id="step-form" hidden>
+<div class="layout">
+<div class="main-col">
   <div class="card">
     <div class="row2 field">
       <div>
@@ -287,8 +309,8 @@
     </div>
 
     <div class="field">
-      <label>Description / Notes</label>
-      <textarea id="f-detail" rows="2" placeholder="Short description"></textarea>
+      <label>Description / Notes <span style="color:var(--err)">*</span></label>
+      <textarea id="f-detail" rows="2" placeholder="Short description" required></textarea>
     </div>
 
     <div class="field">
@@ -307,12 +329,20 @@
 
   <button class="btn-primary" id="btn-check" type="button">Check &amp; Save</button>
   <button class="btn-ghost" id="btn-back" type="button">Back</button>
+</div>
 
-  <div class="card" style="margin-top:16px;">
+<div class="side-col">
+  <div class="card">
     <div class="step-label">Today's Entries</div>
     <div id="today-list"></div>
     <div class="hint" id="today-empty" hidden>Nothing logged for today yet.</div>
+    <div class="today-total-line" id="today-total-line" hidden>
+      <span class="ttl-label">Total — both shifts</span>
+      <span class="ttl-value" id="today-total-value">PKR 0</span>
+    </div>
   </div>
+</div>
+</div>
 </div>
 
 <div id="step-success" class="card success-wrap" hidden>
@@ -545,11 +575,14 @@ function afterLogin(userId, name, managerId, role) {
 async function loadTodayList() {
   const list = document.getElementById("today-list");
   const emptyHint = document.getElementById("today-empty");
+  const totalLine = document.getElementById("today-total-line");
   try {
+    // No shift filter — this covers both Morning and Evening entries for today.
     const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${todayStr()}&select=id,category,amount,created_at,detail,shift&order=created_at.desc`);
     list.innerHTML = "";
-    if (!rows.length) { emptyHint.hidden = false; return; }
+    if (!rows.length) { emptyHint.hidden = false; totalLine.hidden = true; return; }
     emptyHint.hidden = true;
+    let total = 0;
     rows.forEach(r => {
       const row = document.createElement("div");
       row.className = "po-card";
@@ -558,8 +591,11 @@ async function loadTodayList() {
         <div class="po-title">${r.category || "Expense"}</div>
         <div class="po-sub">PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${r.detail ? " · " + r.detail : ""}</div>`;
       list.appendChild(row);
+      total += Number(r.amount) || 0;
     });
-  } catch (e) { emptyHint.hidden = false; }
+    document.getElementById("today-total-value").textContent = "PKR " + Math.round(total).toLocaleString();
+    totalLine.hidden = false;
+  } catch (e) { emptyHint.hidden = false; totalLine.hidden = true; }
 }
 
 async function populateCategories() {
@@ -811,6 +847,10 @@ async function runCheckAndMaybeSave() {
 
   if (!date) return alert("Pick a date.");
   if (!amount || amount <= 0) return alert("Enter an amount greater than zero.");
+  if (!document.getElementById("f-detail").value.trim()) {
+    document.getElementById("f-detail").focus();
+    return alert("Add a short description before saving.");
+  }
   if (cat === ITEM_CODE_CATEGORY && !document.getElementById("f-item-select").value) {
     return alert("Pick an item for an Inventory Purchase.");
   }
