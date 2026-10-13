@@ -198,14 +198,20 @@ Opening (carried from yesterday's count, or set once by hand for day one of usin
 a shift-tied expense already shows up as a smaller Safe 1 handover, so counting it here too
 would double it) = Expected, compared against Zeeshan's physical count.
 
-Cash Out is three sources combined:
-1. Daily Expense entries with no shift and payment method = cash.
-2. Vendor Payments with method = cash (paying down a payable logged earlier on Goods Receipt).
-3. **Goods Receipt entries marked "Paid Now" → Cash** — added Oct 13, 2026. A receipt paid on
+**Cash Out is deliberately narrow — only cash that actually left this safe, in Zeeshan's own
+hands:**
+1. Vendor Payments with method = cash (paying down a payable logged earlier on Goods Receipt).
+2. **Goods Receipt entries marked "Paid Now" → Cash** — added Oct 13, 2026. A receipt paid on
    the spot never goes through Vendor Payments (there's no payable to pay down), so without this
    it vanished from the cash trail entirely. `purchases.payment_method` (cash/bank, only
    meaningful when `payment_status = 'paid'`) drives this — Goods Receipt now asks "Paid How?"
    whenever "Paid Now" is picked, defaulting to Cash.
+
+Daily Expense entries are **never** summed into Safe 2's Cash Out, whatever their shift — a
+shift-tied expense already comes out as a smaller Safe 1 till handover (summing it here too
+would deduct it twice), and a no-shift expense was never cash Zeeshan paid out of this safe
+either. (An earlier version of this page did sum no-shift Daily Expense entries in here; the
+owner flagged it as double-counting against Safe 1 and it was removed Oct 13, 2026.)
 
 **As of Oct 13, 2026, a DRAFT day always shows live totals**, not whatever was saved the last
 time someone hit "Save Draft." Before this, a draft saved early in the day (before the shifts

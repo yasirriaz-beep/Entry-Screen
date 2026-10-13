@@ -178,9 +178,9 @@
   </div>
 
   <div class="flow-detail" id="detail-out" hidden>
-    <div class="fd-title">Cash Out — today's cash expenses &amp; vendor payments</div>
+    <div class="fd-title">Cash Out — cash Zeeshan paid out</div>
     <div id="out-breakdown"></div>
-    <div class="hint">Pulled automatically from Daily Expense and cash Vendor Payments. Nothing to enter here.</div>
+    <div class="hint">Pulled automatically from cash Vendor Payments and Goods Receipt entries marked "Paid Now" in cash. Daily Expense entries aren't repeated here — a shift-tied one already shows up as a smaller Safe 1 handover, and a no-shift one isn't cash out of this safe by Zeeshan.</div>
   </div>
 
   <div class="flow-detail" id="detail-closing" hidden>
@@ -490,16 +490,15 @@ async function fetchCashIn(dateStr) {
   } catch (e) { return { total: 0, lines: [] }; }
 }
 
+// Cash Out here is deliberately narrow: only cash that actually left THIS safe, in Zeeshan's
+// hands — a vendor payment, or a goods receipt he paid cash for on the spot. Daily Expense
+// entries are NOT included, whatever their shift: a shift-tied one already comes out as a
+// smaller Safe 1 till handover (counting it here too would deduct it twice), and a no-shift
+// one was never cash Zeeshan paid out of this safe either. Changed 2026-10-13 — an earlier
+// version also summed no-shift Daily Expense entries into Cash Out here, which the owner
+// flagged as double-counting against Safe 1.
 async function fetchCashOut(dateStr) {
-  let expenseLines = [], vendorLines = [], receiptLines = [];
-  try {
-    // Only expenses with no shift (paid directly from this safe) belong here. A shift-tied
-    // expense was already paid out of the cashier's till and is reflected in a *smaller*
-    // handover (custodian_cash_amount / cash_in) — counting it again here would deduct it
-    // from this safe twice.
-    const rows = await sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&payment_method=eq.cash&shift=is.null&select=category,amount,detail`);
-    expenseLines = (rows || []).map(r => ({ label: r.category || r.detail || "Expense", amount: Number(r.amount) || 0 }));
-  } catch (e) { /* ignore */ }
+  let vendorLines = [], receiptLines = [];
   try {
     const rows = await sb(`vendor_payments?location_id=eq.${GULBERG_ID}&payment_date=eq.${dateStr}&method=eq.cash&select=amount,vendors(name)`);
     vendorLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Vendor") + " (cash payment)", amount: Number(r.amount) || 0 }));
@@ -511,7 +510,7 @@ async function fetchCashOut(dateStr) {
     const rows = await sb(`purchases?location_id=eq.${GULBERG_ID}&purchase_date=eq.${dateStr}&payment_status=eq.paid&payment_method=eq.cash&select=amount,vendors(name)`);
     receiptLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Goods Receipt") + " (paid now, cash)", amount: Number(r.amount) || 0 }));
   } catch (e) { /* ignore */ }
-  const lines = [...expenseLines, ...vendorLines, ...receiptLines];
+  const lines = [...vendorLines, ...receiptLines];
   const total = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
   return { total, lines };
 }
@@ -813,7 +812,7 @@ async function loadHistory() {
         <div class="hist-detail" hidden>
           <div>Opening Cash: ${fmtMoney(r.opening_cash)}</div>
           <div>Cash In (till handovers): ${fmtMoney(r.cash_in)}</div>
-          <div>Cash Out (expenses + cash vendor payments): ${fmtMoney(r.cash_out)}</div>
+          <div>Cash Out (cash vendor payments + goods receipts paid now): ${fmtMoney(r.cash_out)}</div>
           <div>Expected Cash: ${fmtMoney(expected)}</div>
           <div>Counted Cash: ${counted === null ? "not counted" : fmtMoney(counted)}</div>
           <div>Variance: ${variance === null ? "—" : fmtMoney(variance)}${r.adjustment_reason ? " — " + r.adjustment_reason : ""}</div>
