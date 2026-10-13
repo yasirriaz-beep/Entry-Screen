@@ -163,7 +163,8 @@
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
-const ADVANCE_CATEGORY = "Payroll/Employee Charge";
+// Advances are expenses with category "Payroll" / subcategory "Employee Charge" (set via
+// Expense Entry's advance flow, which is what also stamps employee_id — see loadEntriesAndAdvances).
 const PAGE_KEY = "payroll";
 
 let state = { userId: null, userName: null, managerId: null, employees: [], entries: {}, advances: {} };
@@ -316,10 +317,17 @@ async function loadEntriesAndAdvances() {
     rows.forEach(r => { state.entries[r.employee_id] = r; });
   } catch (e) { /* none yet */ }
 
-  // Advances paid as expenses this period, per employee
+  // Advances paid as expenses this period, per employee. Filtered on employee_id being set
+  // rather than on category/subcategory text — employee_id only ever gets set by Expense
+  // Entry's "Payroll" / "Employee Charge" advance flow, so it's the reliable signal, and it
+  // survives a category or subcategory rename. (Previously this filtered on
+  // category=eq.Payroll/Employee Charge, a single concatenated string that never matched the
+  // actual stored values — category="Payroll", subcategory="Employee Charge" are two separate
+  // columns — so this query silently returned zero rows and no advance ever showed up here.
+  // Fixed 2026-10-13.)
   state.advances = {};
   try {
-    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&category=eq.${encodeURIComponent(ADVANCE_CATEGORY)}&expense_date=gte.${start}&expense_date=lte.${end}&employee_id=not.is.null&select=employee_id,amount,expense_date`);
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${start}&expense_date=lte.${end}&employee_id=not.is.null&select=employee_id,amount,expense_date`);
     rows.forEach(r => {
       if (!state.advances[r.employee_id]) state.advances[r.employee_id] = { total: 0, count: 0 };
       state.advances[r.employee_id].total += Number(r.amount) || 0;
