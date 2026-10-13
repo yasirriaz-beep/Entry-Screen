@@ -174,7 +174,15 @@
       <select id="f-payment-status">
         <option value="credit">On Credit (payable)</option>
         <option value="paid">Paid Now</option>
+        <option value="advance">Advance Paid (balance stays on credit)</option>
       </select>
+      <div class="hint" id="payment-status-hint" hidden>For a vendor like K&amp;N that needs an advance before they'll deliver — records the advance as a payment to the vendor and leaves the rest of this bill as a payable, same as On Credit.</div>
+    </div>
+
+    <div class="field" id="block-advance-amount" hidden>
+      <label>Advance Amount Paid (PKR)</label>
+      <input type="number" id="f-advance-amount" min="0" step="any" placeholder="0">
+      <div class="hint">Must be a vendor and no more than the total below.</div>
     </div>
 
     <div class="field" id="block-payment-method" hidden>
@@ -183,7 +191,7 @@
         <option value="cash">Cash (from the safe)</option>
         <option value="bank">Bank Transfer</option>
       </select>
-      <div class="hint">Cash here shows up as Cash Out on today's Cash Reconciliation — same as a cash vendor payment.</div>
+      <div class="hint" id="payment-method-hint">Cash here shows up as Cash Out on today's Cash Reconciliation — same as a cash vendor payment.</div>
     </div>
 
     <div class="field">
@@ -520,7 +528,7 @@ async function loadTodayList() {
   const list = document.getElementById("today-list");
   const emptyHint = document.getElementById("today-empty");
   try {
-    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${todayStr()}&select=id,qty,unit,amount,created_at,products(name),vendors(name)&order=created_at.desc`);
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${todayStr()}&select=id,qty,unit,amount,created_at,notes,payment_status,products(name),vendors(name)&order=created_at.desc`);
     list.innerHTML = "";
     if (!rows.length) { emptyHint.hidden = false; return; }
     emptyHint.hidden = true;
@@ -528,9 +536,11 @@ async function loadTodayList() {
       const row = document.createElement("div");
       row.className = "po-card";
       row.style.cursor = "default";
+      const advanceTag = (r.notes || "").startsWith("Advance of PKR")
+        ? ` · <span style="color:var(--accent);font-weight:600;">${(r.notes.match(/Advance of PKR [\d,]+/) || [""])[0]}</span>` : "";
       row.innerHTML = `
         <div class="po-title">${r.products?.name || "Item"}</div>
-        <div class="po-sub">${r.qty} ${r.unit || ""} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>`;
+        <div class="po-sub">${r.qty} ${r.unit || ""} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${advanceTag}</div>`;
       list.appendChild(row);
     });
   } catch (e) { emptyHint.hidden = false; }
@@ -545,7 +555,10 @@ function enterForm() {
   document.getElementById("f-notes").value = "";
   document.getElementById("f-payment-status").value = "credit";
   document.getElementById("f-payment-method").value = "cash";
+  document.getElementById("f-advance-amount").value = "";
   document.getElementById("block-payment-method").hidden = true;
+  document.getElementById("block-advance-amount").hidden = true;
+  document.getElementById("payment-status-hint").hidden = true;
   document.getElementById("variance-hint").innerHTML = "";
   document.getElementById("f-receipt-photo").value = "";
   document.getElementById("scan-status").textContent = "Snap or upload a photo of the invoice/delivery note to pre-fill the fields below.";
@@ -619,9 +632,16 @@ async function saveReceipt() {
   const invNumber = document.getElementById("f-inv").value || null;
   const notes = document.getElementById("f-notes").value || null;
   const paymentStatus = document.getElementById("f-payment-status").value;
-  const paymentMethod = paymentStatus === "paid" ? document.getElementById("f-payment-method").value : null;
+  const paymentMethod = (paymentStatus === "paid" || paymentStatus === "advance")
+    ? document.getElementById("f-payment-method").value : null;
+  const advanceAmount = paymentStatus === "advance" ? (parseFloat(document.getElementById("f-advance-amount").value) || 0) : 0;
 
   if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+  if (paymentStatus === "advance") {
+    if (!vendorId) return alert("Pick a vendor before recording an advance payment against them.");
+    if (!advanceAmount || advanceAmount <= 0) return alert("Enter the advance amount that was actually paid.");
+    if (advanceAmount > amount + 0.01) return alert("The advance can't be more than the total (" + Math.round(amount).toLocaleString() + ") — for a bigger advance, record the extra separately on Vendor Payment.");
+  }
 
   let productId = null, unit = null, variance = null, poId = null;
 
@@ -642,19 +662,32 @@ async function saveReceipt() {
     unit = p ? p.unit : null;
   }
 
+  const purchaseDate = document.getElementById("f-date").value || todayStr();
+
+  // An advance is recorded as a separate vendor_payments row (below) — the purchase itself
+  // still carries payment_status "credit" since the remainder is a real payable, exactly
+  // like an ordinary credit purchase. The vendor's running balance (Vendor Payment page) is
+  // owed-from-credit-purchases minus paid-via-vendor_payments, so logging the advance that
+  // way nets it out automatically without any special-casing elsewhere. Added 2026-10-13 for
+  // vendors (e.g. K&N) who require an advance before they'll deliver.
+  const advanceNote = paymentStatus === "advance"
+    ? `Advance of PKR ${Math.round(advanceAmount).toLocaleString()} paid via ${paymentMethod === "bank" ? "bank transfer" : "cash"} on ${purchaseDate}; balance on credit.`
+    : null;
+  const combinedNotes = [advanceNote, notes].filter(Boolean).join(" — ") || null;
+
   const payload = {
     location_id: LOCATION_ID,
     product_id: productId,
     vendor_id: vendorId,
     inv_number: invNumber,
-    purchase_date: document.getElementById("f-date").value || todayStr(),
+    purchase_date: purchaseDate,
     unit: unit,
     rate: rate,
     qty: qty,
     amount: amount,
-    payment_status: paymentStatus,
-    payment_method: paymentMethod,
-    notes: notes,
+    payment_status: paymentStatus === "advance" ? "credit" : paymentStatus,
+    payment_method: paymentStatus === "advance" ? null : paymentMethod,
+    notes: combinedNotes,
     entered_by_user_id: state.userId,
     entered_by_manager_id: state.managerId,
     po_id: poId,
@@ -682,6 +715,24 @@ async function saveReceipt() {
           received_at: new Date().toISOString(),
           received_by_user_id: state.userId,
           linked_purchase_id: purchaseId
+        })
+      });
+    }
+
+    if (paymentStatus === "advance") {
+      await sb("vendor_payments", {
+        method: "POST",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          org_id: "00000000-0000-0000-0000-000000000001",
+          location_id: LOCATION_ID,
+          vendor_id: vendorId,
+          amount: advanceAmount,
+          payment_date: purchaseDate,
+          method: paymentMethod,
+          notes: `Advance paid at Goods Receipt${invNumber ? " (Inv# " + invNumber + ")" : ""}`,
+          paid_by: state.userId,
+          entered_by_manager_id: state.managerId
         })
       });
     }
@@ -727,7 +778,13 @@ document.getElementById("mode-adhoc").addEventListener("click", () => {
   enterForm();
 });
 document.getElementById("f-payment-status").addEventListener("change", (e) => {
-  document.getElementById("block-payment-method").hidden = e.target.value !== "paid";
+  const status = e.target.value;
+  document.getElementById("block-payment-method").hidden = status !== "paid" && status !== "advance";
+  document.getElementById("block-advance-amount").hidden = status !== "advance";
+  document.getElementById("payment-status-hint").hidden = status !== "advance";
+  document.getElementById("payment-method-hint").textContent = status === "advance"
+    ? "The advance amount — cash here shows up as Cash Out on today's Cash Reconciliation, same as a cash vendor payment. The rest of this bill stays payable, same as On Credit."
+    : "Cash here shows up as Cash Out on today's Cash Reconciliation — same as a cash vendor payment.";
 });
 document.getElementById("f-qty").addEventListener("input", recalcAmount);
 document.getElementById("f-rate").addEventListener("input", recalcAmount);

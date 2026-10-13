@@ -316,6 +316,31 @@ only the former shows up in Safe 2's Cash Out.
 **Total Payable to Vendors** moved off this page — it now lives at the top of
 `vendor-payment.html`, which is where it's acted on.
 
+#### Advance Paid, on Goods Receipt (added Oct 13, 2026)
+
+Some vendors (e.g. **K&N**) won't deliver without an advance paid up front. Payment Status on
+`goods-receipt.html` now has a third option, **"Advance Paid (balance stays on credit)"**, next
+to On Credit and Paid Now. Picking it asks for the advance amount actually paid and how (Cash/
+Bank) — the advance doesn't have to be the full bill, just what was handed over to get the
+delivery moving.
+
+Under the hood this is just an ordinary credit purchase plus an ordinary vendor payment, saved
+together in one step:
+- The `purchases` row saves as **`payment_status = 'credit'`**, same as On Credit — the full
+  invoice amount is a real payable.
+- A **`vendor_payments`** row is saved alongside it for the advance amount, same table and same
+  math `vendor-payment.html` already uses to show the running balance (owed = credit purchases
+  − vendor payments). So the vendor's payable net of the advance shows correctly on Vendor
+  Payment automatically — no separate "advance" ledger to keep in sync, and an advance paid in
+  cash shows up on Safe 2's Cash Out the same way a Vendor Payment always has (item 1 above).
+- If the advance happens to equal the full bill, the net payable lands on zero — same result as
+  Paid Now, just with the payment recorded as a vendor payment instead of folded into the
+  purchase row.
+
+The advance amount is capped at the receipt's total — a bigger advance (e.g. paid before the
+bill/quantity is even known) goes through `vendor-payment.html` directly instead, which already
+supports paying a vendor ahead of any purchase being logged.
+
 ---
 
 ## 6. Open items / things still being built out
