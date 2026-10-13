@@ -270,14 +270,18 @@ function afterLogin(userId, name, managerId, role) {
   state.userName = name;
   state.managerId = managerId;
   document.getElementById("step-name").hidden = true;
-  // Auditor can only raise demands. Director can raise demands, authorize them,
-  // and place the order, so show all three stages stacked for a director.
-  if (role === "auditor") {
-    enterDemandPanel();
-  } else if (role === "director") {
+  // Director gets all three stages stacked (raise, authorize, and place the order).
+  // Anyone else who reaches this point has already been granted the purchase_order
+  // page via Manage Access — that grant is what lets them raise a demand, regardless
+  // of role (auditor, cash custodian, etc). Fixed 2026-10-13: this used to only
+  // recognize role === "auditor", so a granted manager with any other role (e.g.
+  // Zeeshan, "cash_custodian") saw a blank page after logging in.
+  if (role === "director") {
     enterDemandPanel();
     enterAuthorizePanel();
     enterOrderPanel();
+  } else {
+    enterDemandPanel();
   }
 }
 
