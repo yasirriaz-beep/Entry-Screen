@@ -269,6 +269,15 @@
       <div class="hint">Only Cash expenses are pulled into the safe's Cash Out reconciliation.</div>
     </div>
 
+    <div id="block-paid-from-safe" class="field" hidden>
+      <label>Paid From</label>
+      <select id="f-paid-from-safe">
+        <option value="safe1">Safe 1 — Till (normal — reduces this shift's handover)</option>
+        <option value="safe2">Safe 2 — Zeeshan paid it directly (e.g. utility/govt bill)</option>
+      </select>
+      <div class="hint">If Zeeshan paid this straight out of Safe 2, pick that here — it'll count toward Safe 2's Cash Out instead of reducing this shift's till handover.</div>
+    </div>
+
     <div id="block-charged-to" class="field" hidden>
       <label>Charged To</label>
       <input type="text" id="f-charged-to" placeholder="e.g. Yasir Sb">
@@ -445,7 +454,7 @@ async function loadEntryList() {
   document.getElementById("ai-scan-status").textContent = "";
   try {
     const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${date}` +
-      `&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at&order=created_at.desc`);
+      `&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,paid_from_safe,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at&order=created_at.desc`);
     state.listRows = rows || [];
     if (!rows.length) { emptyHint.hidden = false; return; }
     renderEntryList(rows);
@@ -462,10 +471,11 @@ function renderEntryList(rows) {
     const row = document.createElement("div");
     row.className = "entry-row";
     const shiftTag = r.shift ? ` · ${r.shift === "morning" ? "Morning" : "Evening"}` : " · No shift (Safe 2)";
+    const safe2Tag = r.paid_from_safe === "safe2" ? ` · <span style="color:var(--accent);font-weight:600;">Paid from Safe 2</span>` : "";
     const photoLink = r.receipt_photo_path ? ` · <span data-photo="${r.receipt_photo_path}" style="color:var(--accent);text-decoration:underline;">📷 View photo</span>` : "";
     row.innerHTML = `
       <div class="entry-title"><span>${r.category || "Expense"}</span><span>PKR ${Math.round(r.amount || 0).toLocaleString()}</span></div>
-      <div class="entry-sub">${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${r.detail ? " · " + r.detail : ""}${photoLink}</div>
+      <div class="entry-sub">${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${safe2Tag}${r.detail ? " · " + r.detail : ""}${photoLink}</div>
       ${r.edit_reason ? `<div class="entry-flag">Previously edited</div>` : ""}
       ${r._aiFlag ? `<div class="entry-flag warn">⚠ ${r._aiFlag}</div>` : ""}`;
     row.addEventListener("click", (e) => {
@@ -749,6 +759,14 @@ function onCategoryChange() {
   recalcAmount();
 }
 
+// Paid From (Safe 1 vs Safe 2) only matters for cash.
+function onPaymentMethodChange() {
+  const method = document.getElementById("f-payment-method").value;
+  const block = document.getElementById("block-paid-from-safe");
+  block.hidden = method !== "cash";
+  if (method !== "cash") document.getElementById("f-paid-from-safe").value = "safe1";
+}
+
 function openEntry(row) {
   state.currentEntry = row;
   document.getElementById("step-list").hidden = true;
@@ -774,6 +792,8 @@ function openEntry(row) {
   document.getElementById("f-amount").value = row.amount != null ? row.amount : "";
   document.getElementById("f-vendor").value = row.vendor_id || "";
   document.getElementById("f-payment-method").value = row.payment_method || "cash";
+  document.getElementById("f-paid-from-safe").value = row.paid_from_safe || "safe1";
+  onPaymentMethodChange();
   document.getElementById("f-charged-to").value = row.charged_to || "";
   document.getElementById("f-employee").value = row.employee_id || "";
   document.getElementById("f-detail").value = row.detail || "";
@@ -799,6 +819,7 @@ document.getElementById("btn-cancel").addEventListener("click", () => { showList
 document.getElementById("btn-back-to-list").addEventListener("click", () => { showList(); loadEntryList(); });
 
 document.getElementById("f-category").addEventListener("change", onCategoryChange);
+document.getElementById("f-payment-method").addEventListener("change", onPaymentMethodChange);
 document.getElementById("f-qty").addEventListener("input", recalcAmount);
 document.getElementById("f-rate").addEventListener("input", recalcAmount);
 document.getElementById("f-amount").addEventListener("input", recalcAmount);
@@ -848,6 +869,9 @@ async function saveChanges() {
     vendor_id: vendorId,
     detail: detail,
     payment_method: document.getElementById("f-payment-method").value || "cash",
+    paid_from_safe: document.getElementById("f-payment-method").value === "cash"
+      ? (document.getElementById("f-paid-from-safe").value || "safe1")
+      : "safe1",
     edit_reason: editReason,
     rgm_approved_by: state.rgmApproval ? state.rgmApproval.managerId : null,
     rgm_approved_at: state.rgmApproval ? state.rgmApproval.approvedAt : null

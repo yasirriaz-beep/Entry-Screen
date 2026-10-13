@@ -180,7 +180,7 @@
   <div class="flow-detail" id="detail-out" hidden>
     <div class="fd-title">Cash Out — cash Zeeshan paid out</div>
     <div id="out-breakdown"></div>
-    <div class="hint">Pulled automatically from cash Vendor Payments and Goods Receipt entries marked "Paid Now" in cash. Daily Expense entries aren't repeated here — a shift-tied one already shows up as a smaller Safe 1 handover, and a no-shift one isn't cash out of this safe by Zeeshan.</div>
+    <div class="hint">Pulled automatically from cash Vendor Payments, Goods Receipt entries marked "Paid Now" in cash, and any Daily Expense entry marked "Paid From: Safe 2" (e.g. a utility or government bill Zeeshan paid straight out of this safe). An ordinary Daily Expense entry isn't repeated here — it already shows up as a smaller Safe 1 till handover.</div>
   </div>
 
   <div class="flow-detail" id="detail-closing" hidden>
@@ -491,14 +491,16 @@ async function fetchCashIn(dateStr) {
 }
 
 // Cash Out here is deliberately narrow: only cash that actually left THIS safe, in Zeeshan's
-// hands — a vendor payment, or a goods receipt he paid cash for on the spot. Daily Expense
-// entries are NOT included, whatever their shift: a shift-tied one already comes out as a
-// smaller Safe 1 till handover (counting it here too would deduct it twice), and a no-shift
-// one was never cash Zeeshan paid out of this safe either. Changed 2026-10-13 — an earlier
-// version also summed no-shift Daily Expense entries into Cash Out here, which the owner
-// flagged as double-counting against Safe 1.
+// hands — a vendor payment, a goods receipt he paid cash for on the spot, or a Daily Expense
+// entry explicitly marked "Paid From: Safe 2" (e.g. a utility/govt bill he paid straight out
+// of Safe 2 rather than the till). An ordinary shift-tied Daily Expense entry is NOT included:
+// it already comes out as a smaller Safe 1 till handover, so counting it here too would
+// deduct it twice. Changed 2026-10-13 — an earlier version also summed no-shift Daily Expense
+// entries into Cash Out here, which the owner flagged as double-counting against Safe 1; the
+// "Paid From" flag (added the same day) is the explicit, per-entry way to route a Daily
+// Expense into Safe 2's Cash Out instead of Safe 1's handover, replacing that blanket rule.
 async function fetchCashOut(dateStr) {
-  let vendorLines = [], receiptLines = [];
+  let vendorLines = [], receiptLines = [], safe2ExpenseLines = [];
   try {
     const rows = await sb(`vendor_payments?location_id=eq.${GULBERG_ID}&payment_date=eq.${dateStr}&method=eq.cash&select=amount,vendors(name)`);
     vendorLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Vendor") + " (cash payment)", amount: Number(r.amount) || 0 }));
@@ -510,7 +512,11 @@ async function fetchCashOut(dateStr) {
     const rows = await sb(`purchases?location_id=eq.${GULBERG_ID}&purchase_date=eq.${dateStr}&payment_status=eq.paid&payment_method=eq.cash&select=amount,vendors(name)`);
     receiptLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Goods Receipt") + " (paid now, cash)", amount: Number(r.amount) || 0 }));
   } catch (e) { /* ignore */ }
-  const lines = [...vendorLines, ...receiptLines];
+  try {
+    const rows = await sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&payment_method=eq.cash&paid_from_safe=eq.safe2&select=amount,category,detail`);
+    safe2ExpenseLines = (rows || []).map(r => ({ label: (r.category || "Expense") + (r.detail ? " — " + r.detail : "") + " (paid from Safe 2)", amount: Number(r.amount) || 0 }));
+  } catch (e) { /* ignore */ }
+  const lines = [...vendorLines, ...receiptLines, ...safe2ExpenseLines];
   const total = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
   return { total, lines };
 }
@@ -812,7 +818,7 @@ async function loadHistory() {
         <div class="hist-detail" hidden>
           <div>Opening Cash: ${fmtMoney(r.opening_cash)}</div>
           <div>Cash In (till handovers): ${fmtMoney(r.cash_in)}</div>
-          <div>Cash Out (cash vendor payments + goods receipts paid now): ${fmtMoney(r.cash_out)}</div>
+          <div>Cash Out (cash vendor payments + goods receipts paid now + Safe 2 expenses): ${fmtMoney(r.cash_out)}</div>
           <div>Expected Cash: ${fmtMoney(expected)}</div>
           <div>Counted Cash: ${counted === null ? "not counted" : fmtMoney(counted)}</div>
           <div>Variance: ${variance === null ? "—" : fmtMoney(variance)}${r.adjustment_reason ? " — " + r.adjustment_reason : ""}</div>

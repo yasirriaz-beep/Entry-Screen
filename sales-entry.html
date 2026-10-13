@@ -507,10 +507,14 @@ async function init(){
 // Expense window, not derived from the till math. This is the "actual" figure the
 // calculated (implied) figure gets compared against, and what the auto-suggested
 // custodian handover is computed from.
+// Excludes anything marked "Paid From: Safe 2" — that cash never came out of this shift's
+// till in the first place (Zeeshan paid it directly out of Safe 2, e.g. a utility/govt
+// bill), so it shouldn't reduce the custodian handover here; it shows up in Safe 2's
+// Cash Out on the cash-reconciliation page instead. Changed 2026-10-13.
 async function fetchTillCashExpenses(saleDate, shift){
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/expenses?location_id=eq.${locationId}&expense_date=eq.${saleDate}&shift=eq.${shift}&payment_method=eq.cash&select=amount`,
+      `${SUPABASE_URL}/rest/v1/expenses?location_id=eq.${locationId}&expense_date=eq.${saleDate}&shift=eq.${shift}&payment_method=eq.cash&paid_from_safe=neq.safe2&select=amount`,
       { headers }
     );
     if (!res.ok) throw new Error(String(res.status));

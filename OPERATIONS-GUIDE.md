@@ -170,7 +170,9 @@ at the end of the shift. Everything else:
 
 - **Cash sales this shift** — computed from the sale amounts already on the form.
 - **Cash expenses this shift** — pulled live from Daily Expense entries tied to this same
-  shift and date, cash payment method only. (This is scoped to ONE shift — the "Today's
+  shift and date, cash payment method only, **excluding any entry marked "Paid From: Safe 2"**
+  (see "Paid From: Safe 1 vs Safe 2" below — that cash never came out of this till, so it
+  shouldn't reduce the handover here). (This is scoped to ONE shift — the "Today's
   Entries" total on Expense Entry covers both shifts combined, so the two numbers are not
   meant to match; see note below.)
 - **Cash to give cash custodian** — auto-generated, read-only: Cash Sales − Cash Expenses,
@@ -242,12 +244,27 @@ hands:**
    it vanished from the cash trail entirely. `purchases.payment_method` (cash/bank, only
    meaningful when `payment_status = 'paid'`) drives this — Goods Receipt now asks "Paid How?"
    whenever "Paid Now" is picked, defaulting to Cash.
+3. **Daily Expense entries explicitly marked "Paid From: Safe 2"** — see below.
 
-Daily Expense entries are **never** summed into Safe 2's Cash Out, whatever their shift — a
-shift-tied expense already comes out as a smaller Safe 1 till handover (summing it here too
-would deduct it twice), and a no-shift expense was never cash Zeeshan paid out of this safe
-either. (An earlier version of this page did sum no-shift Daily Expense entries in here; the
-owner flagged it as double-counting against Safe 1 and it was removed Oct 13, 2026.)
+An ordinary Daily Expense entry (the default, "Paid From: Safe 1") is **never** summed into
+Safe 2's Cash Out — it already comes out as a smaller Safe 1 till handover, so summing it here
+too would deduct it twice. (An earlier version of this page summed every no-shift Daily Expense
+entry in here regardless; the owner flagged it as double-counting against Safe 1 and it was
+removed Oct 13, 2026, replaced by the explicit per-entry flag below.)
+
+#### Paid From: Safe 1 vs Safe 2 (added Oct 13, 2026)
+
+Every Daily Expense entry with **Payment Method = Cash** now has a second field, **Paid From**:
+- **Safe 1 — Till** (default). The normal case: the cash came out of that shift's till, so it
+  reduces that shift's custodian handover (above) the way it always has.
+- **Safe 2 — Zeeshan paid it directly.** Use this when Zeeshan pays something straight out of
+  the main safe instead of through a shift's till — the recurring example is **Government
+  Charges & Taxes and Utilities** (EOBI, FESCO, gas, etc.), which he settles himself regardless
+  of which shift is running. Picking this routes the amount into Safe 2's Cash Out (item 3
+  above) instead of reducing any shift's till handover. It's entered the same way as any other
+  Daily Expense — same category, same screen — just with this one field changed; nothing else
+  about the entry (category, approval rules, receipt photo) is different. `expense-edit.html`'s
+  entry list tags these "Paid from Safe 2" so they're easy to spot and re-flag if entered wrong.
 
 **As of Oct 13, 2026, a DRAFT day always shows live totals**, not whatever was saved the last
 time someone hit "Save Draft." Before this, a draft saved early in the day (before the shifts
