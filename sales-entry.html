@@ -151,8 +151,8 @@ let resolvedManagerId = null;
 // own opening float, its own real cash-expense total, its own "has the custodian field been
 // hand-edited" flag, and its own lock status. Added 2026-10-13 for the side-by-side redesign.
 const state = {
-  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0 },
-  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0 },
+  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false },
+  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false },
 };
 
 async function sbRpc(fn, body) {
@@ -272,13 +272,19 @@ function panelInnerHTML(shift, label){
         <label for="tillExpensesDisplay_${s}">Cash expenses this shift (from Daily Expense)</label>
         <input type="text" id="tillExpensesDisplay_${s}" value="PKR 0" disabled>
       </div>
+      ${s === "evening" ? `
+      <div class="field" style="margin-top:10px">
+        <label for="jazzcashCollected_${s}">Cash received this shift &mdash; JazzCash collected from Morning (PKR)</label>
+        <input type="number" id="jazzcashCollected_${s}" min="0" inputmode="decimal" placeholder="0">
+        <p class="muted" id="jazzcashCollectedHint_${s}" style="margin:4px 0 0;font-size:.76rem">Morning's JazzCash is usually cashed out around 10pm and handed into this till — enter what was actually received here so it's counted once, not never and not twice.</p>
+      </div>` : ``}
 
       <div class="field" style="margin-top:12px;background:var(--surface);border-radius:9px;padding:12px">
         <div class="row2">
           <div>
             <label style="margin-bottom:2px">Cash to give custodian</label>
             <div class="num" id="autoHandoverDisplay_${s}" style="font-size:1.1rem">PKR 0</div>
-            <p class="muted" style="margin:4px 0 0;font-size:.76rem">Auto: Cash Sales &minus; Cash Expenses</p>
+            <p class="muted" id="autoHandoverFormula_${s}" style="margin:4px 0 0;font-size:.76rem">Auto: Cash Sales &minus; Cash Expenses</p>
           </div>
           <div class="field" style="margin:0">
             <label for="custodianAmount_${s}">Actual handover</label>
@@ -347,6 +353,15 @@ function wireShift(shift){
     .forEach(base => document.getElementById(fid(base, shift)).addEventListener("input", () => recalcSummary(shift)));
   ["cardAmount","jazzcashAmount","closingCash"]
     .forEach(base => document.getElementById(fid(base, shift)).addEventListener("input", () => { recalcCashRecon(shift); recalcTotals(); }));
+  // Only Evening has the "JazzCash collected from Morning" field.
+  const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
+  if (collectedEl) {
+    collectedEl.addEventListener("input", () => {
+      state[shift].jazzcashCollectedTouched = true;
+      recalcCashRecon(shift);
+      recalcTotals();
+    });
+  }
   // Typing in the custodian field is what marks it as a manual override — after that, the
   // auto-suggestion stops overwriting it for the rest of this shift.
   document.getElementById(fid("custodianAmount", shift)).addEventListener("input", () => {
@@ -381,14 +396,35 @@ function cashSalesTotal(shift){
   return nS("diAmount",shift) + nS("taAmount",shift) + nS("dlAmount",shift) + nS("tpAmount",shift) - nS("cardAmount",shift) - nS("jazzcashAmount",shift);
 }
 
+// Cash available to hand over this shift: this shift's own cash sales, plus — Evening
+// only — any cash physically received mid-shift from Morning's JazzCash being cashed out.
+// That's not Evening's own sales, so it's kept out of the Cash Sales display and added in
+// here instead, once, where the handover/expected-till math actually needs it. Added
+// 2026-10-13 so Morning's flagged JazzCash gets counted exactly once (when it becomes real
+// cash at ~10pm) instead of never (ignored) or twice (if someone also folded it into a sales
+// field by hand).
+function cashAvailableTotal(shift){
+  const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
+  const collected = collectedEl ? (parseFloat(collectedEl.value) || 0) : 0;
+  return cashSalesTotal(shift) + collected;
+}
+
 function recalcCashRecon(shift){
   const st = state[shift];
   const cashSales = cashSalesTotal(shift);
+  const cashAvailable = cashAvailableTotal(shift);
   document.getElementById("cashSalesDisplay_" + shift).value = "PKR " + Math.round(cashSales).toLocaleString();
   document.getElementById("tillExpensesDisplay_" + shift).value = "PKR " + Math.round(st.tillCashExpenses).toLocaleString();
 
+  const formulaNote = document.getElementById("autoHandoverFormula_" + shift);
+  if (formulaNote) {
+    formulaNote.textContent = shift === "evening"
+      ? "Auto: Cash Sales + JazzCash Collected − Cash Expenses"
+      : "Auto: Cash Sales − Cash Expenses";
+  }
+
   // Auto-generated: what should go to the custodian to keep the till at the 40,000 float.
-  const autoHandover = cashSales - st.tillCashExpenses;
+  const autoHandover = cashAvailable - st.tillCashExpenses;
   document.getElementById("autoHandoverDisplay_" + shift).textContent = "PKR " + Math.round(autoHandover).toLocaleString();
 
   // Pre-fills the actual-handover field until the shift manager edits it themselves —
@@ -409,7 +445,7 @@ function recalcCashRecon(shift){
   }
 
   // What should physically be left in the till once the actual handover has been taken out.
-  const expectedClosing = st.openingCashTill + cashSales - st.tillCashExpenses - actualHandover;
+  const expectedClosing = st.openingCashTill + cashAvailable - st.tillCashExpenses - actualHandover;
   const closingEntered = document.getElementById("closingCash_" + shift).value !== "";
   const closing = nS("closingCash", shift);
   const closingNote = document.getElementById("closingVarianceNote_" + shift);
@@ -497,6 +533,8 @@ function applyLockUI(shift){
   const closed = state[shift].status === "closed";
   const lockFields = FIELD_BASES.concat(["custodianAmount","closingCash","varianceReason"]);
   lockFields.forEach(base => { document.getElementById(fid(base, shift)).disabled = closed; });
+  const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
+  if (collectedEl) collectedEl.disabled = closed;
   document.getElementById("saveBtn_" + shift).hidden = closed;
   document.getElementById("closeBtn_" + shift).hidden = closed;
   document.getElementById("unlockBtn_" + shift).hidden = !closed;
@@ -594,7 +632,7 @@ async function loadShiftEntry(shift){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.${shift}` +
-      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,jazzcash_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,status,closed_at,variance_reason`,
+      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,jazzcash_amount,jazzcash_collected_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,status,closed_at,variance_reason`,
       { headers }
     );
     if (res.ok) {
@@ -622,6 +660,10 @@ async function loadShiftEntry(shift){
     setVal("bakeryAmount", shift, existing.bakery_sale || "");
     setVal("cardAmount", shift, existing.card_amount || "");
     setVal("jazzcashAmount", shift, existing.jazzcash_amount || "");
+    if (shift === "evening") {
+      setVal("jazzcashCollected", shift, existing.jazzcash_collected_amount || "");
+      st.jazzcashCollectedTouched = true; // already has a real saved figure — don't clobber it with Morning's suggestion
+    }
     // custodian_cash_amount is stored negative when cash left the till (the normal case) —
     // flip the sign back to "actual handover", where positive means cash went to the custodian.
     setVal("custodianAmount", shift, -(Number(existing.custodian_cash_amount) || 0));
@@ -636,7 +678,35 @@ async function loadShiftEntry(shift){
     setVal("custodianAmount", shift, "");
     setVal("closingCash", shift, "");
     setVal("varianceReason", shift, "");
+    if (shift === "evening") {
+      setVal("jazzcashCollected", shift, "");
+      st.jazzcashCollectedTouched = false;
+    }
     st.custodianTouched = false; // fresh shift — let the auto-suggestion fill the custodian handover
+  }
+
+  // Evening only, and only when nothing was saved/typed for it yet: suggest Morning's
+  // flagged JazzCash amount for the same day as what should have been collected tonight —
+  // the shift manager can confirm or correct it, but doesn't have to go find the figure
+  // themselves. Added 2026-10-13.
+  if (shift === "evening" && !st.jazzcashCollectedTouched) {
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.morning&select=jazzcash_amount`,
+        { headers }
+      );
+      if (res.ok) {
+        const rows = await res.json();
+        const morningJazzcash = rows.length ? (Number(rows[0].jazzcash_amount) || 0) : 0;
+        setVal("jazzcashCollected", shift, morningJazzcash || "");
+        const hint = document.getElementById("jazzcashCollectedHint_evening");
+        if (hint) {
+          hint.textContent = morningJazzcash
+            ? `Morning flagged PKR ${Math.round(morningJazzcash).toLocaleString()} in JazzCash — pre-filled here. Adjust if what was actually handed over tonight differs.`
+            : "Morning's JazzCash is usually cashed out around 10pm and handed into this till — enter what was actually received here so it's counted once, not never and not twice.";
+        }
+      }
+    } catch (e) { /* leave blank */ }
   }
 
   document.getElementById("openingCashDisplay_" + shift).value = "PKR " + Math.round(st.openingCashTill).toLocaleString();
@@ -696,6 +766,7 @@ async function saveShift(shift, close){
     bakery_sale: nS("bakeryAmount", shift),
     card_amount: nS("cardAmount", shift),
     jazzcash_amount: nS("jazzcashAmount", shift),
+    jazzcash_collected_amount: shift === "evening" ? (parseFloat(document.getElementById(fid("jazzcashCollected", shift)).value) || 0) : 0,
     // opening_cash_till is NOT sent — the DB trigger (daily_sales_compute_opening_cash) always
     // sets it to the standard PKR 40,000 float on insert, and locks it on update.
     custodian_cash_amount: custodianSigned,

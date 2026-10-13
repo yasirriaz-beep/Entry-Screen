@@ -220,6 +220,18 @@ it's more than PKR 1:
   listed underneath it — the one place the director needs to look, rather than opening each
   shift to see why.
 
+**JazzCash collected at night (added Oct 13, 2026):** at Gulberg, the JazzCash balance flagged
+during Morning is actually cashed out around 10pm and physically handed into the **Evening**
+till — it doesn't just sit as a receivable forever. So Evening (only) has a second field, **"Cash
+received this shift — JazzCash collected from Morning"**, right under Cash Expenses in the Till
+Cash Reconciliation box. This is *not* Evening's own sales — it's an inflow — so it adds into
+the cash-available total (`Cash Sales + JazzCash Collected − Cash Expenses`) feeding Evening's
+auto-handover and expected-till-balance, instead of Evening's own Cash Sales figure. The field
+**pre-fills from Morning's saved JazzCash amount** the moment Evening is opened (confirm or
+correct it — the actual cash handed over at 10pm is what should go here), so Morning's flagged
+amount is counted exactly once: never (if ignored) and never twice (if someone also folded it
+into an Evening sales field by hand). Saved as `daily_sales.jazzcash_collected_amount`.
+
 **Superseded:** an earlier same-day design (a manual "Cash left in till for next shift" field,
 `till_leftover_amount` column; a Custodian "gave/picked" direction dropdown) is no longer
 used — the custodian amount is now a single signed field (positive = cash left the till) and
