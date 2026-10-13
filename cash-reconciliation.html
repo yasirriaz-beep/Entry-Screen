@@ -90,6 +90,15 @@
   .amount-display.variance-zero { color: var(--ok); }
   .amount-display.variance-nonzero { color: var(--err); }
 
+  .till-shift { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--field-bg); }
+  .till-shift:last-child { margin-bottom: 0; }
+  .till-shift .ts-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .till-shift .ts-top strong { font-size: 0.92rem; }
+  .till-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; font-size: 0.83rem; }
+  .till-grid .tg-lbl { color: var(--ink-soft); }
+  .till-grid .tg-val { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+  .till-total-line { display: flex; justify-content: space-between; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border); font-weight: 700; font-family: 'Zilla Slab', Georgia, serif; }
+
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field + .login-field { margin-top: 10px; }
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
@@ -114,13 +123,6 @@
 
 <div id="panel-main" hidden>
 
-  <div class="big-box" id="payables-box">
-    <div class="bb-label">Total Payable to Vendors</div>
-    <div class="bb-value" id="payables-value">PKR 0</div>
-    <div class="bb-hint">Tap for the breakdown by vendor</div>
-    <div class="big-box-detail" id="payables-detail" hidden></div>
-  </div>
-
   <div class="field" style="max-width:220px;">
     <label>Date</label>
     <input type="date" id="f-date">
@@ -128,7 +130,14 @@
 
   <div class="banner banner-warn" id="status-banner" hidden></div>
   <div class="banner banner-warn" id="source-drift-warning" hidden></div>
-  <div class="step-label" style="margin:-6px 0 6px;">Safe Reconciliation <span id="status-badge"></span></div>
+
+  <div class="card" id="till-summary-card">
+    <div class="step-label" style="margin-bottom:12px;">Safe 1 — Till (Shift Manager's responsibility)</div>
+    <div id="till-summary-body"><div class="hint">Loading…</div></div>
+    <div class="hint" style="margin-top:10px;">Each shift's till opens and is expected to close at the standard PKR 40,000 float. The cash custodian handover below is what feeds into Safe 2's Cash In. Entered on Sales Entry — nothing to do here.</div>
+  </div>
+
+  <div class="step-label" style="margin:0 0 6px;">Safe 2 — Zeeshan's Safe <span id="status-badge"></span></div>
 
   <div class="flow-grid">
     <div class="flow-box op locked-field" id="box-opening">
@@ -326,7 +335,7 @@ function afterLogin(userId, name, managerId, role) {
   document.getElementById("f-date").value = todayStr();
   loadDay(todayStr());
   loadHistory();
-  loadPayables();
+  loadTillSummary(todayStr());
 }
 
 function backToNames() {
@@ -347,7 +356,6 @@ toggleDetail("box-opening", "detail-opening");
 toggleDetail("box-in", "detail-in");
 toggleDetail("box-out", "detail-out");
 toggleDetail("box-closing", "detail-closing");
-toggleDetail("payables-box", "payables-detail");
 
 function recalc() {
   const opening = parseFloat(document.getElementById("f-opening").value) || 0;
@@ -699,31 +707,53 @@ async function saveDay(status) {
 document.getElementById("btn-save-draft").addEventListener("click", () => saveDay("draft"));
 document.getElementById("btn-submit").addEventListener("click", () => saveDay("submitted"));
 
-async function loadPayables() {
+// Safe 1 — the till. Read-only here: everything is entered on Sales Entry by the shift
+// manager. This just shows what happened, and totals up what was actually handed to
+// Zeeshan (the custodian handover), which is where Safe 2's Cash In comes from.
+async function loadTillSummary(dateStr) {
+  const body = document.getElementById("till-summary-body");
   try {
-    const [vendors, purchases, payments] = await Promise.all([
-      sb(`vendors?active=eq.true&select=id,name,opening_payable_balance&order=name`),
-      sb(`purchases?location_id=eq.${GULBERG_ID}&payment_status=eq.credit&select=vendor_id,amount`),
-      sb(`vendor_payments?location_id=eq.${GULBERG_ID}&select=vendor_id,amount`)
+    const [sales, expenses] = await Promise.all([
+      sb(`daily_sales?location_id=eq.${GULBERG_ID}&sale_date=eq.${dateStr}&shift=not.is.null` +
+        `&select=shift,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,card_amount,opening_cash_till,closing_cash_till,custodian_cash_amount&order=shift.asc`),
+      sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&shift=not.is.null&payment_method=eq.cash&select=shift,amount`)
     ]);
-    const owed = {}, paid = {};
-    (purchases || []).forEach(p => { if (p.vendor_id) owed[p.vendor_id] = (owed[p.vendor_id] || 0) + (Number(p.amount) || 0); });
-    (payments || []).forEach(p => { if (p.vendor_id) paid[p.vendor_id] = (paid[p.vendor_id] || 0) + (Number(p.amount) || 0); });
-    let total = 0;
-    const lines = [];
-    (vendors || []).forEach(v => {
-      // Includes any pre-system opening balance set for this vendor (dues from before
-      // this app was in use), set by a director in Vendor Payment.
-      const bal = (Number(v.opening_payable_balance) || 0) + (owed[v.id] || 0) - (paid[v.id] || 0);
-      if (bal > 0.01) { total += bal; lines.push({ label: v.name, amount: bal }); }
-    });
-    lines.sort((a, b) => b.amount - a.amount);
-    document.getElementById("payables-value").textContent = fmtMoney(total);
-    renderBreakdown("payables-detail", lines, "No outstanding vendor balances right now.");
+    if (!sales || !sales.length) {
+      body.innerHTML = '<div class="hint">No shift entered for this day yet.</div>';
+      return;
+    }
+    const expenseByShift = {};
+    (expenses || []).forEach(e => { expenseByShift[e.shift] = (expenseByShift[e.shift] || 0) + (Number(e.amount) || 0); });
+
+    const shiftLabels = { morning: "Morning", evening: "Evening" };
+    let totalHandover = 0;
+    const rows = sales.map(s => {
+      const cashSales = (Number(s.dine_in_amount) || 0) + (Number(s.takeaway_amount) || 0) + (Number(s.delivery_amount) || 0) + (Number(s.third_party_amount) || 0) - (Number(s.card_amount) || 0);
+      const tillExpenses = expenseByShift[s.shift] || 0;
+      const custodian = Number(s.custodian_cash_amount) || 0;
+      const handover = -custodian; // custodian_cash_amount is negative when cash was picked up FROM the till
+      const opening = Number(s.opening_cash_till) || 40000;
+      const closing = s.closing_cash_till != null ? Number(s.closing_cash_till) : null;
+      totalHandover += handover;
+      return `<div class="till-shift">
+        <div class="ts-top"><strong>${shiftLabels[s.shift] || s.shift}</strong><span>${closing != null ? "closed" : "not yet closed"}</span></div>
+        <div class="till-grid">
+          <div class="tg-lbl">Opening float</div><div class="tg-val">${fmtMoney(opening)}</div>
+          <div class="tg-lbl">Cash In (sales)</div><div class="tg-val">${fmtMoney(cashSales)}</div>
+          <div class="tg-lbl">Cash Out (till expenses)</div><div class="tg-val">${fmtMoney(tillExpenses)}</div>
+          <div class="tg-lbl">Handed to custodian</div><div class="tg-val">${handover >= 0 ? fmtMoney(handover) : "(" + fmtMoney(-handover) + ")"}</div>
+          <div class="tg-lbl">Physical count</div><div class="tg-val">${closing != null ? fmtMoney(closing) : "—"}</div>
+          <div class="tg-lbl">Ending float</div><div class="tg-val">${fmtMoney(opening)}</div>
+        </div>
+      </div>`;
+    }).join("");
+
+    body.innerHTML = rows + `<div class="till-total-line"><span>Total handed to Zeeshan today</span><span>${fmtMoney(totalHandover)}</span></div>`;
   } catch (e) {
-    document.getElementById("payables-value").textContent = "—";
+    body.innerHTML = `<div class="hint">Couldn't load: ${e.message}</div>`;
   }
 }
+document.getElementById("f-date").addEventListener("change", (e) => loadTillSummary(e.target.value));
 
 async function lockDay() {
   const pin = prompt("Owner PIN to lock this day:");

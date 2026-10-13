@@ -168,7 +168,7 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
 
   <div class="card" id="cashCard">
     <h3 style="margin:0 0 4px">Till Cash Reconciliation</h3>
-    <p class="muted" style="margin:0 0 14px">Standard float is PKR 40,000. Opening carries straight from the previous shift's physical close — it's locked here.</p>
+    <p class="muted" style="margin:0 0 14px">Standard float is PKR 40,000, start and end. Everything below fills in on its own — the only thing you need to do is count the till and enter what's physically there.</p>
     <div class="row2">
       <div class="field">
         <label for="openingCashDisplay">Opening cash in till</label>
@@ -181,30 +181,40 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
     </div>
     <div class="row2" style="margin-top:10px">
       <div class="field">
-        <label for="custodianDirection">Cash custodian</label>
-        <select id="custodianDirection">
-          <option value="given">Gave cash to till</option>
-          <option value="picked">Picked cash up from till</option>
-        </select>
+        <label for="tillExpensesDisplay">Cash expenses this shift (from Daily Expense)</label>
+        <input type="text" id="tillExpensesDisplay" value="PKR 0" disabled>
       </div>
       <div class="field">
-        <label for="custodianAmount">Amount (PKR)</label>
+        <label for="custodianAmount">Handed to cash custodian (PKR)</label>
         <input type="number" id="custodianAmount" min="0" inputmode="decimal" placeholder="0">
       </div>
     </div>
+    <div class="row2" style="margin-top:2px">
+      <div class="field" style="flex:0 0 100%">
+        <label for="custodianDirection">Direction</label>
+        <select id="custodianDirection">
+          <option value="picked">Custodian picked cash up from till</option>
+          <option value="given">Custodian gave cash to till</option>
+        </select>
+        <p class="muted" style="margin:4px 0 0;font-size:.78rem">Pre-filled from Cash Sales minus Cash Expenses — the amount that should leave the till to keep it at the 40,000 float. Only change this if what actually happened was different.</p>
+      </div>
+    </div>
     <div class="field" style="margin-top:10px">
-      <label for="closingCash">Closing cash in till (physical count)</label>
+      <label for="closingCash">Closing cash in till (physical count) — only field you have to enter</label>
       <input type="number" id="closingCash" min="0" inputmode="decimal" placeholder="0">
     </div>
-    <div class="field" style="margin-top:10px">
-      <label for="leftoverCash">Cash left in till for next shift (float carried forward)</label>
-      <input type="number" id="leftoverCash" min="0" inputmode="decimal" placeholder="40000" value="40000">
-      <p class="muted" style="margin:4px 0 0;font-size:.78rem">Standard float is PKR 40,000. This stays in the till when the custodian sweeps the rest out, and becomes the next shift's opening balance.</p>
-    </div>
     <div class="field" style="margin-top:12px;background:var(--surface-2);border-radius:9px;padding:12px">
-      <label style="margin-bottom:2px">Implied cash expenses this shift</label>
-      <div class="num" id="impliedExpenses" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
-      <p class="muted" style="margin:6px 0 0;font-size:.78rem">Opening + Cash Sales + Custodian &minus; Closing + Leftover left in till. Should match what Cash Custodian recorded as cash expenses for this shift — if it doesn't, recount before saving.</p>
+      <div class="row2">
+        <div>
+          <label style="margin-bottom:2px">Calculated expenses</label>
+          <div class="num" id="impliedExpenses" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
+        </div>
+        <div>
+          <label style="margin-bottom:2px">Actual expenses (Daily Expense)</label>
+          <div class="num" id="actualExpensesDisplay" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
+        </div>
+      </div>
+      <p class="muted" style="margin:8px 0 0;font-size:.78rem" id="varianceNote">Calculated = Opening + Cash Sales + Custodian &minus; Closing. This should match the actual cash expenses recorded for the shift — a mismatch is a flag to recount, not a reason not to save.</p>
     </div>
   </div>
 
@@ -234,9 +244,16 @@ const headers = {
   "Content-Type": "application/json",
 };
 const PAGE_KEY = "sales_entry";
+// The till always starts — and is expected to end — at this standard float. It is NOT carried
+// forward from whatever the previous shift's physical count happened to be (that led to small
+// miscounts silently compounding shift after shift). Any gap between this and what the shift
+// manager physically counts is a flagged variance for that shift alone, 2026-10-13.
+const STANDARD_TILL_FLOAT = 40000;
 
 let locationId = null;
-let openingCashTill = 0;   // carried from the previous shift; display-only, server computes the real value on save
+let openingCashTill = STANDARD_TILL_FLOAT; // always the standard float for a new shift; a reopened shift overrides this from its saved row
+let tillCashExpenses = 0; // this shift's actual cash expenses, pulled live from Daily Expense entries — the source of truth "B" the custodian handover is calculated against
+let custodianTouched = false; // true once the shift manager edits the custodian fields themselves, so we stop overwriting with the auto-suggestion
 let existingEntryId = null; // set when this shift already has a row today, so closing-cash edits patch it
 let resolvedUserId = null;   // the real app_users.id, set only after the chosen manager's PIN verifies
 let resolvedManagerId = null;
@@ -291,6 +308,16 @@ function cashSalesTotal(){
 function recalcCashRecon(){
   const cashSales = cashSalesTotal();
   document.getElementById("cashSalesDisplay").value = "PKR " + Math.round(cashSales).toLocaleString();
+  document.getElementById("tillExpensesDisplay").value = "PKR " + Math.round(tillCashExpenses).toLocaleString();
+
+  // Suggested handover to the cash custodian: whatever keeps the till at the standard float
+  // (Cash Sales − Till Cash Expenses). Auto-fills until the shift manager edits it themselves —
+  // after that we leave their number alone.
+  if (!custodianTouched) {
+    const suggested = cashSales - tillCashExpenses;
+    document.getElementById("custodianDirection").value = suggested >= 0 ? "picked" : "given";
+    document.getElementById("custodianAmount").value = suggested !== 0 ? Math.round(Math.abs(suggested)) : "";
+  }
 
   const direction = document.getElementById("custodianDirection").value;
   const custodianRaw = n("custodianAmount");
@@ -298,19 +325,37 @@ function recalcCashRecon(){
 
   const closingEntered = document.getElementById("closingCash").value !== "";
   const closing = n("closingCash");
-  const leftover = n("leftoverCash");
-  const implied = openingCashTill + cashSales + custodianSigned - closing + leftover;
+  const calculated = openingCashTill + cashSales + custodianSigned - closing;
 
   const impliedEl = document.getElementById("impliedExpenses");
-  impliedEl.textContent = closingEntered ? "PKR " + Math.round(implied).toLocaleString() : "PKR 0";
-  impliedEl.style.color = closingEntered && implied < 0 ? "var(--danger)" : "";
+  document.getElementById("actualExpensesDisplay").textContent = "PKR " + Math.round(tillCashExpenses).toLocaleString();
+  const varianceNote = document.getElementById("varianceNote");
+
+  if (closingEntered) {
+    impliedEl.textContent = "PKR " + Math.round(calculated).toLocaleString();
+    const variance = Math.round(calculated - tillCashExpenses);
+    if (Math.abs(variance) > 1) {
+      impliedEl.style.color = "var(--danger)";
+      varianceNote.style.color = "var(--danger)";
+      varianceNote.textContent = `Off by PKR ${Math.abs(variance).toLocaleString()} vs. the actual cash expenses recorded for this shift — worth a recount, but this won't block saving.`;
+    } else {
+      impliedEl.style.color = "";
+      varianceNote.style.color = "var(--success)";
+      varianceNote.textContent = "Matches the actual cash expenses recorded for this shift.";
+    }
+  } else {
+    impliedEl.textContent = "PKR —";
+    impliedEl.style.color = "";
+    varianceNote.style.color = "";
+    varianceNote.textContent = "Calculated = Opening + Cash Sales + Custodian − Closing. Enter the physical count above to compare it against actual recorded expenses.";
+  }
 }
 
 function resetForm(){
   ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount","custodianAmount","closingCash"]
     .forEach(id => document.getElementById(id).value = "");
-  document.getElementById("custodianDirection").value = "given";
-  document.getElementById("leftoverCash").value = "40000"; // standard float, resets here same as a fresh shift
+  document.getElementById("custodianDirection").value = "picked";
+  custodianTouched = false; // next shift gets a fresh auto-suggested handover again
   existingEntryId = null;
   recalcSummary();
 }
@@ -374,31 +419,21 @@ async function init(){
 const SHIFT_ORDER = { morning: 0, evening: 1 };
 const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
 
-// Mirrors the DB trigger's ordering so the shift manager sees the right opening balance
-// before they've saved anything: most recent (sale_date, shift) strictly before this one.
-async function fetchOpeningCash(saleDate, shift){
+// The real, recorded cash expenses for this shift — entered independently at the Daily
+// Expense window, not derived from the till math. This is the "actual" figure the
+// calculated (implied) figure gets compared against, and what the auto-suggested
+// custodian handover is computed from.
+async function fetchTillCashExpenses(saleDate, shift){
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&select=sale_date,shift,closing_cash_till,till_leftover_amount&order=sale_date.desc&limit=20`,
+      `${SUPABASE_URL}/rest/v1/expenses?location_id=eq.${locationId}&expense_date=eq.${saleDate}&shift=eq.${shift}&payment_method=eq.cash&select=amount`,
       { headers }
     );
     if (!res.ok) throw new Error(String(res.status));
     const rows = await res.json();
-    const cur = [saleDate, SHIFT_ORDER[shift]];
-    const prior = rows
-      .map(r => ({ key: [r.sale_date, SHIFT_ORDER[r.shift]], closing: r.closing_cash_till, leftover: r.till_leftover_amount }))
-      .filter(r => r.key[0] < cur[0] || (r.key[0] === cur[0] && r.key[1] < cur[1]))
-      .sort((a, b) => (a.key[0] < b.key[0] ? 1 : a.key[0] > b.key[0] ? -1 : b.key[1] - a.key[1]));
-    if (!prior.length) return 40000;
-    // Next shift's opening is whatever the previous shift deliberately left in the till —
-    // not the raw physical closing count, which includes cash the custodian swept out.
-    // Older rows saved before this field existed fall back to closing_cash_till so history
-    // doesn't break.
-    const last = prior[0];
-    if (last.leftover != null) return Number(last.leftover);
-    return last.closing != null ? Number(last.closing) : 40000;
+    return rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   } catch (e) {
-    return 40000;
+    return 0;
   }
 }
 
@@ -413,7 +448,7 @@ async function loadShiftEntry(){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.${shift}` +
-      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,till_leftover_amount`,
+      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount`,
       { headers }
     );
     if (res.ok) {
@@ -422,9 +457,11 @@ async function loadShiftEntry(){
     }
   } catch (e) { /* fall through */ }
 
+  tillCashExpenses = await fetchTillCashExpenses(saleDate, shift);
+
   if (existing) {
     existingEntryId = existing.id;
-    openingCashTill = Number(existing.opening_cash_till) || 0;
+    openingCashTill = Number(existing.opening_cash_till) || STANDARD_TILL_FLOAT;
     document.getElementById("diCovers").value = existing.dine_in_covers || "";
     document.getElementById("diAmount").value = existing.dine_in_amount || "";
     document.getElementById("taCovers").value = existing.takeaway_covers || "";
@@ -441,7 +478,7 @@ async function loadShiftEntry(){
     document.getElementById("custodianDirection").value = custodian < 0 ? "picked" : "given";
     document.getElementById("custodianAmount").value = custodian ? Math.abs(custodian) : "";
     document.getElementById("closingCash").value = existing.closing_cash_till != null ? existing.closing_cash_till : "";
-    document.getElementById("leftoverCash").value = existing.till_leftover_amount != null ? existing.till_leftover_amount : "40000";
+    custodianTouched = true; // this shift already has a real saved handover — don't clobber it with a fresh suggestion
 
     const total = existing.total_sale != null ? existing.total_sale : (existing.dine_in_amount + existing.takeaway_amount + existing.delivery_amount + existing.third_party_amount + (existing.food_panda_amount || 0));
     body.innerHTML = `
@@ -456,8 +493,9 @@ async function loadShiftEntry(){
     todayCard.hidden = false;
   } else {
     existingEntryId = null;
-    openingCashTill = await fetchOpeningCash(saleDate, shift);
-    document.getElementById("leftoverCash").value = "40000";
+    openingCashTill = STANDARD_TILL_FLOAT;
+    document.getElementById("custodianAmount").value = "";
+    custodianTouched = false; // fresh shift — let the auto-suggestion fill the custodian handover
     todayCard.hidden = true;
   }
 
@@ -476,7 +514,7 @@ async function loadMorningReconCard(saleDate, shift){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.morning` +
-      `&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,till_leftover_amount`,
+      `&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount`,
       { headers }
     );
     if (!res.ok) throw new Error(String(res.status));
@@ -491,10 +529,11 @@ async function loadMorningReconCard(saleDate, shift){
       (m.dine_in_amount + m.takeaway_amount + m.delivery_amount + m.third_party_amount + (m.food_panda_amount || 0));
     const cashSales = (m.dine_in_amount || 0) + (m.takeaway_amount || 0) + (m.delivery_amount || 0) + (m.third_party_amount || 0) - (m.card_amount || 0);
     const custodian = Number(m.custodian_cash_amount) || 0;
-    const opening = Number(m.opening_cash_till) || 0;
+    const opening = Number(m.opening_cash_till) || STANDARD_TILL_FLOAT;
     const closing = m.closing_cash_till != null ? Number(m.closing_cash_till) : null;
-    const leftover = m.till_leftover_amount != null ? Number(m.till_leftover_amount) : 0;
-    const implied = closing != null ? (opening + cashSales + custodian - closing + leftover) : null;
+    const calculated = closing != null ? (opening + cashSales + custodian - closing) : null;
+    const morningActual = await fetchTillCashExpenses(saleDate, "morning");
+    const morningVariance = calculated != null ? Math.round(calculated - morningActual) : null;
 
     body.innerHTML = `
       Dine-in: PKR ${Math.round(m.dine_in_amount || 0).toLocaleString()} &middot;
@@ -508,8 +547,8 @@ async function loadMorningReconCard(saleDate, shift){
       Cash sales: PKR ${Math.round(cashSales).toLocaleString()} &middot;
       Custodian: ${custodian >= 0 ? "+" : ""}PKR ${Math.round(custodian).toLocaleString()} &middot;
       Closing till: ${closing != null ? "PKR " + Math.round(closing).toLocaleString() : "not yet entered"}<br>
-      ${implied != null ? `<strong>Morning implied cash expenses: PKR ${Math.round(implied).toLocaleString()}</strong>` : ""}
-      ${closing == null ? "<span style=\"color:var(--danger)\">Morning hasn't closed their till yet &mdash; your evening opening balance may still change.</span>" : ""}`;
+      ${calculated != null ? `<strong>Morning calculated expenses: PKR ${Math.round(calculated).toLocaleString()}</strong> vs. actual PKR ${Math.round(morningActual).toLocaleString()}${Math.abs(morningVariance) > 1 ? ` <span style="color:var(--danger)">(off by PKR ${Math.abs(morningVariance).toLocaleString()})</span>` : ""}` : ""}
+      ${closing == null ? "<span style=\"color:var(--danger)\">Morning hasn't closed their till yet.</span>" : ""}`;
     card.hidden = false;
   } catch (e) {
     body.innerHTML = "Couldn't load morning shift (" + e.message + ").";
@@ -563,9 +602,13 @@ document.getElementById("dateInput").addEventListener("change", loadShiftEntry);
 ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount"]
   .forEach(id => document.getElementById(id).addEventListener("input", recalcSummary));
 
-["cardAmount","custodianAmount","closingCash","leftoverCash"]
+["cardAmount","closingCash"]
   .forEach(id => document.getElementById(id).addEventListener("input", recalcCashRecon));
-document.getElementById("custodianDirection").addEventListener("change", recalcCashRecon);
+
+// Typing in the custodian fields themselves is what marks them as a manual override —
+// after this, the auto-suggestion stops overwriting them for the rest of this shift.
+document.getElementById("custodianAmount").addEventListener("input", () => { custodianTouched = true; recalcCashRecon(); });
+document.getElementById("custodianDirection").addEventListener("change", () => { custodianTouched = true; recalcCashRecon(); });
 
 document.getElementById("salesForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -589,8 +632,6 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
   const direction = document.getElementById("custodianDirection").value;
   const custodianSigned = direction === "picked" ? -n("custodianAmount") : n("custodianAmount");
   const closingEntered = document.getElementById("closingCash").value !== "";
-  const leftoverEntered = document.getElementById("leftoverCash").value !== "";
-  const leftoverAmount = leftoverEntered ? n("leftoverCash") : 40000;
 
   const payload = {
     location_id: locationId,
@@ -609,9 +650,10 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
     food_panda_amount: n("fpAmount"),
     bakery_sale: n("bakeryAmount"),
     card_amount: n("cardAmount"),
+    // opening_cash_till is NOT sent — the DB trigger (daily_sales_compute_opening_cash) always
+    // sets it to the standard PKR 40,000 float on insert, and locks it on update.
     custodian_cash_amount: custodianSigned,
     closing_cash_till: closingEntered ? n("closingCash") : null,
-    till_leftover_amount: leftoverAmount,
     entered_by_user_id: whoId,
     entered_by_manager_id: resolvedManagerId,
   };

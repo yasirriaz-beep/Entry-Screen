@@ -59,6 +59,11 @@
   .success-wrap { text-align: center; padding: 48px 16px; }
   .success-wrap .check { font-size: 2.6rem; }
 
+  .big-box { background: var(--surface); border: 2px solid var(--accent); border-radius: 16px; padding: 20px; margin-bottom: 16px; text-align: center; }
+  .big-box .bb-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); font-weight: 600; }
+  .big-box .bb-value { font-family: 'Zilla Slab', Georgia, serif; font-size: 2.2rem; font-weight: 600; color: var(--accent); margin-top: 4px; }
+  .big-box .bb-hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .login-field + .login-field { margin-top: 10px; }
@@ -85,6 +90,12 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="big-box">
+    <div class="bb-label">Total Payable to Vendors</div>
+    <div class="bb-value" id="payables-value">PKR 0</div>
+    <div class="bb-hint">Across all vendors with an outstanding balance — breakdown below</div>
+  </div>
 
   <div class="card">
     <div class="step-label">Outstanding Balances</div>
@@ -316,6 +327,7 @@ async function loadBalances() {
     document.getElementById("balance-total").textContent = fmtMoney(total);
     document.getElementById("balance-total-wrap").hidden = false;
   }
+  document.getElementById("payables-value").textContent = fmtMoney(total);
 
   populateVendorSelect();
 }

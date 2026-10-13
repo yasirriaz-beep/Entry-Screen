@@ -544,14 +544,18 @@ async function loadCashReconHistory() {
   let sales = [];
   try {
     sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&shift=not.is.null` +
-      `&select=sale_date,shift,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale,card_amount,opening_cash_till,closing_cash_till,custodian_cash_amount,till_leftover_amount` +
+      `&select=sale_date,shift,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,bakery_sale,card_amount,opening_cash_till,closing_cash_till,custodian_cash_amount` +
       `&order=sale_date.desc,shift.asc`);
   } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
   if (!sales.length) { wrap.innerHTML = '<div class="empty-note">No shift cash-recon entries for this range yet.</div>'; return; }
 
+  // Only cash-paid, shift-tied expenses actually touch the till's physical cash — a bank/card/
+  // cheque expense logged against the same shift doesn't, so it's excluded here (fixed
+  // 2026-10-13; this previously summed every payment method, which made otherwise-correct
+  // shifts look like they had a discrepancy).
   let expenses = [];
   try {
-    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&shift=not.is.null&select=expense_date,shift,amount`);
+    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&shift=not.is.null&payment_method=eq.cash&select=expense_date,shift,amount`);
   } catch (e) { expenses = []; }
   const actualByKey = {};
   expenses.forEach(e => {
@@ -566,12 +570,13 @@ async function loadCashReconHistory() {
     // Food Panda settles externally and stays excluded.
     const cashSales = (Number(s.dine_in_amount) || 0) + (Number(s.takeaway_amount) || 0) + (Number(s.delivery_amount) || 0) + (Number(s.third_party_amount) || 0) - (Number(s.card_amount) || 0);
     const custodian = Number(s.custodian_cash_amount) || 0;
-    const opening = Number(s.opening_cash_till) || 0;
+    // The till always opens at the standard PKR 40,000 float (set server-side, 2026-10-13) —
+    // no longer carried forward from whatever the previous shift's physical count was.
+    const opening = Number(s.opening_cash_till) || 40000;
     const closing = s.closing_cash_till != null ? Number(s.closing_cash_till) : null;
-    const leftover = s.till_leftover_amount != null ? Number(s.till_leftover_amount) : 0;
-    const implied = closing != null ? opening + cashSales + custodian - closing + leftover : null;
+    const calculated = closing != null ? opening + cashSales + custodian - closing : null;
     const actual = actualByKey[s.sale_date + "|" + s.shift] || 0;
-    const diff = implied != null ? Math.round(implied - actual) : null;
+    const diff = calculated != null ? Math.round(calculated - actual) : null;
     const shiftLabel = s.shift === "morning" ? "Morning" : "Evening";
 
     let badge = '<span class="pill-badge pill-warn">Not closed</span>';
@@ -580,15 +585,15 @@ async function loadCashReconHistory() {
         ? `<span class="pill-badge pill-err">Off ${diff > 0 ? "+" : ""}${fmtMoney(diff)}</span>`
         : '<span class="pill-badge pill-ok">OK</span>';
     }
-    // The till should always be left with the fixed PKR 40,000 float for the next shift —
-    // anything else means the cashier didn't leave the full standard float behind.
-    const floatNote = closing != null && Math.abs(leftover - 40000) > 1
-      ? `<div class="alert-sub" style="margin-top:4px;">Left ${fmtMoney(leftover)} in the till for next shift, not the PKR 40,000 float.</div>`
+    // The till should always close back out at the fixed PKR 40,000 float it opened with —
+    // anything else means the custodian handover didn't fully sweep the excess (or shortfall).
+    const floatNote = closing != null && Math.abs(closing - opening) > 1
+      ? `<div class="alert-sub" style="margin-top:4px;">Till closed at ${fmtMoney(closing)}, not the PKR ${fmtMoney(opening).replace("PKR ", "")} float it opened with.</div>`
       : "";
     return `<div class="alert-row">
       <div>
         <div class="alert-title">${s.sale_date} &middot; ${shiftLabel}</div>
-        <div class="alert-sub">Implied ${implied != null ? fmtMoney(implied) : "—"} vs. logged ${fmtMoney(actual)}</div>
+        <div class="alert-sub">Calculated ${calculated != null ? fmtMoney(calculated) : "—"} vs. actual cash ${fmtMoney(actual)}</div>
         ${floatNote}
       </div>
       ${badge}
