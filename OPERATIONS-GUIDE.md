@@ -197,6 +197,29 @@ Today's Entries (Expense Entry) totals **both shifts** for the day; Till Cash Re
 scoped to **one shift**. E.g. PKR 5,565 (morning) + PKR 23,787 (evening) = PKR 29,352 (today's
 combined total) is expected, not a bug — confirmed Oct 13, 2026.
 
+### Paid by JazzCash / Mobile Wallet, and Cash Short/Over (added Oct 13, 2026)
+
+Each shift has a **"Paid by JazzCash / Mobile Wallet"** field right under "Paid by Card" —
+same idea as Card: it doesn't change the total sale, it just flags how much of it is sitting in
+a wallet (pending clearance) rather than physical cash in the till right now. Both Card and
+JazzCash get subtracted out of Cash Sales before the auto-handover and expected-till-balance
+math runs. Without entering today's JazzCash figure here, the till math assumes that money is
+physical cash that should be in the drawer or handed to the custodian — it isn't, so the shift
+will show a false "off by" warning and a false Short/Over until it's entered.
+
+Once Card and JazzCash are accounted for, whatever gap is left between the physical count and
+the expected till balance is a real **Cash Short / Over** — shown as its own labeled, colored
+box (red = short, green = over) under the physical-count field, not just a sentence. Whenever
+it's more than PKR 1:
+- A **reason** text box appears and is **required before Close Shift** (not before Save, so a
+  shift manager isn't blocked mid-shift) — e.g. "Jazzcash not yet entered", "counted short,
+  recount pending", "gave extra change by mistake".
+- Both the amount and the reason are **saved** (`daily_sales.cash_short_over`,
+  `daily_sales.variance_reason`) — a permanent record, not a warning that disappears on reload.
+- **Whole Day Totals** rolls both shifts' Short/Over into one number, with either shift's reason
+  listed underneath it — the one place the director needs to look, rather than opening each
+  shift to see why.
+
 **Superseded:** an earlier same-day design (a manual "Cash left in till for next shift" field,
 `till_leftover_amount` column; a Custodian "gave/picked" direction dropdown) is no longer
 used — the custodian amount is now a single signed field (positive = cash left the till) and

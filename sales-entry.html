@@ -141,7 +141,7 @@ const STANDARD_TILL_FLOAT = 40000;
 
 const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
 const SHIFT_TIME = { morning: "9:00 AM &ndash; 6:00 PM", evening: "6:00 PM &ndash; 3:00 AM" };
-const FIELD_BASES = ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount"];
+const FIELD_BASES = ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount","jazzcashAmount"];
 
 let locationId = null;
 let resolvedUserId = null;   // the real app_users.id, set only after the chosen manager's PIN verifies
@@ -151,8 +151,8 @@ let resolvedManagerId = null;
 // own opening float, its own real cash-expense total, its own "has the custodian field been
 // hand-edited" flag, and its own lock status. Added 2026-10-13 for the side-by-side redesign.
 const state = {
-  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft" },
-  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft" },
+  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0 },
+  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0 },
 };
 
 async function sbRpc(fn, body) {
@@ -246,6 +246,14 @@ function panelInnerHTML(shift, label){
       </div>
       <p class="muted" style="margin:6px 0 0">Doesn't change the total &mdash; just flags how much of it isn't cash in the till. Third Party (Careem/other) is cash in hand and is included in the till recon below.</p>
     </div>
+    <div class="channel">
+      <h3><span class="dot"></span>Paid by JazzCash / Mobile Wallet</h3>
+      <div class="field">
+        <label for="jazzcashAmount_${s}">JazzCash portion already included above (PKR)</label>
+        <input type="number" id="jazzcashAmount_${s}" min="0" inputmode="decimal" placeholder="0">
+      </div>
+      <p class="muted" style="margin:6px 0 0">Same idea as Card &mdash; doesn't change the total, just flags how much of it is sitting in JazzCash/wallet, not physical cash in the till, until it's cleared.</p>
+    </div>
 
     <div class="recon-box">
       <h3 style="margin:0 0 4px;font-size:.95rem">Till Cash Reconciliation</h3>
@@ -285,6 +293,15 @@ function panelInnerHTML(shift, label){
         <input type="number" id="closingCash_${s}" min="0" inputmode="decimal" placeholder="0">
         <p class="muted" id="closingVarianceNote_${s}" style="margin:4px 0 0;font-size:.76rem"></p>
       </div>
+
+      <div class="field" id="shortOverBlock_${s}" style="margin-top:12px;background:var(--surface);border-radius:9px;padding:12px" hidden>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <label style="margin:0">Cash Short / Over</label>
+          <div class="num" id="shortOverDisplay_${s}" style="font-size:1.1rem">PKR 0</div>
+        </div>
+        <label for="varianceReason_${s}" style="margin-top:10px">Reason (required before Close Shift)</label>
+        <input type="text" id="varianceReason_${s}" placeholder="e.g. PKR 36,876 still in JazzCash, clears end of shift">
+      </div>
     </div>
 
     <div class="row2" style="margin-top:14px">
@@ -310,7 +327,9 @@ function totalsPanelHTML(){
       <div><div class="lbl">Cash sales (both shifts)</div><div class="num" id="totalCashSales" style="font-size:1.1rem">PKR 0</div></div>
       <div><div class="lbl">Cash expenses (both shifts)</div><div class="num" id="totalCashExpenses" style="font-size:1.1rem">PKR 0</div></div>
       <div><div class="lbl">Handed to custodian (both shifts)</div><div class="num" id="totalHandover" style="font-size:1.1rem">PKR 0</div></div>
+      <div><div class="lbl">Cash Short / Over (both shifts)</div><div class="num" id="totalShortOver" style="font-size:1.1rem">PKR 0</div></div>
     </div>
+    <div class="muted" id="shortOverReasons" style="margin-top:10px;font-size:.78rem"></div>
     <div class="muted" id="shiftStatusSummary" style="margin-top:18px;font-size:.82rem;border-top:1px solid var(--border);padding-top:12px"></div>
   `;
 }
@@ -326,7 +345,7 @@ function buildPanels(){
 function wireShift(shift){
   ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount"]
     .forEach(base => document.getElementById(fid(base, shift)).addEventListener("input", () => recalcSummary(shift)));
-  ["cardAmount","closingCash"]
+  ["cardAmount","jazzcashAmount","closingCash"]
     .forEach(base => document.getElementById(fid(base, shift)).addEventListener("input", () => { recalcCashRecon(shift); recalcTotals(); }));
   // Typing in the custodian field is what marks it as a manual override — after that, the
   // auto-suggestion stops overwriting it for the rest of this shift.
@@ -335,6 +354,7 @@ function wireShift(shift){
     recalcCashRecon(shift);
     recalcTotals();
   });
+  document.getElementById(fid("varianceReason", shift)).addEventListener("input", () => recalcTotals());
   document.getElementById("saveBtn_" + shift).addEventListener("click", () => saveShift(shift, false));
   document.getElementById("closeBtn_" + shift).addEventListener("click", () => saveShift(shift, true));
   document.getElementById("unlockBtn_" + shift).addEventListener("click", () => unlockShift(shift));
@@ -351,13 +371,14 @@ function recalcSummary(shift){
   recalcTotals();
 }
 
-// Cash actually received in the till: the channels that land in hand, minus the card
-// portion of them. Third Party (Careem/other) is cash in hand, confirmed 2026-10-09 —
-// included here. Food Panda still settles externally, so it's excluded entirely. Bakery
-// Sale Amount is a memo breakdown already inside Dine-In/Takeaway/Delivery (confirmed
-// 2026-10-11) — it is NOT added again here.
+// Cash actually received in the till: the channels that land in hand, minus the card and
+// JazzCash/mobile-wallet portions of them (neither is physical cash in the till, even
+// though both are part of the sale). Third Party (Careem/other) is cash in hand, confirmed
+// 2026-10-09 — included here. Food Panda still settles externally, so it's excluded
+// entirely. Bakery Sale Amount is a memo breakdown already inside Dine-In/Takeaway/Delivery
+// (confirmed 2026-10-11) — it is NOT added again here.
 function cashSalesTotal(shift){
-  return nS("diAmount",shift) + nS("taAmount",shift) + nS("dlAmount",shift) + nS("tpAmount",shift) - nS("cardAmount",shift);
+  return nS("diAmount",shift) + nS("taAmount",shift) + nS("dlAmount",shift) + nS("tpAmount",shift) - nS("cardAmount",shift) - nS("jazzcashAmount",shift);
 }
 
 function recalcCashRecon(shift){
@@ -381,7 +402,7 @@ function recalcCashRecon(shift){
   const handoverDiff = Math.round(actualHandover - autoHandover);
   if (Math.abs(handoverDiff) > 1) {
     handoverNote.style.color = "var(--danger)";
-    handoverNote.textContent = `Off by PKR ${Math.abs(handoverDiff).toLocaleString()} vs. the auto-generated amount — double check with the custodian before saving.`;
+    handoverNote.textContent = `Off by PKR ${Math.abs(handoverDiff).toLocaleString()} vs. the auto-generated amount — double check with the custodian, or if some of today's sales are still sitting in Card/JazzCash, enter that above.`;
   } else {
     handoverNote.style.color = "var(--success)";
     handoverNote.textContent = "Matches the auto-generated amount.";
@@ -392,6 +413,8 @@ function recalcCashRecon(shift){
   const closingEntered = document.getElementById("closingCash_" + shift).value !== "";
   const closing = nS("closingCash", shift);
   const closingNote = document.getElementById("closingVarianceNote_" + shift);
+  const shortOverBlock = document.getElementById("shortOverBlock_" + shift);
+  const shortOverDisplay = document.getElementById("shortOverDisplay_" + shift);
 
   if (closingEntered) {
     const closingDiff = Math.round(closing - expectedClosing);
@@ -402,28 +425,65 @@ function recalcCashRecon(shift){
       closingNote.style.color = "var(--success)";
       closingNote.textContent = `Matches the expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till.`;
     }
+    // Short/Over is the same gap, surfaced as its own line (not just a sentence) with a
+    // reason that gets saved — rather than a warning that vanishes once the page reloads.
+    // Once Card and JazzCash are entered correctly this is usually 0; this box is for what's
+    // left after that — a real miscount or shortage. Added 2026-10-13.
+    st.shortOver = closingDiff;
+    if (Math.abs(closingDiff) > 1) {
+      shortOverBlock.hidden = false;
+      shortOverDisplay.style.color = closingDiff < 0 ? "var(--danger)" : "var(--success)";
+      shortOverDisplay.textContent = (closingDiff < 0 ? "− " : "+ ") + "PKR " + Math.abs(closingDiff).toLocaleString() + (closingDiff < 0 ? " short" : " over");
+    } else {
+      shortOverBlock.hidden = true;
+      document.getElementById("varianceReason_" + shift).value = "";
+    }
   } else {
     closingNote.style.color = "";
     closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till once the handover above is taken out.`;
+    st.shortOver = 0;
+    shortOverBlock.hidden = true;
   }
 }
 
 // Combines both shifts live from whatever is currently in each shift's fields — this is
 // the whole-day figure the director cares about, not either shift in isolation.
 function recalcTotals(){
-  let covers = 0, sale = 0, cashSales = 0, cashExpenses = 0, handover = 0;
+  let covers = 0, sale = 0, cashSales = 0, cashExpenses = 0, handover = 0, shortOver = 0;
   ["morning","evening"].forEach(s => {
     covers += Math.round(nS("diCovers",s) + nS("taCovers",s) + nS("dlCovers",s) + nS("tpCovers",s) + nS("fpCovers",s));
     sale += nS("diAmount",s) + nS("taAmount",s) + nS("dlAmount",s) + nS("tpAmount",s) + nS("fpAmount",s);
     cashSales += cashSalesTotal(s);
     cashExpenses += state[s].tillCashExpenses;
     handover += nS("custodianAmount", s);
+    shortOver += state[s].shortOver || 0;
   });
   document.getElementById("totalCovers").textContent = covers.toLocaleString();
   document.getElementById("totalSale").textContent = "PKR " + Math.round(sale).toLocaleString();
   document.getElementById("totalCashSales").textContent = "PKR " + Math.round(cashSales).toLocaleString();
   document.getElementById("totalCashExpenses").textContent = "PKR " + Math.round(cashExpenses).toLocaleString();
   document.getElementById("totalHandover").textContent = "PKR " + Math.round(handover).toLocaleString();
+
+  const shortOverEl = document.getElementById("totalShortOver");
+  const shortOverRounded = Math.round(shortOver);
+  if (Math.abs(shortOverRounded) > 1) {
+    shortOverEl.style.color = shortOverRounded < 0 ? "var(--danger)" : "var(--success)";
+    shortOverEl.textContent = (shortOverRounded < 0 ? "− " : "+ ") + "PKR " + Math.abs(shortOverRounded).toLocaleString();
+  } else {
+    shortOverEl.style.color = "var(--success)";
+    shortOverEl.textContent = "PKR 0";
+  }
+
+  // The director's one-line view of WHY, if either shift has an unresolved variance —
+  // the per-shift reason box, rolled up here instead of making them open each shift.
+  const reasonsEl = document.getElementById("shortOverReasons");
+  if (reasonsEl) {
+    const lines = ["morning","evening"].filter(s => Math.abs(state[s].shortOver || 0) > 1).map(s => {
+      const reason = document.getElementById(fid("varianceReason", s)).value.trim();
+      return `${SHIFT_LABELS[s]}: ${reason || "<em style=\"color:var(--danger)\">reason needed</em>"}`;
+    });
+    reasonsEl.innerHTML = lines.join("<br>");
+  }
 
   const summaryEl = document.getElementById("shiftStatusSummary");
   if (summaryEl) {
@@ -435,7 +495,7 @@ function recalcTotals(){
 
 function applyLockUI(shift){
   const closed = state[shift].status === "closed";
-  const lockFields = FIELD_BASES.concat(["custodianAmount","closingCash"]);
+  const lockFields = FIELD_BASES.concat(["custodianAmount","closingCash","varianceReason"]);
   lockFields.forEach(base => { document.getElementById(fid(base, shift)).disabled = closed; });
   document.getElementById("saveBtn_" + shift).hidden = closed;
   document.getElementById("closeBtn_" + shift).hidden = closed;
@@ -534,7 +594,7 @@ async function loadShiftEntry(shift){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.${shift}` +
-      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,status,closed_at`,
+      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,jazzcash_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,status,closed_at,variance_reason`,
       { headers }
     );
     if (res.ok) {
@@ -561,10 +621,12 @@ async function loadShiftEntry(shift){
     setVal("fpAmount", shift, existing.food_panda_amount || "");
     setVal("bakeryAmount", shift, existing.bakery_sale || "");
     setVal("cardAmount", shift, existing.card_amount || "");
+    setVal("jazzcashAmount", shift, existing.jazzcash_amount || "");
     // custodian_cash_amount is stored negative when cash left the till (the normal case) —
     // flip the sign back to "actual handover", where positive means cash went to the custodian.
     setVal("custodianAmount", shift, -(Number(existing.custodian_cash_amount) || 0));
     setVal("closingCash", shift, existing.closing_cash_till != null ? existing.closing_cash_till : "");
+    setVal("varianceReason", shift, existing.variance_reason || "");
     st.custodianTouched = true; // this shift already has a real saved handover — don't clobber it with a fresh suggestion
   } else {
     st.existingEntryId = null;
@@ -573,6 +635,7 @@ async function loadShiftEntry(shift){
     FIELD_BASES.forEach(base => setVal(base, shift, ""));
     setVal("custodianAmount", shift, "");
     setVal("closingCash", shift, "");
+    setVal("varianceReason", shift, "");
     st.custodianTouched = false; // fresh shift — let the auto-suggestion fill the custodian handover
   }
 
@@ -594,6 +657,11 @@ async function saveShift(shift, close){
   }
   if (close && document.getElementById(fid("closingCash", shift)).value === ""){
     alert("Enter the actual physical cash present in the till before closing this shift.");
+    return;
+  }
+  if (close && Math.abs(state[shift].shortOver || 0) > 1 && document.getElementById(fid("varianceReason", shift)).value.trim() === ""){
+    alert("This shift is short/over by PKR " + Math.abs(Math.round(state[shift].shortOver)).toLocaleString() + " — enter a reason before closing.");
+    document.getElementById(fid("varianceReason", shift)).focus();
     return;
   }
 
@@ -627,10 +695,15 @@ async function saveShift(shift, close){
     food_panda_amount: nS("fpAmount", shift),
     bakery_sale: nS("bakeryAmount", shift),
     card_amount: nS("cardAmount", shift),
+    jazzcash_amount: nS("jazzcashAmount", shift),
     // opening_cash_till is NOT sent — the DB trigger (daily_sales_compute_opening_cash) always
     // sets it to the standard PKR 40,000 float on insert, and locks it on update.
     custodian_cash_amount: custodianSigned,
     closing_cash_till: closingEntered ? nS("closingCash", shift) : null,
+    // Logged at save time, not just shown live — so there's a permanent record of how often
+    // (and why) this shift ran short or over, beyond whatever's on screen right now.
+    cash_short_over: closingEntered ? Math.round(state[shift].shortOver || 0) : null,
+    variance_reason: document.getElementById(fid("varianceReason", shift)).value.trim() || null,
     entered_by_user_id: whoId,
     entered_by_manager_id: resolvedManagerId,
   };
