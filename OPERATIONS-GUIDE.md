@@ -14,6 +14,7 @@ don't have to reverse-engineer it from the code.
 | Record an expense (cash out) | `expense-entry.html` | Store man / shift manager |
 | Fix a miscategorized/incorrect expense | `expense-edit.html` | Zeeshan / Imran / Yasir |
 | Add/edit/retire an expense category or subcategory | `expense-categories.html` | Director only |
+| Demand → Authorize → Order a purchase (before it's received) | `purchase-order.html` | Any manager (Demand) / Director (Authorize, Order) |
 | Record goods received from a vendor | `goods-receipt.html` | Store man |
 | Record stock issued to kitchen/floor/delivery | `issue-entry.html` | Store man |
 | Pay a vendor | `vendor-payment.html` | Zeeshan |
@@ -343,7 +344,55 @@ supports paying a vendor ahead of any purchase being logged.
 
 ---
 
-## 6. Open items / things still being built out
+## 6. Purchase Orders — Demand → Authorize → Order (advance) → Receive
+
+`purchase-order.html` is the formal path for ordering something **before** it's received,
+distinct from `goods-receipt.html`'s "Ad-hoc" mode (a cash buy with no advance planning, e.g.
+someone ran to the market). Three stages, gated by role:
+
+1. **Demand** — any manager with access requests an item + quantity (`status = 'Demand'`). No
+   vendor yet.
+2. **Authorize** — **director only**. Approves (`status = 'Authorized'`) or cancels the demand.
+   This is the "director accepts it" step.
+3. **Order** — **director only**. Assigns the vendor, confirms quantity and the agreed rate,
+   and — added Oct 13, 2026 — optionally **pays an advance right here** before marking it
+   Ordered (`status = 'Ordered'`).
+
+Once Ordered, it shows up as a pickable PO on `goods-receipt.html`'s PO mode; saving the receipt
+there sets `status = 'Received'`.
+
+### Advance payment at the Order step (added Oct 13, 2026)
+
+Some vendors (e.g. **K&N**, flagged `vendors.requires_advance = true`) won't deliver without an
+advance. The Order card has a **"Pay an advance now"** checkbox — auto-checked and pre-filled at
+the full agreed amount (qty × rate) for a vendor flagged this way, but any vendor can have it
+checked by hand for a one-off advance. If a flagged vendor's box is left unchecked, the director
+gets a confirmation prompt before the order goes through anyway (not a hard block — there can be
+legitimate reasons to skip it).
+
+Confirming "Mark as Ordered" with the box checked does two things in one step:
+- Saves `advance_amount`, `advance_paid_at`, `advance_payment_method`, `advance_paid_by` on the
+  `purchase_orders` row itself (for quick display — this PO shows "Advance of PKR X already
+  paid" on both the Order list and on Goods Receipt's PO picker).
+- Saves an ordinary **`vendor_payments`** row for the advance amount (linked back via
+  `vendor_payments.po_id`) — the same table and the same running-balance math
+  `vendor-payment.html` already uses (owed = credit purchases − vendor payments). **This is
+  what actually "lowers the receivable" as inventory arrives**: paying the advance before any
+  purchase exists makes the vendor's balance go negative (we've prepaid, i.e. a receivable from
+  the vendor); when the goods are later received as an ordinary credit purchase for the full
+  invoice amount, that payable increase nets back against the prepaid balance automatically —
+  no special-casing needed anywhere else. A cash advance also counts on Safe 2's Cash Out the
+  same way any cash vendor payment already does.
+
+**Known gap**: `vendor-payment.html`'s balance list only shows vendors with a *positive*
+outstanding balance, so a vendor sitting on a prepaid/receivable balance (paid an advance, goods
+not yet received) won't appear in that list — it's still selectable directly from the "Select
+vendor…" dropdown there, it just won't show in the summary cards until the balance turns
+positive again. Worth fixing if this becomes confusing in practice.
+
+---
+
+## 7. Open items / things still being built out
 
 This system is being built incrementally. When something needed isn't there yet, it gets
 listed here until it's resolved — treat this as the punch list, not just a changelog.

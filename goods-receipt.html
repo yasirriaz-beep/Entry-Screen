@@ -490,7 +490,7 @@ document.getElementById("f-receipt-photo").addEventListener("change", handleRece
 
 async function loadOpenPOs() {
   try {
-    state.pos = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=in.(Authorized,Ordered)&select=id,qty_requested,unit,status,products(id,name,code,unit,current_rate),vendors(id,name)&order=requested_at.desc`);
+    state.pos = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=in.(Authorized,Ordered)&select=id,qty_requested,unit,status,advance_amount,products(id,name,code,unit,current_rate),vendors(id,name)&order=requested_at.desc`);
   } catch (e) { state.pos = []; }
   const list = document.getElementById("po-list");
   const emptyHint = document.getElementById("po-empty-hint");
@@ -505,9 +505,11 @@ async function loadOpenPOs() {
     card.className = "po-card";
     const prod = po.products;
     const vend = po.vendors;
+    const advanceTag = Number(po.advance_amount) > 0
+      ? ` · <span style="color:var(--accent);font-weight:600;">Advance of PKR ${Math.round(po.advance_amount).toLocaleString()} already paid</span>` : "";
     card.innerHTML = `
       <div class="po-title">${prod ? prod.name : "Unknown item"}</div>
-      <div class="po-sub">${vend ? vend.name : "No vendor"} · Ordered ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${po.status}</div>
+      <div class="po-sub">${vend ? vend.name : "No vendor"} · Ordered ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${po.status}${advanceTag}</div>
     `;
     card.onclick = () => selectPO(po, card);
     list.appendChild(card);
@@ -567,10 +569,13 @@ function enterForm() {
   if (state.mode === "po" && state.selectedPO) {
     const po = state.selectedPO;
     document.getElementById("block-item-pick").hidden = true;
+    const advanceLine = Number(po.advance_amount) > 0
+      ? `<br>Advance of <strong>PKR ${Math.round(po.advance_amount).toLocaleString()}</strong> was already paid when this was ordered — it's already recorded as a vendor payment, so leave Payment Status as On Credit here and the vendor's balance will net correctly on its own.`
+      : "";
     document.getElementById("po-context-banner").innerHTML = `
       <div class="banner banner-ok">
         Receiving against PO: <strong>${po.products?.name || "item"}</strong> ·
-        Ordered ${po.qty_requested} ${po.unit || po.products?.unit || ""} from ${po.vendors?.name || "vendor"}
+        Ordered ${po.qty_requested} ${po.unit || po.products?.unit || ""} from ${po.vendors?.name || "vendor"}${advanceLine}
       </div>`;
     if (po.products?.current_rate) document.getElementById("f-rate").value = po.products.current_rate;
     if (po.vendors?.id) document.getElementById("f-vendor").value = po.vendors.id;
