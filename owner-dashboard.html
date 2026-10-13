@@ -57,6 +57,7 @@
   .kpi { background: var(--field-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; min-width: 0; }
   .kpi .kpi-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); font-weight: 600; }
   .kpi .kpi-value { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.3rem; margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
+  .kpi .kpi-sub { font-size: 0.72rem; color: var(--ink-soft); margin-top: 3px; font-variant-numeric: tabular-nums; }
   .kpi.net-pos .kpi-value { color: var(--ok); }
   .kpi.net-neg .kpi-value { color: var(--err); }
   .channel-row { display: flex; justify-content: space-between; font-size: 0.88rem; padding: 7px 0; border-bottom: 1px solid var(--border); }
@@ -156,7 +157,7 @@
     <h2 id="kpi-heading">Today — Snapshot</h2>
     <div class="kpi-grid" id="kpi-grid">
       <div class="kpi kpi-clickable" data-detail="sales"><div class="kpi-label">Sales</div><div class="kpi-value" id="kpi-sales">—</div></div>
-      <div class="kpi kpi-clickable" data-detail="expenses"><div class="kpi-label">Expenses</div><div class="kpi-value" id="kpi-expenses">—</div></div>
+      <div class="kpi kpi-clickable" data-detail="expenses"><div class="kpi-label">Expenses</div><div class="kpi-value" id="kpi-expenses">—</div><div class="kpi-sub" id="kpi-expenses-sub"></div></div>
       <div class="kpi kpi-clickable" data-detail="cogs"><div class="kpi-label">Issued (COGS)</div><div class="kpi-value" id="kpi-cogs">—</div></div>
       <div class="kpi kpi-clickable" id="kpi-net-card" data-detail="net"><div class="kpi-label">Net</div><div class="kpi-value" id="kpi-net">—</div></div>
     </div>
@@ -852,7 +853,7 @@ async function loadKpis() {
     sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=id,shift,sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount&order=sale_date.desc`);
   } catch (e) {}
   try {
-    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date&order=expense_date.desc`);
+    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date,payment_method&order=expense_date.desc`);
   } catch (e) {}
   try {
     purchases = await sb(`purchases?location_id=eq.${state.locationId}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=id,purchase_date,qty,unit,rate,amount,payment_status,vendors(name),products(name)&order=purchase_date.desc`);
@@ -885,6 +886,11 @@ async function loadKpis() {
 
   document.getElementById("kpi-sales").textContent = fmtMoney(totalSales);
   document.getElementById("kpi-expenses").textContent = fmtMoney(totalExpenses);
+  // Cash vs non-cash split, so "Expenses" (all methods) can be read alongside Cash
+  // Position (cash only) without having to open the drawer. Added 2026-10-13.
+  const cashExpenses = expenses.filter(r => (r.payment_method || "cash").toLowerCase() === "cash").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const nonCashExpenses = totalExpenses - cashExpenses;
+  document.getElementById("kpi-expenses-sub").textContent = `${fmtMoney(cashExpenses)} cash · ${fmtMoney(nonCashExpenses)} non-cash`;
   document.getElementById("kpi-cogs").textContent = fmtMoney(totalCogs);
   document.getElementById("kpi-net").textContent = fmtMoney(net);
   const netCard = document.getElementById("kpi-net-card");
@@ -997,7 +1003,7 @@ function showDetail(key) {
   } else if (key === "expenses") {
     const rows = [...state.expenseRows].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
     const body = rows.length
-      ? rows.map(e => drawerRow(`${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, `${e.expense_date}${e.detail ? " · " + e.detail : ""}`, fmtMoney(e.amount), { table: "expenses", id: e.id })).join("")
+      ? rows.map(e => drawerRow(`${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, `${e.expense_date} · ${(e.payment_method || "cash")}${e.detail ? " · " + e.detail : ""}`, fmtMoney(e.amount), { table: "expenses", id: e.id })).join("")
       : '<div class="empty-note">No expenses recorded for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     openDrawer("Expenses", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("expenses"));
