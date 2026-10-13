@@ -315,6 +315,19 @@ actually saved its Safe 1 section (closing count), and (2) were the day's cash e
 meant to be paid directly from the safe (no shift) or from a till during a shift (shift set) —
 only the former shows up in Safe 2's Cash Out.
 
+#### All Cash Movements — both safes (added Oct 13, 2026)
+
+A card near the top of `cash-reconciliation.html`, above the Safe 1/Safe 2 breakdown, lists
+every cash vendor payment, cash goods receipt (paid now), and cash expense for a chosen date
+range — both safes, tagged — independent of the day-by-day reconciliation flow below it. This
+exists because the per-day flow only surfaces a payment once you open that exact date, and a
+**draft** day saved before a late entry lands can sit stale until someone happens to reopen it
+(the drift banner only fires on reopen). The real-world trigger: staff sometimes pay a vendor
+and take delivery, but don't log the Goods Receipt until later — in the meantime the payment is
+a real cash outflow that's easy to miss unless you're looking at that specific day. This card
+defaults to the last 14 days on login and can be widened with the From/To fields — use it to
+catch a late-reported payment without hunting for which date it landed on.
+
 **Total Payable to Vendors** moved off this page — it now lives at the top of
 `vendor-payment.html`, which is where it's acted on.
 
