@@ -1144,7 +1144,10 @@ document.getElementById("btn-another").addEventListener("click", resetForm);
   });
 });
 
-Promise.all([populateCategories(), loadSubcategories(), loadRgmManager()]).then(onCategoryChange);
+Promise.all([populateCategories(), loadSubcategories(), loadRgmManager()]).then(() => {
+  onCategoryChange();
+  onPaymentMethodChange();
+});
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
