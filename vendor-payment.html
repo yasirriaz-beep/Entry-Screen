@@ -59,10 +59,16 @@
   .success-wrap { text-align: center; padding: 48px 16px; }
   .success-wrap .check { font-size: 2.6rem; }
 
+  .big-box-row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .big-box-row .big-box { flex: 1; min-width: 0; margin-bottom: 0; }
   .big-box { background: var(--surface); border: 2px solid var(--accent); border-radius: 16px; padding: 20px; margin-bottom: 16px; text-align: center; }
+  .big-box.big-box-receivable { border-color: var(--ok); }
   .big-box .bb-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); font-weight: 600; }
   .big-box .bb-value { font-family: 'Zilla Slab', Georgia, serif; font-size: 2.2rem; font-weight: 600; color: var(--accent); margin-top: 4px; }
+  .big-box.big-box-receivable .bb-value { color: var(--ok); font-size: 1.9rem; }
   .big-box .bb-hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  @media (max-width: 480px) { .big-box-row { flex-direction: column; } }
+  .v-amt.v-amt-receivable { color: var(--ok); }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -91,16 +97,29 @@
 
 <div id="panel-main" hidden>
 
-  <div class="big-box">
-    <div class="bb-label">Total Payable to Vendors</div>
-    <div class="bb-value" id="payables-value">PKR 0</div>
-    <div class="bb-hint">Across all vendors with an outstanding balance — breakdown below</div>
+  <div class="big-box-row">
+    <div class="big-box">
+      <div class="bb-label">Total Payable to Vendors</div>
+      <div class="bb-value" id="payables-value">PKR 0</div>
+      <div class="bb-hint">Breakdown below</div>
+    </div>
+    <div class="big-box big-box-receivable">
+      <div class="bb-label">Total Receivable from Vendors</div>
+      <div class="bb-value" id="receivables-value">PKR 0</div>
+      <div class="bb-hint">Prepaid, not yet received — breakdown below</div>
+    </div>
   </div>
 
   <div class="card">
-    <div class="step-label">Outstanding Balances</div>
+    <div class="step-label">Outstanding Balances <span class="hint">(we owe them)</span></div>
     <div id="balance-list"><div class="hint">Loading…</div></div>
     <div id="balance-total-wrap" hidden><div class="balance-total"><span>Total owed</span><span id="balance-total"></span></div></div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Receivables <span class="hint">(they owe us — advances paid ahead of delivery)</span></div>
+    <div id="receivable-list"><div class="hint">Loading…</div></div>
+    <div id="receivable-total-wrap" hidden><div class="balance-total"><span>Total receivable</span><span id="receivable-total"></span></div></div>
   </div>
 
   <div class="card">
@@ -329,6 +348,35 @@ async function loadBalances() {
   }
   document.getElementById("payables-value").textContent = fmtMoney(total);
 
+  // Receivables: vendors we've paid more than we owe (an advance like K&N's, paid
+  // before the goods arrived). These used to disappear entirely — the balance list
+  // above only ever showed positive (payable) balances, so a prepaid vendor just
+  // vanished from view instead of showing up as "they owe us." Added 2026-10-13.
+  const receivableList = document.getElementById("receivable-list");
+  const owedToUs = vendors.filter(v => state.balances[v.id] < -0.01).sort((a, b) => state.balances[a.id] - state.balances[b.id]);
+  let receivableTotal = 0;
+  owedToUs.forEach(v => { receivableTotal += -state.balances[v.id]; });
+  if (!owedToUs.length) {
+    receivableList.innerHTML = '<div class="empty-note">No vendor is currently prepaid ahead of delivery.</div>';
+    document.getElementById("receivable-total-wrap").hidden = true;
+  } else {
+    receivableList.innerHTML = owedToUs.map(v => `
+      <div class="balance-row" data-vendor="${v.id}">
+        <span class="v-name">${v.name}</span>
+        <span class="v-amt v-amt-receivable">${fmtMoney(-state.balances[v.id])}</span>
+      </div>`).join("");
+    receivableList.querySelectorAll(".balance-row").forEach(row => {
+      row.addEventListener("click", () => {
+        document.getElementById("f-vendor").value = row.dataset.vendor;
+        updateSelectedBalance();
+        document.getElementById("f-amount").focus();
+      });
+    });
+    document.getElementById("receivable-total").textContent = fmtMoney(receivableTotal);
+    document.getElementById("receivable-total-wrap").hidden = false;
+  }
+  document.getElementById("receivables-value").textContent = fmtMoney(receivableTotal);
+
   populateVendorSelect();
 }
 
@@ -359,9 +407,17 @@ function updateSelectedBalance() {
   if (!vendorId) { box.hidden = true; return; }
   const bal = state.balances[vendorId] || 0;
   box.hidden = false;
-  box.textContent = bal > 0.01
-    ? `Currently owed: ${fmtMoney(bal)}`
-    : "No outstanding balance on file for this vendor.";
+  // Fixed 2026-10-13: a negative balance (we've paid more than we owe — e.g. an
+  // advance like K&N's, paid before delivery) used to show the same "no outstanding
+  // balance" message as a vendor with nothing going on at all. Now it says plainly
+  // that it's a receivable, not a payable.
+  if (bal > 0.01) {
+    box.textContent = `Currently owed: ${fmtMoney(bal)}`;
+  } else if (bal < -0.01) {
+    box.textContent = `We've prepaid ${fmtMoney(-bal)} ahead of delivery — this is a receivable, not something owed.`;
+  } else {
+    box.textContent = "No outstanding balance on file for this vendor.";
+  }
 }
 document.getElementById("f-vendor").addEventListener("change", updateSelectedBalance);
 

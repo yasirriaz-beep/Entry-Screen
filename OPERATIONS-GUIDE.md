@@ -393,11 +393,23 @@ Confirming "Mark as Ordered" with the box checked does two things in one step:
   no special-casing needed anywhere else. A cash advance also counts on Safe 2's Cash Out the
   same way any cash vendor payment already does.
 
-**Known gap**: `vendor-payment.html`'s balance list only shows vendors with a *positive*
-outstanding balance, so a vendor sitting on a prepaid/receivable balance (paid an advance, goods
-not yet received) won't appear in that list — it's still selectable directly from the "Select
-vendor…" dropdown there, it just won't show in the summary cards until the balance turns
-positive again. Worth fixing if this becomes confusing in practice.
+**Fixed Oct 13, 2026**: `vendor-payment.html` now shows a second big box, "Total Receivable from
+Vendors", right next to "Total Payable to Vendors", with its own breakdown card below
+("Receivables — they owe us — advances paid ahead of delivery") listing every vendor whose
+balance is negative (we've paid more than we currently owe them). Previously those vendors just
+vanished from the page entirely — the balance list only ever showed positive balances, and
+picking a prepaid vendor from the "Select vendor…" dropdown said "No outstanding balance on file"
+with no indication a receivable existed. Selecting one now says plainly "We've prepaid PKR X
+ahead of delivery — this is a receivable, not something owed."
+
+**Remember balances are per-location.** `vendor-payment.html` only ever looks at Gulberg's own
+`purchases`/`vendor_payments` rows (`location_id` filter) — a vendor's balance here reflects only
+what Gulberg itself owes or is owed, not the group's combined balance across branches. K&N is a
+good example: as of Oct 13, 2026 K&N's *group-wide* credit purchases (171,944, almost entirely
+from another branch) dwarf Gulberg's three advances (43,000) — but Gulberg's own position with
+K&N is a receivable (43,000 prepaid, nothing received here yet), which is exactly what this page
+now shows. Don't blend numbers across locations when answering "what do we owe/are owed" — always
+check the page for the specific location in question.
 
 ### Standalone Authorize page (added Oct 13, 2026)
 
