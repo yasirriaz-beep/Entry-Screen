@@ -491,7 +491,7 @@ async function fetchCashIn(dateStr) {
 }
 
 async function fetchCashOut(dateStr) {
-  let expenseLines = [], vendorLines = [];
+  let expenseLines = [], vendorLines = [], receiptLines = [];
   try {
     // Only expenses with no shift (paid directly from this safe) belong here. A shift-tied
     // expense was already paid out of the cashier's till and is reflected in a *smaller*
@@ -504,7 +504,14 @@ async function fetchCashOut(dateStr) {
     const rows = await sb(`vendor_payments?location_id=eq.${GULBERG_ID}&payment_date=eq.${dateStr}&method=eq.cash&select=amount,vendors(name)`);
     vendorLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Vendor") + " (cash payment)", amount: Number(r.amount) || 0 }));
   } catch (e) { /* ignore */ }
-  const lines = [...expenseLines, ...vendorLines];
+  try {
+    // A Goods Receipt marked "Paid Now" / Cash never creates a vendor_payments row (it's
+    // settled on the spot, not against a payable) — without this it was invisible to the
+    // safe entirely. Added 2026-10-13.
+    const rows = await sb(`purchases?location_id=eq.${GULBERG_ID}&purchase_date=eq.${dateStr}&payment_status=eq.paid&payment_method=eq.cash&select=amount,vendors(name)`);
+    receiptLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Goods Receipt") + " (paid now, cash)", amount: Number(r.amount) || 0 }));
+  } catch (e) { /* ignore */ }
+  const lines = [...expenseLines, ...vendorLines, ...receiptLines];
   const total = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
   return { total, lines };
 }
@@ -566,12 +573,19 @@ async function loadDay(dateStr) {
   if (rows && rows[0]) {
     state.currentRow = rows[0];
     const r = rows[0];
-    // Show the FROZEN totals actually saved for this day, never a live recompute — otherwise a
-    // locked/submitted day could silently drift if someone edits sales/expense records later.
-    document.getElementById("fb-in").textContent = fmtMoney(r.cash_in);
-    document.getElementById("fb-in").dataset.raw = r.cash_in;
-    document.getElementById("fb-out").textContent = fmtMoney(r.cash_out);
-    document.getElementById("fb-out").dataset.raw = r.cash_out;
+    // A LOCKED or SUBMITTED day shows its FROZEN totals, never a live recompute — otherwise a
+    // finalized day could silently drift if someone edits sales/expense records later. A DRAFT
+    // day isn't finalized yet, so there's no reason to shackle it to whatever was true the last
+    // time it was saved — show the live totals instead, so Cash In / Cash Out are always correct
+    // until the day is actually submitted. (Before 2026-10-13 a draft saved early in the day,
+    // before the shifts/receipts were entered, would freeze at 0/0 and stay wrong all day.)
+    const useLive = r.status === "draft";
+    const shownIn = useLive ? cashIn.total : r.cash_in;
+    const shownOut = useLive ? cashOut.total : r.cash_out;
+    document.getElementById("fb-in").textContent = fmtMoney(shownIn);
+    document.getElementById("fb-in").dataset.raw = shownIn;
+    document.getElementById("fb-out").textContent = fmtMoney(shownOut);
+    document.getElementById("fb-out").dataset.raw = shownOut;
     document.getElementById("f-opening").value = r.opening_cash;
     document.getElementById("f-counted").value = r.counted_cash ?? "";
     document.getElementById("f-adjustment-reason").value = r.adjustment_reason || "";
@@ -580,7 +594,7 @@ async function loadDay(dateStr) {
 
     const driftedIn = Math.abs((Number(r.cash_in) || 0) - cashIn.total) > 0.5;
     const driftedOut = Math.abs((Number(r.cash_out) || 0) - cashOut.total) > 0.5;
-    if (driftedIn || driftedOut) {
+    if (!useLive && (driftedIn || driftedOut)) {
       drift.hidden = false;
       drift.textContent = `Source records changed after this day was saved. Saved: In ${fmtMoney(r.cash_in)} / Out ${fmtMoney(r.cash_out)}. Current source records now total: In ${fmtMoney(cashIn.total)} / Out ${fmtMoney(cashOut.total)}. This needs the owner's attention.`;
     } else {

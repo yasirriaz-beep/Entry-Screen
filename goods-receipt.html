@@ -177,6 +177,15 @@
       </select>
     </div>
 
+    <div class="field" id="block-payment-method" hidden>
+      <label>Paid How</label>
+      <select id="f-payment-method">
+        <option value="cash">Cash (from the safe)</option>
+        <option value="bank">Bank Transfer</option>
+      </select>
+      <div class="hint">Cash here shows up as Cash Out on today's Cash Reconciliation — same as a cash vendor payment.</div>
+    </div>
+
     <div class="field">
       <label>Notes</label>
       <textarea id="f-notes" rows="2" placeholder="Optional — condition, shortage explanation, etc."></textarea>
@@ -535,6 +544,8 @@ function enterForm() {
   document.getElementById("f-inv").value = "";
   document.getElementById("f-notes").value = "";
   document.getElementById("f-payment-status").value = "credit";
+  document.getElementById("f-payment-method").value = "cash";
+  document.getElementById("block-payment-method").hidden = true;
   document.getElementById("variance-hint").innerHTML = "";
   document.getElementById("f-receipt-photo").value = "";
   document.getElementById("scan-status").textContent = "Snap or upload a photo of the invoice/delivery note to pre-fill the fields below.";
@@ -608,6 +619,7 @@ async function saveReceipt() {
   const invNumber = document.getElementById("f-inv").value || null;
   const notes = document.getElementById("f-notes").value || null;
   const paymentStatus = document.getElementById("f-payment-status").value;
+  const paymentMethod = paymentStatus === "paid" ? document.getElementById("f-payment-method").value : null;
 
   if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
 
@@ -641,6 +653,7 @@ async function saveReceipt() {
     qty: qty,
     amount: amount,
     payment_status: paymentStatus,
+    payment_method: paymentMethod,
     notes: notes,
     entered_by_user_id: state.userId,
     entered_by_manager_id: state.managerId,
@@ -712,6 +725,9 @@ document.getElementById("mode-adhoc").addEventListener("click", () => {
   document.getElementById("mode-adhoc").classList.add("selected");
   document.getElementById("step-mode").hidden = true;
   enterForm();
+});
+document.getElementById("f-payment-status").addEventListener("change", (e) => {
+  document.getElementById("block-payment-method").hidden = e.target.value !== "paid";
 });
 document.getElementById("f-qty").addEventListener("input", recalcAmount);
 document.getElementById("f-rate").addEventListener("input", recalcAmount);

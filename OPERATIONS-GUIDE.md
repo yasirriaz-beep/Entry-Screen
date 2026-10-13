@@ -192,16 +192,32 @@ whole day, not either shift alone.
 
 ### Safe 2 — Cash Reconciliation (Zeeshan's safe)
 
-Unchanged in mechanics: Opening (carried from yesterday's count) + Cash In (the day's till
-handovers, i.e. the Safe 1 custodian amounts above) − Cash Out (expenses/vendor payments paid
-**directly from the safe**, no shift attached — a shift-tied expense already shows up as a
-smaller Safe 1 handover, so counting it here too would double it) = Expected, compared against
-Zeeshan's physical count.
+Opening (carried from yesterday's count, or set once by hand for day one of using this system)
++ Cash In (the day's till handovers, i.e. the Safe 1 custodian amounts above) − Cash Out
+(expenses/vendor payments/goods receipts paid **directly from the safe**, no shift attached —
+a shift-tied expense already shows up as a smaller Safe 1 handover, so counting it here too
+would double it) = Expected, compared against Zeeshan's physical count.
 
-If Cash In / Cash Out read PKR 0 on a day with real activity, check: (1) has every shift for
-that day actually saved its Safe 1 section (closing count), and (2) were the day's cash
-expenses meant to be paid directly from the safe (no shift) or from a till during a shift
-(shift set) — only the former shows up in Safe 2's Cash Out.
+Cash Out is three sources combined:
+1. Daily Expense entries with no shift and payment method = cash.
+2. Vendor Payments with method = cash (paying down a payable logged earlier on Goods Receipt).
+3. **Goods Receipt entries marked "Paid Now" → Cash** — added Oct 13, 2026. A receipt paid on
+   the spot never goes through Vendor Payments (there's no payable to pay down), so without this
+   it vanished from the cash trail entirely. `purchases.payment_method` (cash/bank, only
+   meaningful when `payment_status = 'paid'`) drives this — Goods Receipt now asks "Paid How?"
+   whenever "Paid Now" is picked, defaulting to Cash.
+
+**As of Oct 13, 2026, a DRAFT day always shows live totals**, not whatever was saved the last
+time someone hit "Save Draft." Before this, a draft saved early in the day (before the shifts
+or receipts were entered) froze at Cash In/Out = 0 and stayed wrong for the rest of the day —
+the only way to see the real numbers was to keep clicking Save Draft and hope. A **submitted or
+locked** day still freezes its totals on purpose (so a finalized day can't silently drift if
+someone edits a sales/expense record afterward) — the drift warning banner only fires for those.
+
+If Cash In / Cash Out still look wrong on a draft day, check: (1) has every shift for that day
+actually saved its Safe 1 section (closing count), and (2) were the day's cash expenses/receipts
+meant to be paid directly from the safe (no shift) or from a till during a shift (shift set) —
+only the former shows up in Safe 2's Cash Out.
 
 **Total Payable to Vendors** moved off this page — it now lives at the top of
 `vendor-payment.html`, which is where it's acted on.
