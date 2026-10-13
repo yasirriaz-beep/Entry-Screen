@@ -671,6 +671,15 @@ async function loadAuthorizedList() {
   const list = document.getElementById("authorized-list");
   const emptyHint = document.getElementById("authorized-empty-hint");
   list.innerHTML = "";
+  // Pre-select the vendor dropdown with whoever was last ordered for this same product,
+  // so a recurring item (always the same vendor) doesn't force re-picking from scratch
+  // every time — the dropdown is still fully editable if it's a different vendor this time.
+  // Added 2026-10-13 per Zeeshan's feedback.
+  let lastVendorByProduct = {};
+  try {
+    const history = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=in.(Ordered,Received)&vendor_id=not.is.null&select=product_id,vendor_id,ordered_at&order=ordered_at.desc`);
+    history.forEach(h => { if (!(h.product_id in lastVendorByProduct)) lastVendorByProduct[h.product_id] = h.vendor_id; });
+  } catch (e) { /* non-critical — falls back to blank dropdown */ }
   try {
     const rows = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=eq.Authorized&select=id,qty_requested,unit,authorized_at,products(id,name,code,unit,current_rate),vendor_id&order=authorized_at.asc`);
     updateStuckBanner("order-stuck-banner", rows);
@@ -682,7 +691,8 @@ async function loadAuthorizedList() {
       const card = document.createElement("div");
       card.className = "po-card";
       const prod = po.products;
-      const vendorOptions = state.vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join("");
+      const defaultVendorId = prod ? lastVendorByProduct[prod.id] : null;
+      const vendorOptions = state.vendors.map(v => `<option value="${v.id}" ${v.id === defaultVendorId ? "selected" : ""}>${v.name}</option>`).join("");
       const isStuck = (now - new Date(po.authorized_at).getTime()) > STUCK_HOURS * 3600 * 1000;
       card.innerHTML = `
         <div class="po-title">${prod ? prod.name : "Unknown item"} <span class="badge badge-authorized">Authorized</span>${isStuck ? ` <span class="badge badge-overdue">Not Ordered Yet</span>` : ""}</div>
@@ -738,9 +748,8 @@ async function loadAuthorizedList() {
       // requires_advance gets the box pre-checked and pre-filled at the full agreed amount
       // (the director can still lower it or uncheck it); any other vendor can still have the
       // box ticked by hand for a one-off advance. Added 2026-10-13 for vendors like K&N.
-      vendorSel.addEventListener("change", (e) => {
-        handleOrderVendorAddNew(e, vendorSel);
-        const vendor = state.vendors.find(v => v.id === vendorSel.value);
+      function applyVendorAdvanceDefaults(vendorId) {
+        const vendor = state.vendors.find(v => v.id === vendorId);
         const requires = !!(vendor && vendor.requires_advance);
         advanceToggle.checked = requires;
         advanceBlock.hidden = !requires;
@@ -749,7 +758,15 @@ async function loadAuthorizedList() {
           const rateVal = parseFloat(card.querySelector(".order-rate").value) || 0;
           if (!advanceAmountEl.value) advanceAmountEl.value = (qtyVal * rateVal) || "";
         }
+      }
+      vendorSel.addEventListener("change", (e) => {
+        handleOrderVendorAddNew(e, vendorSel);
+        applyVendorAdvanceDefaults(vendorSel.value);
       });
+      // The dropdown may already be pre-selected (last vendor used for this product) —
+      // run the same advance-defaulting logic once up front so it's consistent with
+      // picking it by hand.
+      if (vendorSel.value) applyVendorAdvanceDefaults(vendorSel.value);
       advanceToggle.addEventListener("change", () => {
         advanceBlock.hidden = !advanceToggle.checked;
         if (advanceToggle.checked && !advanceAmountEl.value) {

@@ -176,7 +176,7 @@
       <div class="kpi kpi-clickable" data-detail="payables"><div class="kpi-label">Payables Added</div><div class="kpi-value" id="cash-credit">—</div></div>
       <div class="kpi kpi-clickable" id="cash-net-card" data-detail="cash-net"><div class="kpi-label">Net Cash Movement</div><div class="kpi-value" id="cash-net">—</div></div>
     </div>
-    <div class="hint" style="margin-top:10px;">Cash Collected = dine-in + takeaway + own-delivery + Third Party (Careem/other) + bakery, minus any card-paid portion. Food Panda and card payments settle later (see Receivables) — they're not cash in Zeeshan's hand today. Cash Paid Out = expenses + any purchase actually paid in cash (rare — most purchases go to Payables instead, see below).</div>
+    <div class="hint" style="margin-top:10px;">Combines both safes. Cash Collected = dine-in + takeaway + own-delivery + Third Party (Careem/other) + bakery, minus any card-paid portion. Food Panda and card payments settle later (see Receivables) — they're not cash in Zeeshan's hand today. Cash Paid Out = expenses (either safe) + any purchase actually paid in cash (rare — most purchases go to Payables instead, see below) + vendor payments made in cash from Safe 2 (vendor bills settled, PO advances like K&N's).</div>
   </div>
 
   <div class="card">
@@ -860,6 +860,17 @@ async function loadKpis() {
   try {
     issues = await sb(`daily_issues?location_id=eq.${state.locationId}&issue_date=gte.${from}&issue_date=lte.${to}&select=id,issue_date,qty,rate,amount,issued_to,products(name,unit)&order=issue_date.desc`);
   } catch (e) {}
+  // Cash Position needs to be the combined Safe 1 + Safe 2 picture, not just the till side.
+  // Safe 1 (sales/till cash) is covered by cashSalesBase below; Safe 2 (Zeeshan's safe) pays
+  // vendors straight out of pocket via vendor_payments (cash method) — a vendor bill settled
+  // in cash, or a PO advance like K&N's — and that was missing from Cash Paid Out entirely
+  // until now. Bank-method vendor payments are excluded since they never touch either safe's
+  // physical cash. Added 2026-10-13.
+  let vendorCashPayments = [];
+  try {
+    vendorCashPayments = await sb(`vendor_payments?location_id=eq.${state.locationId}&payment_date=gte.${from}&payment_date=lte.${to}&method=eq.cash&select=id,amount,payment_date,notes,vendors(name)`);
+  } catch (e) {}
+  state.vendorCashPaymentRows = vendorCashPayments;
 
   state.salesRows = sales;
   state.expenseRows = expenses;
@@ -893,7 +904,8 @@ async function loadKpis() {
   // (a rare cash advance) counts as cash paid out today.
   const payablesAdded = purchases.filter(p => (p.payment_status || "").toLowerCase() === "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const cashPaidPurchases = totalPurchases - payablesAdded;
-  const cashPaidOut = totalExpenses + cashPaidPurchases;
+  const vendorCashPaid = vendorCashPayments.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const cashPaidOut = totalExpenses + cashPaidPurchases + vendorCashPaid;
   const netCash = cashCollected - cashPaidOut;
 
   document.getElementById("cash-in").textContent = fmtMoney(cashCollected);
@@ -1020,7 +1032,8 @@ function showDetail(key) {
   } else if (key === "cash-out") {
     const expRows = state.expenseRows.map(e => ({ main: `${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, sub: e.expense_date, amt: Number(e.amount) || 0 }));
     const purchRows = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").map(p => ({ main: p.products?.name || "Purchase (cash-paid)", sub: `${p.purchase_date} · ${p.vendors?.name || "no vendor"}`, amt: Number(p.amount) || 0 }));
-    const rows = [...expRows, ...purchRows];
+    const vendorRows = (state.vendorCashPaymentRows || []).map(v => ({ main: `${v.vendors?.name || "Vendor"} (cash payment)`, sub: `${v.payment_date}${v.notes ? " · " + v.notes : ""}`, amt: Number(v.amount) || 0 }));
+    const rows = [...expRows, ...purchRows, ...vendorRows];
     const body = rows.length
       ? rows.map(r => drawerRow(r.main, r.sub, fmtMoney(r.amt))).join("")
       : '<div class="empty-note">No cash paid out for this range.</div>';
@@ -1037,10 +1050,11 @@ function showDetail(key) {
     const cashCollected = state.salesRows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.third_party_amount) || 0) + (Number(r.bakery_sale) || 0) - (Number(r.card_amount) || 0), 0);
     const totalExpenses = state.expenseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const cashPaidPurchases = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const cashPaidOut = totalExpenses + cashPaidPurchases;
+    const vendorCashPaid = (state.vendorCashPaymentRows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const cashPaidOut = totalExpenses + cashPaidPurchases + vendorCashPaid;
     const netCash = cashCollected - cashPaidOut;
     const body = drawerRow("Cash Collected", "Dine-in + Takeaway + Delivery + Third Party + Bakery, minus card", fmtMoney(cashCollected)) +
-                 drawerRow("Cash Paid Out", "Expenses + cash-paid purchases", "−" + fmtMoney(cashPaidOut)) +
+                 drawerRow("Cash Paid Out", "Expenses (both safes) + cash-paid purchases + Safe 2 cash vendor payments", "−" + fmtMoney(cashPaidOut)) +
                  `<div class="drawer-total"><span>Net Cash Movement</span><span>${fmtMoney(netCash)}</span></div>`;
     openDrawer("Net Cash Movement", sub, body + renderRelatedLinks("cash-net"));
   } else if (key === "receivable-fp") {
