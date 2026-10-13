@@ -15,6 +15,7 @@ don't have to reverse-engineer it from the code.
 | Fix a miscategorized/incorrect expense | `expense-edit.html` | Zeeshan / Imran / Yasir |
 | Add/edit/retire an expense category or subcategory | `expense-categories.html` | Director only |
 | Demand → Authorize → Order a purchase (before it's received) | `purchase-order.html` | Any manager (Demand) / Director (Authorize, Order) |
+| Authorize a purchase demand only (standalone page) | `po-authorize.html` | Anyone granted the "Purchase Order — Authorize" page in Manage Access |
 | Record goods received from a vendor | `goods-receipt.html` | Store man |
 | Record stock issued to kitchen/floor/delivery | `issue-entry.html` | Store man |
 | Pay a vendor | `vendor-payment.html` | Zeeshan |
@@ -389,6 +390,24 @@ outstanding balance, so a vendor sitting on a prepaid/receivable balance (paid a
 not yet received) won't appear in that list — it's still selectable directly from the "Select
 vendor…" dropdown there, it just won't show in the summary cards until the balance turns
 positive again. Worth fixing if this becomes confusing in practice.
+
+### Standalone Authorize page (added Oct 13, 2026)
+
+`purchase-order.html` gates its Authorize panel on `role === "director"` — hardcoded, not tied
+to the page-access grant. That means even if Yasir granted someone the "Purchase Orders" page in
+Manage Access, they'd still only see the Demand panel unless their manager record's role is
+literally "director".
+
+`po-authorize.html` is a separate, standalone page with its **own page key**
+(`po_authorize`, labeled "Purchase Order — Authorize" in Manage Access) containing only the
+Authorize/Reject panel — no Demand or Order panels. Access is controlled purely by the Manage
+Access grant for that key: whoever is granted it can log in and authorize or reject pending
+demands, regardless of their role (director, auditor, or anything else). This is how "director
+or anyone Yasir chooses" gets to authorize, without touching `purchase-order.html`'s existing
+director-only behavior, which is left as-is for backward compatibility.
+
+To let someone else authorize demands: open `manage-access.html`, grant them the
+"Purchase Order — Authorize" page, and give them the login code + PIN for `po-authorize.html`.
 
 ---
 

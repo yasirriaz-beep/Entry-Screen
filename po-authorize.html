@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg PO Authorization</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --border: #e4ddd1;
+    --ink: #2a2420;
+    --ink-soft: #6f655a;
+    --accent: #9c3b2e;
+    --accent-ink: #ffffff;
+    --field-bg: #fcfaf6;
+    --ok: #3d7a4f;
+    --ok-bg: #eaf4ec;
+    --warn: #a3650a;
+    --warn-bg: #fdf1dd;
+    --err: #b3261e;
+    --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; }
+  .btn-outline-err { background: transparent; border: 1px solid var(--err); color: var(--err); }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+  .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); cursor: pointer; }
+  .po-card .po-title { font-weight: 600; }
+  .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
+  .po-detail { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .po-detail .row2 { margin-bottom: 10px; }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+
+<h1>Gulberg PO Authorization</h1>
+<div class="sub">Approve or reject purchase demands waiting on authorization</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN, or you don't have access to this page.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<!-- Anyone granted access to this page via Manage Access -->
+<div id="panel-authorize" hidden>
+  <div class="banner banner-warn" id="authorize-stuck-banner" hidden></div>
+  <div class="card">
+    <div class="step-label">Demands Awaiting Authorization</div>
+    <div id="demand-list"></div>
+    <div class="hint" id="demand-empty-hint" hidden>No pending demands.</div>
+  </div>
+  <button class="btn-ghost" id="btn-authorize-back" type="button">Change Person</button>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;" id="success-title">Done</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub"></div>
+  <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">OK</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+// Own, distinct page key — access to this page is controlled purely through
+// Manage Access grants (admin_set_page_access_v3 / list_managers_for_page_with_code_v2),
+// NOT by the manager's role. Whoever Yasir grants "Purchase Order — Authorize" access to
+// can log in here and authorize/reject demands, regardless of whether they are a
+// director, auditor, or any other role. This is deliberately separate from
+// purchase-order.html's PAGE_KEY ("purchase_order"), where the Authorize panel is still
+// hardcoded to role === "director" for backward compatibility.
+const PAGE_KEY = "po_authorize";
+
+let state = {
+  userId: null,
+  userRole: null,
+  userName: null,
+  managerId: null
+};
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    // Only managers Yasir has granted access to THIS page key are returned here —
+    // that grant is the authorization to use this page, so there is no further
+    // role check once login succeeds.
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    setTimeout(() => {
+      afterLogin(row.app_user_id, match.name, match.id, row.role);
+    }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userRole = role;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  // No role branching here on purpose — being granted this page via Manage Access
+  // IS the authorization to use it, whatever the manager's role field says.
+  enterAuthorizePanel();
+}
+
+function backToNames() {
+  state.userId = null; state.userRole = null; state.userName = null;
+  document.getElementById("panel-authorize").hidden = true;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+
+function showSuccess(title, sub, backTo) {
+  document.getElementById("panel-authorize").hidden = true;
+  document.getElementById("success-title").textContent = title;
+  document.getElementById("success-sub").textContent = sub || "";
+  document.getElementById("step-success").hidden = false;
+  document.getElementById("btn-success-ok").onclick = backTo;
+}
+
+/* ---------- AUTHORIZE ---------- */
+
+async function enterAuthorizePanel() {
+  document.getElementById("panel-authorize").hidden = false;
+  await loadDemandList();
+}
+
+const STUCK_HOURS = 24;
+
+function updateStuckBanner(elId, rows) {
+  const banner = document.getElementById(elId);
+  if (!banner) return;
+  const now = Date.now();
+  const stuck = rows.filter(po => (now - new Date(po.requested_at).getTime()) > STUCK_HOURS * 3600 * 1000);
+  if (!stuck.length) { banner.hidden = true; return; }
+  const names = stuck.map(po => po.products?.name || "item").slice(0, 5).join(", ");
+  banner.hidden = false;
+  banner.textContent = `⚠ ${stuck.length} demand(s) waiting more than ${STUCK_HOURS}h for authorization: ${names}${stuck.length > 5 ? "…" : ""}`;
+}
+
+async function loadDemandList() {
+  const list = document.getElementById("demand-list");
+  const emptyHint = document.getElementById("demand-empty-hint");
+  list.innerHTML = "";
+  try {
+    const rows = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=eq.Demand&select=id,qty_requested,unit,requested_at,notes,products(id,name,code,unit,current_rate)&order=requested_at.asc`);
+    updateStuckBanner("authorize-stuck-banner", rows);
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(po => {
+      const card = document.createElement("div");
+      card.className = "po-card";
+      const prod = po.products;
+      card.innerHTML = `
+        <div class="po-title">${prod ? prod.name : "Unknown item"}</div>
+        <div class="po-sub">Requested ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${new Date(po.requested_at).toLocaleDateString()}</div>
+        ${po.notes ? `<div class="po-sub">${po.notes}</div>` : ""}
+        <div class="po-detail" hidden>
+          <div class="row2">
+            <div>
+              <label>Qty to Authorize</label>
+              <input type="number" class="authorize-qty" step="any" value="${po.qty_requested}">
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn-primary btn-sm authorize-confirm-btn" style="flex:1;">Authorize</button>
+            <button type="button" class="btn-outline-err btn-sm authorize-reject-btn" style="flex:1;">Reject</button>
+          </div>
+        </div>`;
+      const detail = card.querySelector(".po-detail");
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".po-detail")) return;
+        document.querySelectorAll("#demand-list .po-detail").forEach(d => { if (d !== detail) d.hidden = true; });
+        detail.hidden = !detail.hidden;
+      });
+      card.querySelector(".authorize-confirm-btn").addEventListener("click", () => authorizeDemand(po, card));
+      card.querySelector(".authorize-reject-btn").addEventListener("click", () => rejectDemand(po));
+      list.appendChild(card);
+    });
+  } catch (e) {
+    emptyHint.hidden = false;
+    emptyHint.textContent = "Couldn't load demands: " + e.message;
+  }
+}
+
+async function authorizeDemand(po, cardEl) {
+  const qty = parseFloat(cardEl.querySelector(".authorize-qty").value) || 0;
+  if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+  try {
+    await sb(`purchase_orders?id=eq.${po.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        status: "Authorized",
+        qty_requested: qty,
+        authorized_by: state.userId,
+        authorized_at: new Date().toISOString()
+      })
+    });
+    showSuccess("Authorized", `${po.products?.name || "Item"} — ${qty} ${po.unit || ""} sent to Imran to order.`, () => { enterAuthorizePanelAgain(); });
+  } catch (e) {
+    alert("Couldn't authorize: " + e.message);
+  }
+}
+
+async function rejectDemand(po) {
+  if (!confirm(`Cancel the demand for ${po.products?.name || "this item"}?`)) return;
+  try {
+    await sb(`purchase_orders?id=eq.${po.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        status: "Cancelled",
+        authorized_by: state.userId,
+        authorized_at: new Date().toISOString()
+      })
+    });
+    showSuccess("Demand cancelled", `${po.products?.name || "Item"} — demand removed.`, () => { enterAuthorizePanelAgain(); });
+  } catch (e) {
+    alert("Couldn't cancel: " + e.message);
+  }
+}
+
+function enterAuthorizePanelAgain() {
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("panel-authorize").hidden = false;
+  loadDemandList();
+}
+
+document.getElementById("btn-authorize-back").addEventListener("click", backToNames);
+
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+
+</body>
+</html>
