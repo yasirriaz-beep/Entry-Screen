@@ -125,31 +125,45 @@ responsible for the cash at each stage:
 
 ### Safe 1 — Till Cash Reconciliation (Sales Entry)
 
+This is an **audit check**, not a data-entry chore — almost everything fills in on its own.
 Each shift's till always opens — and is expected to close — at the standard **PKR 40,000**
 float (set server-side by a DB trigger on insert; no longer carried forward from whatever the
 previous shift's physical count happened to be, so a miscount can't silently compound into the
-next shift). The shift manager's only required input is the **physical closing count**.
-Everything else fills in on its own:
+next shift). The shift manager's only required input is the **actual physical cash count**
+at the end of the shift. Everything else:
 
 - **Cash sales this shift** — computed from the sale amounts already on the form.
 - **Cash expenses this shift** — pulled live from Daily Expense entries tied to this same
-  shift and date, cash payment method only.
-- **Handed to cash custodian** — auto-suggested as Cash Sales − Cash Expenses (whatever
-  keeps the till at the 40,000 float), pre-filled but editable if what actually happened was
-  different. Editing it once stops the auto-fill for the rest of that shift.
-- **Calculated expenses** = Opening + Cash Sales + Custodian ± − Closing. Shown next to
-  **Actual expenses** (the real Daily Expense figure above) so a mismatch is visible
-  immediately. A mismatch is a flag to recount — it does **not** block saving.
+  shift and date, cash payment method only. (This is scoped to ONE shift — the "Today's
+  Entries" total on Expense Entry covers both shifts combined, so the two numbers are not
+  meant to match; see note below.)
+- **Cash to give cash custodian** — auto-generated, read-only: Cash Sales − Cash Expenses,
+  i.e. whatever keeps the till at the 40,000 float.
+- **Actual cash handover to custodian** — what the shift manager actually hands over,
+  pre-filled from the auto-generated figure above but editable if reality differs. Editing it
+  once stops the auto-fill for the rest of that shift. This is the number that gets saved and
+  feeds Safe 2's Cash In on `cash-reconciliation.html` — i.e. it "maps to the cash custodian
+  page." A mismatch against the auto-generated figure shows a flag but never blocks saving.
+- **Expected cash left in the till** (shown under the physical-count field) = Opening + Cash
+  Sales − Cash Expenses − Actual Handover. This is what the physical count is checked
+  against — if the actual handover was correct, it should land back on PKR 40,000.
 
-The same calculated-vs-actual check also runs server-side (`recheck_shift_cash_discrepancy`,
-fired after every insert/update on `daily_sales`) and opens an `audit_alerts` row when the two
-are off by more than PKR 1, auto-resolving once they match. The Owner Dashboard's cash-recon
-audit list and the evening manager's "Morning shift" recap use the same corrected formula.
+The equivalent calculated-vs-actual check also runs server-side
+(`recheck_shift_cash_discrepancy`, fired after every insert/update on `daily_sales`) and opens
+an `audit_alerts` row when calculated and actual cash expenses are off by more than PKR 1,
+auto-resolving once they match. The Owner Dashboard's cash-recon audit list and the evening
+manager's "Morning shift" recap use the same formula.
+
+**Why Today's Entries and a single shift's "Cash expenses this shift" can look different**:
+Today's Entries (Expense Entry) totals **both shifts** for the day; Till Cash Reconciliation is
+scoped to **one shift**. E.g. PKR 5,565 (morning) + PKR 23,787 (evening) = PKR 29,352 (today's
+combined total) is expected, not a bug — confirmed Oct 13, 2026.
 
 **Superseded:** an earlier same-day design (a manual "Cash left in till for next shift" field,
-`till_leftover_amount` column) is no longer used — opening is now always the fixed float,
-decided server-side, so there's nothing to type for it. The column still exists in the DB but
-nothing reads or writes it going forward.
+`till_leftover_amount` column; a Custodian "gave/picked" direction dropdown) is no longer
+used — the custodian amount is now a single signed field (positive = cash left the till) and
+opening is always the fixed float, decided server-side. The `till_leftover_amount` column still
+exists in the DB but nothing reads or writes it going forward.
 
 ### Safe 2 — Cash Reconciliation (Zeeshan's safe)
 

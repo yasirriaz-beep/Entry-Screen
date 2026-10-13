@@ -168,7 +168,7 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
 
   <div class="card" id="cashCard">
     <h3 style="margin:0 0 4px">Till Cash Reconciliation</h3>
-    <p class="muted" style="margin:0 0 14px">Standard float is PKR 40,000, start and end. Everything below fills in on its own — the only thing you need to do is count the till and enter what's physically there.</p>
+    <p class="muted" style="margin:0 0 14px">Standard float is PKR 40,000, start and end. This is an audit check — almost everything below fills in on its own. You just count the till and enter what's physically there.</p>
     <div class="row2">
       <div class="field">
         <label for="openingCashDisplay">Opening cash in till</label>
@@ -179,42 +179,30 @@ button.ghost{background:none;border:1px solid var(--border);color:var(--fg);bord
         <input type="text" id="cashSalesDisplay" value="PKR 0" disabled>
       </div>
     </div>
-    <div class="row2" style="margin-top:10px">
-      <div class="field">
-        <label for="tillExpensesDisplay">Cash expenses this shift (from Daily Expense)</label>
-        <input type="text" id="tillExpensesDisplay" value="PKR 0" disabled>
-      </div>
-      <div class="field">
-        <label for="custodianAmount">Handed to cash custodian (PKR)</label>
-        <input type="number" id="custodianAmount" min="0" inputmode="decimal" placeholder="0">
-      </div>
-    </div>
-    <div class="row2" style="margin-top:2px">
-      <div class="field" style="flex:0 0 100%">
-        <label for="custodianDirection">Direction</label>
-        <select id="custodianDirection">
-          <option value="picked">Custodian picked cash up from till</option>
-          <option value="given">Custodian gave cash to till</option>
-        </select>
-        <p class="muted" style="margin:4px 0 0;font-size:.78rem">Pre-filled from Cash Sales minus Cash Expenses — the amount that should leave the till to keep it at the 40,000 float. Only change this if what actually happened was different.</p>
-      </div>
-    </div>
     <div class="field" style="margin-top:10px">
-      <label for="closingCash">Closing cash in till (physical count) — only field you have to enter</label>
-      <input type="number" id="closingCash" min="0" inputmode="decimal" placeholder="0">
+      <label for="tillExpensesDisplay">Cash expenses this shift (from Daily Expense, this shift only)</label>
+      <input type="text" id="tillExpensesDisplay" value="PKR 0" disabled>
     </div>
+
     <div class="field" style="margin-top:12px;background:var(--surface-2);border-radius:9px;padding:12px">
       <div class="row2">
         <div>
-          <label style="margin-bottom:2px">Calculated expenses</label>
-          <div class="num" id="impliedExpenses" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
+          <label style="margin-bottom:2px">Cash to give cash custodian</label>
+          <div class="num" id="autoHandoverDisplay" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
+          <p class="muted" style="margin:4px 0 0;font-size:.78rem">Auto: Cash Sales &minus; Cash Expenses</p>
         </div>
-        <div>
-          <label style="margin-bottom:2px">Actual expenses (Daily Expense)</label>
-          <div class="num" id="actualExpensesDisplay" style="font-family:'Zilla Slab',Georgia,serif;font-size:1.2rem">PKR 0</div>
+        <div class="field" style="margin:0">
+          <label for="custodianAmount">Actual cash handover to custodian</label>
+          <input type="number" id="custodianAmount" inputmode="decimal" placeholder="0">
         </div>
       </div>
-      <p class="muted" style="margin:8px 0 0;font-size:.78rem" id="varianceNote">Calculated = Opening + Cash Sales + Custodian &minus; Closing. This should match the actual cash expenses recorded for the shift — a mismatch is a flag to recount, not a reason not to save.</p>
+      <p class="muted" id="handoverVarianceNote" style="margin:8px 0 0;font-size:.78rem"></p>
+    </div>
+
+    <div class="field" style="margin-top:10px">
+      <label for="closingCash">Actual physical cash present in till &mdash; only field you have to enter</label>
+      <input type="number" id="closingCash" min="0" inputmode="decimal" placeholder="0">
+      <p class="muted" id="closingVarianceNote" style="margin:4px 0 0;font-size:.78rem"></p>
     </div>
   </div>
 
@@ -310,51 +298,51 @@ function recalcCashRecon(){
   document.getElementById("cashSalesDisplay").value = "PKR " + Math.round(cashSales).toLocaleString();
   document.getElementById("tillExpensesDisplay").value = "PKR " + Math.round(tillCashExpenses).toLocaleString();
 
-  // Suggested handover to the cash custodian: whatever keeps the till at the standard float
-  // (Cash Sales − Till Cash Expenses). Auto-fills until the shift manager edits it themselves —
-  // after that we leave their number alone.
+  // Auto-generated: what should go to the custodian to keep the till at the 40,000 float.
+  const autoHandover = cashSales - tillCashExpenses;
+  document.getElementById("autoHandoverDisplay").textContent = "PKR " + Math.round(autoHandover).toLocaleString();
+
+  // Pre-fills the actual-handover field until the shift manager edits it themselves —
+  // after that we leave their number alone (it's a record of what really happened).
   if (!custodianTouched) {
-    const suggested = cashSales - tillCashExpenses;
-    document.getElementById("custodianDirection").value = suggested >= 0 ? "picked" : "given";
-    document.getElementById("custodianAmount").value = suggested !== 0 ? Math.round(Math.abs(suggested)) : "";
+    document.getElementById("custodianAmount").value = Math.round(autoHandover);
+  }
+  const actualHandover = n("custodianAmount"); // positive = custodian took cash out; negative = custodian topped the till up
+
+  const handoverNote = document.getElementById("handoverVarianceNote");
+  const handoverDiff = Math.round(actualHandover - autoHandover);
+  if (Math.abs(handoverDiff) > 1) {
+    handoverNote.style.color = "var(--danger)";
+    handoverNote.textContent = `Off by PKR ${Math.abs(handoverDiff).toLocaleString()} vs. the auto-generated amount — double check with the custodian before saving.`;
+  } else {
+    handoverNote.style.color = "var(--success)";
+    handoverNote.textContent = "Matches the auto-generated amount.";
   }
 
-  const direction = document.getElementById("custodianDirection").value;
-  const custodianRaw = n("custodianAmount");
-  const custodianSigned = direction === "picked" ? -custodianRaw : custodianRaw;
-
+  // What should physically be left in the till once the actual handover has been taken out.
+  const expectedClosing = openingCashTill + cashSales - tillCashExpenses - actualHandover;
   const closingEntered = document.getElementById("closingCash").value !== "";
   const closing = n("closingCash");
-  const calculated = openingCashTill + cashSales + custodianSigned - closing;
-
-  const impliedEl = document.getElementById("impliedExpenses");
-  document.getElementById("actualExpensesDisplay").textContent = "PKR " + Math.round(tillCashExpenses).toLocaleString();
-  const varianceNote = document.getElementById("varianceNote");
+  const closingNote = document.getElementById("closingVarianceNote");
 
   if (closingEntered) {
-    impliedEl.textContent = "PKR " + Math.round(calculated).toLocaleString();
-    const variance = Math.round(calculated - tillCashExpenses);
-    if (Math.abs(variance) > 1) {
-      impliedEl.style.color = "var(--danger)";
-      varianceNote.style.color = "var(--danger)";
-      varianceNote.textContent = `Off by PKR ${Math.abs(variance).toLocaleString()} vs. the actual cash expenses recorded for this shift — worth a recount, but this won't block saving.`;
+    const closingDiff = Math.round(closing - expectedClosing);
+    if (Math.abs(closingDiff) > 1) {
+      closingNote.style.color = "var(--danger)";
+      closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till after the handover — off by PKR ${Math.abs(closingDiff).toLocaleString()}. Worth a recount, but this won't block saving.`;
     } else {
-      impliedEl.style.color = "";
-      varianceNote.style.color = "var(--success)";
-      varianceNote.textContent = "Matches the actual cash expenses recorded for this shift.";
+      closingNote.style.color = "var(--success)";
+      closingNote.textContent = `Matches the expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till.`;
     }
   } else {
-    impliedEl.textContent = "PKR —";
-    impliedEl.style.color = "";
-    varianceNote.style.color = "";
-    varianceNote.textContent = "Calculated = Opening + Cash Sales + Custodian − Closing. Enter the physical count above to compare it against actual recorded expenses.";
+    closingNote.style.color = "";
+    closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till once the handover above is taken out.`;
   }
 }
 
 function resetForm(){
   ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount","custodianAmount","closingCash"]
     .forEach(id => document.getElementById(id).value = "");
-  document.getElementById("custodianDirection").value = "picked";
   custodianTouched = false; // next shift gets a fresh auto-suggested handover again
   existingEntryId = null;
   recalcSummary();
@@ -474,9 +462,9 @@ async function loadShiftEntry(){
     document.getElementById("fpAmount").value = existing.food_panda_amount || "";
     document.getElementById("bakeryAmount").value = existing.bakery_sale || "";
     document.getElementById("cardAmount").value = existing.card_amount || "";
-    const custodian = Number(existing.custodian_cash_amount) || 0;
-    document.getElementById("custodianDirection").value = custodian < 0 ? "picked" : "given";
-    document.getElementById("custodianAmount").value = custodian ? Math.abs(custodian) : "";
+    // custodian_cash_amount is stored negative when cash left the till (the normal case) —
+    // flip the sign back to "actual handover", where positive means cash went to the custodian.
+    document.getElementById("custodianAmount").value = -(Number(existing.custodian_cash_amount) || 0);
     document.getElementById("closingCash").value = existing.closing_cash_till != null ? existing.closing_cash_till : "";
     custodianTouched = true; // this shift already has a real saved handover — don't clobber it with a fresh suggestion
 
@@ -528,12 +516,13 @@ async function loadMorningReconCard(saleDate, shift){
     const total = m.total_sale != null ? m.total_sale :
       (m.dine_in_amount + m.takeaway_amount + m.delivery_amount + m.third_party_amount + (m.food_panda_amount || 0));
     const cashSales = (m.dine_in_amount || 0) + (m.takeaway_amount || 0) + (m.delivery_amount || 0) + (m.third_party_amount || 0) - (m.card_amount || 0);
-    const custodian = Number(m.custodian_cash_amount) || 0;
+    const actualHandover = -(Number(m.custodian_cash_amount) || 0); // positive = cash left the till
     const opening = Number(m.opening_cash_till) || STANDARD_TILL_FLOAT;
     const closing = m.closing_cash_till != null ? Number(m.closing_cash_till) : null;
-    const calculated = closing != null ? (opening + cashSales + custodian - closing) : null;
     const morningActual = await fetchTillCashExpenses(saleDate, "morning");
-    const morningVariance = calculated != null ? Math.round(calculated - morningActual) : null;
+    const autoHandover = cashSales - morningActual;
+    const expectedClosing = opening + cashSales - morningActual - actualHandover;
+    const closingVariance = closing != null ? Math.round(closing - expectedClosing) : null;
 
     body.innerHTML = `
       Dine-in: PKR ${Math.round(m.dine_in_amount || 0).toLocaleString()} &middot;
@@ -545,9 +534,10 @@ async function loadMorningReconCard(saleDate, shift){
       <strong>Morning total: PKR ${Math.round(total).toLocaleString()}</strong><br><br>
       Opening till: PKR ${Math.round(opening).toLocaleString()} &middot;
       Cash sales: PKR ${Math.round(cashSales).toLocaleString()} &middot;
-      Custodian: ${custodian >= 0 ? "+" : ""}PKR ${Math.round(custodian).toLocaleString()} &middot;
+      Cash expenses: PKR ${Math.round(morningActual).toLocaleString()} &middot;
+      Handed to custodian: PKR ${Math.round(actualHandover).toLocaleString()} (auto-suggested PKR ${Math.round(autoHandover).toLocaleString()}) &middot;
       Closing till: ${closing != null ? "PKR " + Math.round(closing).toLocaleString() : "not yet entered"}<br>
-      ${calculated != null ? `<strong>Morning calculated expenses: PKR ${Math.round(calculated).toLocaleString()}</strong> vs. actual PKR ${Math.round(morningActual).toLocaleString()}${Math.abs(morningVariance) > 1 ? ` <span style="color:var(--danger)">(off by PKR ${Math.abs(morningVariance).toLocaleString()})</span>` : ""}` : ""}
+      ${closing != null ? `<strong>Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till</strong>${Math.abs(closingVariance) > 1 ? ` <span style="color:var(--danger)">(off by PKR ${Math.abs(closingVariance).toLocaleString()})</span>` : ""}` : ""}
       ${closing == null ? "<span style=\"color:var(--danger)\">Morning hasn't closed their till yet.</span>" : ""}`;
     card.hidden = false;
   } catch (e) {
@@ -605,10 +595,9 @@ document.getElementById("dateInput").addEventListener("change", loadShiftEntry);
 ["cardAmount","closingCash"]
   .forEach(id => document.getElementById(id).addEventListener("input", recalcCashRecon));
 
-// Typing in the custodian fields themselves is what marks them as a manual override —
-// after this, the auto-suggestion stops overwriting them for the rest of this shift.
+// Typing in the custodian field is what marks it as a manual override — after that, the
+// auto-suggestion stops overwriting it for the rest of this shift.
 document.getElementById("custodianAmount").addEventListener("input", () => { custodianTouched = true; recalcCashRecon(); });
-document.getElementById("custodianDirection").addEventListener("change", () => { custodianTouched = true; recalcCashRecon(); });
 
 document.getElementById("salesForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -629,8 +618,10 @@ document.getElementById("salesForm").addEventListener("submit", async (e) => {
   const shift = document.getElementById("shiftSelect").value;
   const dow = new Date(saleDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
 
-  const direction = document.getElementById("custodianDirection").value;
-  const custodianSigned = direction === "picked" ? -n("custodianAmount") : n("custodianAmount");
+  // Actual handover is positive when cash left the till (the normal case) — stored negative
+  // in custodian_cash_amount to match the sign convention cash-reconciliation.html expects
+  // (it reads a negative custodian_cash_amount as cash handed OUT of the till TO the safe).
+  const custodianSigned = -n("custodianAmount");
   const closingEntered = document.getElementById("closingCash").value !== "";
 
   const payload = {
