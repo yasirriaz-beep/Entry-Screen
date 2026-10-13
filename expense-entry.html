@@ -578,7 +578,7 @@ async function loadTodayList() {
   const totalLine = document.getElementById("today-total-line");
   try {
     // No shift filter — this covers both Morning and Evening entries for today.
-    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${todayStr()}&select=id,category,amount,created_at,detail,shift&order=created_at.desc`);
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${todayStr()}&select=id,category,amount,created_at,detail,shift,receipt_photo_path&order=created_at.desc`);
     list.innerHTML = "";
     if (!rows.length) { emptyHint.hidden = false; totalLine.hidden = true; return; }
     emptyHint.hidden = true;
@@ -587,15 +587,35 @@ async function loadTodayList() {
       const row = document.createElement("div");
       row.className = "po-card";
       const shiftTag = r.shift ? ` · ${r.shift === "morning" ? "Morning" : "Evening"}` : "";
+      const photoTag = r.receipt_photo_path ? ` · <span style="color:var(--accent);text-decoration:underline;">📷 View photo</span>` : "";
       row.innerHTML = `
         <div class="po-title">${r.category || "Expense"}</div>
-        <div class="po-sub">PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${r.detail ? " · " + r.detail : ""}</div>`;
+        <div class="po-sub">PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${r.detail ? " · " + r.detail : ""}${photoTag}</div>`;
+      if (r.receipt_photo_path) {
+        row.style.cursor = "pointer";
+        row.addEventListener("click", () => viewReceiptPhoto(r.receipt_photo_path));
+      }
       list.appendChild(row);
       total += Number(r.amount) || 0;
     });
     document.getElementById("today-total-value").textContent = "PKR " + Math.round(total).toLocaleString();
     totalLine.hidden = false;
   } catch (e) { emptyHint.hidden = false; totalLine.hidden = true; }
+}
+
+async function viewReceiptPhoto(path) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/receipts/${path}`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 300 })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+  } catch (e) {
+    alert("Couldn't open the photo: " + e.message);
+  }
 }
 
 async function populateCategories() {
@@ -878,20 +898,40 @@ async function runCheckAndMaybeSave() {
     return;
   }
 
-  // First pass: run the AI/pattern check.
+  // First pass: run the statistical pattern check and the AI description-vs-category
+  // check side by side — together they catch duplicates/outliers AND the "charge to
+  // salary booked under Food" kind of mistake, where the numbers look fine but the
+  // description doesn't match the head that was picked.
+  const detailText = document.getElementById("f-detail").value.trim();
   document.getElementById("btn-check").disabled = true;
   try {
-    const result = await sb(`rpc/check_expense_entry_v2`, {
-      method: "POST",
-      body: JSON.stringify({
-        p_location_id: LOCATION_ID,
-        p_category: cat,
-        p_amount: amount,
-        p_vendor_id: vendorId,
-        p_expense_date: date
-      })
-    });
-    const reasons = (result || []).map(r => r.reason);
+    const [patternResult, aiResult] = await Promise.allSettled([
+      sb(`rpc/check_expense_entry_v2`, {
+        method: "POST",
+        body: JSON.stringify({
+          p_location_id: LOCATION_ID,
+          p_category: cat,
+          p_amount: amount,
+          p_vendor_id: vendorId,
+          p_expense_date: date
+        })
+      }),
+      classifyExpenseDescription(detailText)
+    ]);
+
+    const reasons = [];
+    if (patternResult.status === "fulfilled") {
+      reasons.push(...(patternResult.value || []).map(r => r.reason));
+    }
+    if (aiResult.status === "fulfilled" && aiResult.value) {
+      const r = aiResult.value;
+      if (r.destination === "goods_receipt") {
+        reasons.push(`Based on the description, this sounds like a vendor delivery — it may belong on the Goods Receipt screen instead of Expense Entry. ${r.reasoning_roman_urdu || ""}`);
+      } else if (r.category && r.category !== cat && r.confidence !== "low") {
+        reasons.push(`Based on the description, this looks like it should be "${r.category}" rather than "${cat}" (AI confidence: ${r.confidence}). ${r.reasoning_roman_urdu || ""}`);
+      }
+    }
+
     if (reasons.length === 0) {
       await saveExpense({ status: "ok", reason: null });
     } else {
@@ -902,6 +942,25 @@ async function runCheckAndMaybeSave() {
       `<div class="banner banner-err">Check failed (${e.message}). You can still save, but it hasn't been pattern-checked.</div>`;
   } finally {
     document.getElementById("btn-check").disabled = false;
+  }
+}
+
+// Shared with the "Head suggest karwayen" helper above, but called silently here (no
+// textarea/result banner of its own) — a failure just means this one check is skipped,
+// never blocks saving.
+async function classifyExpenseDescription(text) {
+  if (!text) return null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/classify-expense-category`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ question: text })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) return null;
+    return data.result;
+  } catch (e) {
+    return null;
   }
 }
 

@@ -50,6 +50,36 @@ category without one shows up on the Income Statement under a red "Uncategorized
 Review" banner until it's fixed. That banner is deliberate: it's the system catching an
 unclassified expense before it quietly skews a financial statement.
 
+### Catching the wrong head picked (e.g. a salary charge booked under "Food")
+
+Two layers, both powered by the same AI classifier (`classify-expense-category` edge
+function, Claude Haiku, reads the Description and picks the best-fitting head from the fixed
+list — also used by the "Head suggest karwayen" helper on the entry form):
+
+- **At entry time (`expense-entry.html`), as of Oct 13, 2026**: "Check & Save" now runs this
+  classifier against whatever was typed in Description, alongside the existing statistical
+  check (duplicates, outlier amounts, suspiciously round numbers). If the AI's best guess
+  doesn't match the category actually selected — or thinks the whole thing belongs on Goods
+  Receipt instead — it's added to the same "This entry looks unusual" warning the statistical
+  check already uses, and has to be acknowledged before saving. A low-confidence AI guess is
+  not flagged (too noisy to be useful).
+- **After the fact (`expense-edit.html`)**: a **"Check This Day for Miscategorized Entries
+  (AI)"** button on the entry list runs the same classifier against every already-saved entry
+  for the selected date that has a description, and marks any mismatch with an amber ⚠ flag
+  right on that entry — tap it to open and fix. This is the catch-up tool for anything entered
+  before this existed, or saved anyway over the warning. It's an explicit button (not automatic
+  on every page load) since it's one AI call per entry and can take a few seconds on a busy day.
+
+Neither layer blocks saving — they're a second opinion, not a hard rule. The category is still
+whatever the human picks.
+
+**Viewing a receipt photo for today's entries**: on `expense-entry.html`, any entry in "Today's
+Entries" that has a photo attached shows a "📷 View photo" line — tap the entry to open it in a
+new tab (same signed-URL pattern as the monthly reports photo links and the Cash
+Reconciliation safe photo). `expense-edit.html`'s entry list works the same way. Added Oct 13,
+2026 — before this, a photo could only be viewed from the monthly report, not from the entry
+screen itself on the same day.
+
 ---
 
 ## 3. Income Statement (Reports → Income Statement)

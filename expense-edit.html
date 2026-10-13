@@ -149,6 +149,7 @@
   .entry-title { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
   .entry-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
   .entry-flag { font-size: 0.72rem; color: var(--err); margin-top: 2px; font-weight: 600; }
+  .entry-flag.warn { color: var(--warn); }
   .success-wrap { text-align: center; padding: 48px 16px; }
   .success-wrap .check { font-size: 2.6rem; }
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
@@ -182,6 +183,8 @@
     <div class="field" style="margin-bottom:0;">
       <input type="date" id="f-list-date">
     </div>
+    <button type="button" class="btn-ghost" id="btn-ai-scan" style="margin-top:10px;">Check This Day for Miscategorized Entries (AI)</button>
+    <div class="hint" id="ai-scan-status" style="margin-top:6px;"></div>
   </div>
   <div id="entry-list"></div>
   <div class="hint" id="list-empty" hidden>No expense entries for this date.</div>
@@ -327,7 +330,7 @@ const EMPLOYEE_ADVANCE_CATEGORIES = ["Payroll"];
 
 let state = {
   userId: null, userName: null, managerId: null, products: [], employees: [], currentEntry: null, receiptPhotoPath: null,
-  categoryMeta: {}, subcategoriesByCategory: {}, rgmManager: null, rgmApproval: null
+  categoryMeta: {}, subcategoriesByCategory: {}, rgmManager: null, rgmApproval: null, listRows: []
 };
 
 async function sb(path, opts = {}) {
@@ -438,26 +441,109 @@ async function loadEntryList() {
   if (!date) return;
   list.innerHTML = "";
   emptyHint.hidden = true;
+  document.getElementById("ai-scan-status").textContent = "";
   try {
     const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${date}` +
       `&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at&order=created_at.desc`);
+    state.listRows = rows || [];
     if (!rows.length) { emptyHint.hidden = false; return; }
-    rows.forEach(r => {
-      const row = document.createElement("div");
-      row.className = "entry-row";
-      const shiftTag = r.shift ? ` · ${r.shift === "morning" ? "Morning" : "Evening"}` : " · No shift (Safe 2)";
-      row.innerHTML = `
-        <div class="entry-title"><span>${r.category || "Expense"}</span><span>PKR ${Math.round(r.amount || 0).toLocaleString()}</span></div>
-        <div class="entry-sub">${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${r.detail ? " · " + r.detail : ""}</div>
-        ${r.edit_reason ? `<div class="entry-flag">Previously edited</div>` : ""}`;
-      row.addEventListener("click", () => openEntry(r));
-      list.appendChild(row);
-    });
+    renderEntryList(rows);
   } catch (e) {
     list.innerHTML = `<div class="banner banner-err">Couldn't load entries: ${e.message}</div>`;
   }
 }
 document.getElementById("f-list-date").addEventListener("change", loadEntryList);
+
+function renderEntryList(rows) {
+  const list = document.getElementById("entry-list");
+  list.innerHTML = "";
+  rows.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "entry-row";
+    const shiftTag = r.shift ? ` · ${r.shift === "morning" ? "Morning" : "Evening"}` : " · No shift (Safe 2)";
+    const photoLink = r.receipt_photo_path ? ` · <span data-photo="${r.receipt_photo_path}" style="color:var(--accent);text-decoration:underline;">📷 View photo</span>` : "";
+    row.innerHTML = `
+      <div class="entry-title"><span>${r.category || "Expense"}</span><span>PKR ${Math.round(r.amount || 0).toLocaleString()}</span></div>
+      <div class="entry-sub">${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${r.detail ? " · " + r.detail : ""}${photoLink}</div>
+      ${r.edit_reason ? `<div class="entry-flag">Previously edited</div>` : ""}
+      ${r._aiFlag ? `<div class="entry-flag warn">⚠ ${r._aiFlag}</div>` : ""}`;
+    row.addEventListener("click", (e) => {
+      const photoEl = e.target.closest("[data-photo]");
+      if (photoEl) { e.stopPropagation(); viewReceiptPhoto(photoEl.dataset.photo); return; }
+      openEntry(r);
+    });
+    list.appendChild(row);
+  });
+}
+
+async function viewReceiptPhoto(path) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/receipts/${path}`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 300 })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+  } catch (e) {
+    alert("Couldn't open the photo: " + e.message);
+  }
+}
+
+// Runs the same AI classifier used on Expense Entry's "Head suggest karwayen" helper, but
+// against entries that are ALREADY saved — compares what the description sounds like it
+// should be against what was actually picked, and flags a mismatch for review. This is the
+// catch-up tool for entries logged before the real-time check existed on Expense Entry, or
+// ones someone saved anyway over the warning. Explicit button, not automatic on every load —
+// it's one AI call per entry with a description, so it can take a few seconds for a busy day.
+async function classifyExpenseDescription(text) {
+  if (!text) return null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/classify-expense-category`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ question: text })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) return null;
+    return data.result;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function scanForMiscategorized() {
+  const btn = document.getElementById("btn-ai-scan");
+  const statusEl = document.getElementById("ai-scan-status");
+  const rows = state.listRows || [];
+  const candidates = rows.filter(r => r.detail && r.detail.trim());
+  if (!candidates.length) {
+    statusEl.textContent = "No entries with a description to check for this date.";
+    return;
+  }
+  btn.disabled = true;
+  let checked = 0, flagged = 0;
+  for (const r of candidates) {
+    statusEl.textContent = `Checking… ${checked + 1} of ${candidates.length}`;
+    const result = await classifyExpenseDescription(r.detail);
+    checked++;
+    r._aiFlag = null;
+    if (result && result.destination === "goods_receipt") {
+      r._aiFlag = `AI thinks this may belong on Goods Receipt, not Expense Entry.`;
+      flagged++;
+    } else if (result && result.category && result.category !== r.category && result.confidence !== "low") {
+      r._aiFlag = `AI suggests "${result.category}" instead of "${r.category}".`;
+      flagged++;
+    }
+  }
+  statusEl.textContent = flagged
+    ? `${flagged} possible miscategorization${flagged === 1 ? "" : "s"} found out of ${candidates.length} checked — flagged below.`
+    : `No miscategorizations found in ${candidates.length} entries checked.`;
+  renderEntryList(rows);
+  btn.disabled = false;
+}
+document.getElementById("btn-ai-scan").addEventListener("click", scanForMiscategorized);
 
 async function populateCategories() {
   const sel = document.getElementById("f-category");
