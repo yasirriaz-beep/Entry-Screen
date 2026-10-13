@@ -735,7 +735,7 @@ async function loadTillSummary(dateStr) {
     const [sales, expenses] = await Promise.all([
       sb(`daily_sales?location_id=eq.${GULBERG_ID}&sale_date=eq.${dateStr}&shift=not.is.null` +
         `&select=shift,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,card_amount,opening_cash_till,closing_cash_till,custodian_cash_amount&order=shift.asc`),
-      sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&shift=not.is.null&payment_method=eq.cash&select=shift,amount`)
+      sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&shift=not.is.null&payment_method=eq.cash&paid_from_safe=neq.safe2&select=shift,amount`)
     ]);
     if (!sales || !sales.length) {
       body.innerHTML = '<div class="hint">No shift entered for this day yet.</div>';
