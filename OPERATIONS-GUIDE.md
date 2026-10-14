@@ -39,16 +39,24 @@ editable from `expense-categories.html` (director access only). Each category ca
 - **`is_below_the_line`** — true for cash movements that aren't real revenue/expense
   (Director Draw, Payable Payment, Interstore Transfers). These show as a separate memo on
   the Income Statement and are never netted into Net Income.
-- **`requires_rgm_approval`** — true only for "Charge to Restaurant". An entry under this
-  head cannot be saved without sign-off first (enforced both in the UI and by a database
-  trigger — it fails even if someone bypasses the app and hits the database directly). The
-  Owner Dashboard shows a daily audit panel of every approval.
-  **Who can approve**, as of Oct 13, 2026: the configured RGM (PIN entry, same as before), OR
-  **any director** — a director logged in under their own PIN self-approves instantly, no
-  separate PIN needed, on both `expense-entry.html` (new entry) and `expense-edit.html`
-  (fixing an existing one). Before this, a director correcting a miscategorized entry into
-  "Charge to Restaurant" was stuck behind the same RGM gate as everyone else, including being
-  fully blocked on days no RGM was configured.
+- **`requires_rgm_approval`** — **turned off as of Oct 14, 2026.** Was true only for
+  "Charge to Restaurant": an entry under that head couldn't be saved without sign-off first
+  (enforced both in the UI and by a database trigger, `validate_expense_category()` — it
+  would fail even if someone bypassed the app and hit the database directly). Removed at
+  Yasir's request — the column still exists (`UPDATE expense_categories SET
+  requires_rgm_approval = false WHERE name = 'Charge to Restaurant'`), so the RGM-sign-off
+  block, PIN field, and database trigger check all come back automatically if it's ever
+  flipped back to `true` for this or any other category; nothing else needs to change.
+  The Owner Dashboard's daily audit panel still exists but will simply have nothing to show
+  for new entries going forward.
+
+  History, for context: **who could approve**, as of Oct 13, 2026 (one day before this was
+  removed): the configured RGM (PIN entry, same as before), OR **any director** — a director
+  logged in under their own PIN self-approves instantly, no separate PIN needed, on both
+  `expense-entry.html` (new entry) and `expense-edit.html` (fixing an existing one). Before
+  that, a director correcting a miscategorized entry into "Charge to Restaurant" was stuck
+  behind the same RGM gate as everyone else, including being fully blocked on days no RGM
+  was configured.
 
 **Subcategories** are managed inside the same page (expand a category → Subcategories
 section). A category with no subcategories just skips that dropdown on the entry form.
