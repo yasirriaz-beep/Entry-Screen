@@ -108,6 +108,7 @@
   .acm-tag { display: inline-block; font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
   .acm-tag-safe1 { background: var(--ok-bg); color: var(--ok); }
   .acm-tag-safe2 { background: var(--warn-bg); color: var(--warn); }
+  .acm-tag-transfer { background: var(--border); color: var(--ink-soft); }
   .login-field + .login-field { margin-top: 10px; }
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
   .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
@@ -154,7 +155,7 @@
     <button class="btn-ghost" id="acm-load" type="button" style="margin-top:0;">Refresh</button>
     <div id="acm-list" style="margin-top:12px;"><div class="hint">Loading…</div></div>
     <div class="total-line"><span class="lbl">Total cash out, this range</span><span class="num" id="acm-total">PKR 0</span></div>
-    <div class="hint">Every cash vendor payment, cash goods receipt, and cash expense recorded for Gulberg in this range — both safes, independent of whether that day's reconciliation has been opened or saved. This is the place to catch a late or advance payment your staff reports after the fact, without having to hunt down which date it landed on.</div>
+    <div class="hint">Every cash vendor payment, cash goods receipt, cash expense, and internal safe transfer recorded for Gulberg in this range — independent of whether that day's reconciliation has been opened or saved. This is the place to catch a late or advance payment your staff reports after the fact, without having to hunt down which date it landed on. Transfers are shown but excluded from the total — they're cash moving between safes, not real spending.</div>
   </div>
 
   <div class="card" id="till-summary-card">
@@ -200,13 +201,37 @@
   <div class="flow-detail" id="detail-in" hidden>
     <div class="fd-title">Cash In — from today's till handovers (Gulberg)</div>
     <div id="in-breakdown"></div>
-    <div class="hint">Pulled automatically from Sales Entry's till cash reconciliation. Nothing to enter here.</div>
+    <div class="hint">Pulled automatically from Sales Entry's till cash reconciliation, plus any Safe 1 → Safe 2 internal transfer recorded below (e.g. a float taken back). Nothing to enter here directly.</div>
   </div>
 
   <div class="flow-detail" id="detail-out" hidden>
     <div class="fd-title">Cash Out — cash Zeeshan paid out</div>
     <div id="out-breakdown"></div>
-    <div class="hint">Pulled automatically from cash Vendor Payments, Goods Receipt entries marked "Paid Now" in cash, and any Daily Expense entry marked "Paid From: Safe 2" (e.g. a utility or government bill Zeeshan paid straight out of this safe). An ordinary Daily Expense entry isn't repeated here — it already shows up as a smaller Safe 1 till handover.</div>
+    <div class="hint">Pulled automatically from cash Vendor Payments, Goods Receipt entries marked "Paid Now" in cash, any Daily Expense entry marked "Paid From: Safe 2" (e.g. a utility or government bill Zeeshan paid straight out of this safe), and any Safe 2 → Safe 1 internal transfer recorded below. An ordinary Daily Expense entry isn't repeated here — it already shows up as a smaller Safe 1 till handover.</div>
+  </div>
+
+  <div class="card" id="transfer-card">
+    <div class="step-label" style="margin-bottom:8px;">Internal Transfer Between Safes</div>
+    <div class="hint" style="margin-bottom:12px;">Not a sale or an expense — cash moving between the two safes, like extra float handed to the till and later taken back. Record each leg when it happens; it flows straight into Cash In/Out above.</div>
+    <div class="row2" style="margin-bottom:10px;">
+      <div>
+        <label>Direction</label>
+        <select id="tr-direction">
+          <option value="safe2_safe1">Safe 2 → Safe 1 (float given to till)</option>
+          <option value="safe1_safe2">Safe 1 → Safe 2 (float taken back)</option>
+        </select>
+      </div>
+      <div>
+        <label>Amount (PKR)</label>
+        <input type="number" id="tr-amount" step="any" placeholder="0">
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Reason (optional)</label>
+      <input type="text" id="tr-reason" placeholder="e.g. extra float for a busy evening">
+    </div>
+    <button class="btn-ghost" id="tr-save" type="button" style="margin-top:0;">Record Transfer</button>
+    <div id="tr-list" style="margin-top:14px;"><div class="hint">No transfers recorded for this day.</div></div>
   </div>
 
   <div class="flow-detail" id="detail-closing" hidden>
@@ -509,18 +534,29 @@ async function handleSafePhotoChange(e) {
 document.getElementById("f-safe-photo").addEventListener("change", handleSafePhotoChange);
 
 async function fetchCashIn(dateStr) {
+  let net = 0;
+  const lines = [];
   try {
     const rows = await sb(`daily_sales?location_id=eq.${GULBERG_ID}&sale_date=eq.${dateStr}&select=shift,custodian_cash_amount`);
-    let net = 0;
-    const lines = [];
     (rows || []).forEach(r => {
       const handover = -(Number(r.custodian_cash_amount) || 0);
       net += handover;
       if (handover !== 0) lines.push({ label: `${r.shift || "shift"} handover`, amount: handover });
     });
-    net = Math.max(0, Math.round(net * 100) / 100);
-    return { total: net, lines };
-  } catch (e) { return { total: 0, lines: [] }; }
+  } catch (e) { /* ignore */ }
+  try {
+    // A Safe 1 -> Safe 2 internal transfer (e.g. Zeeshan taking back a float he'd handed to
+    // the till) is cash arriving in Safe 2 — not a sale, so it belongs here, clearly labeled
+    // so it's never mistaken for a till handover. Added 2026-10-14.
+    const rows = await sb(`cash_transfers?location_id=eq.${GULBERG_ID}&transfer_date=eq.${dateStr}&to_safe=eq.safe2&select=amount,reason`);
+    (rows || []).forEach(r => {
+      const amt = Number(r.amount) || 0;
+      net += amt;
+      lines.push({ label: "Transfer from Safe 1" + (r.reason ? " — " + r.reason : ""), amount: amt });
+    });
+  } catch (e) { /* ignore */ }
+  net = Math.max(0, Math.round(net * 100) / 100);
+  return { total: net, lines };
 }
 
 // Cash Out here is deliberately narrow: only cash that actually left THIS safe, in Zeeshan's
@@ -533,7 +569,7 @@ async function fetchCashIn(dateStr) {
 // "Paid From" flag (added the same day) is the explicit, per-entry way to route a Daily
 // Expense into Safe 2's Cash Out instead of Safe 1's handover, replacing that blanket rule.
 async function fetchCashOut(dateStr) {
-  let vendorLines = [], receiptLines = [], safe2ExpenseLines = [];
+  let vendorLines = [], receiptLines = [], safe2ExpenseLines = [], transferOutLines = [];
   try {
     const rows = await sb(`vendor_payments?location_id=eq.${GULBERG_ID}&payment_date=eq.${dateStr}&method=eq.cash&select=amount,vendors(name)`);
     vendorLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Vendor") + " (cash payment)", amount: Number(r.amount) || 0 }));
@@ -549,7 +585,14 @@ async function fetchCashOut(dateStr) {
     const rows = await sb(`expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&payment_method=eq.cash&paid_from_safe=eq.safe2&select=amount,category,detail`);
     safe2ExpenseLines = (rows || []).map(r => ({ label: (r.category || "Expense") + (r.detail ? " — " + r.detail : "") + " (paid from Safe 2)", amount: Number(r.amount) || 0 }));
   } catch (e) { /* ignore */ }
-  const lines = [...vendorLines, ...receiptLines, ...safe2ExpenseLines];
+  try {
+    // A Safe 2 -> Safe 1 internal transfer (e.g. a float handed to the till) is cash leaving
+    // this safe — not an expense, so it's labeled separately rather than folded in with
+    // vendor payments. Added 2026-10-14.
+    const rows = await sb(`cash_transfers?location_id=eq.${GULBERG_ID}&transfer_date=eq.${dateStr}&from_safe=eq.safe2&select=amount,reason`);
+    transferOutLines = (rows || []).map(r => ({ label: "Transfer to Safe 1" + (r.reason ? " — " + r.reason : ""), amount: Number(r.amount) || 0 }));
+  } catch (e) { /* ignore */ }
+  const lines = [...vendorLines, ...receiptLines, ...safe2ExpenseLines, ...transferOutLines];
   const total = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
   return { total, lines };
 }
@@ -580,10 +623,11 @@ async function loadAllCashMovements() {
   if (!from || !to) return;
   listEl.innerHTML = `<div class="hint">Loading…</div>`;
   try {
-    const [vendorRows, receiptRows, expenseRows] = await Promise.all([
+    const [vendorRows, receiptRows, expenseRows, transferRows] = await Promise.all([
       sb(`vendor_payments?location_id=eq.${GULBERG_ID}&method=eq.cash&payment_date=gte.${from}&payment_date=lte.${to}&select=payment_date,amount,vendors(name)`),
       sb(`purchases?location_id=eq.${GULBERG_ID}&payment_status=eq.paid&payment_method=eq.cash&purchase_date=gte.${from}&purchase_date=lte.${to}&select=purchase_date,amount,vendors(name)`),
-      sb(`expenses?location_id=eq.${GULBERG_ID}&payment_method=eq.cash&expense_date=gte.${from}&expense_date=lte.${to}&select=expense_date,amount,category,detail,paid_from_safe`)
+      sb(`expenses?location_id=eq.${GULBERG_ID}&payment_method=eq.cash&expense_date=gte.${from}&expense_date=lte.${to}&select=expense_date,amount,category,detail,paid_from_safe`),
+      sb(`cash_transfers?location_id=eq.${GULBERG_ID}&transfer_date=gte.${from}&transfer_date=lte.${to}&select=transfer_date,amount,from_safe,to_safe,reason`)
     ]);
     const rows = [];
     (vendorRows || []).forEach(r => rows.push({ date: r.payment_date, label: (r.vendors?.name || "Vendor") + " — cash payment", amount: Number(r.amount) || 0, safe: "safe2" }));
@@ -592,6 +636,17 @@ async function loadAllCashMovements() {
       const safe = r.paid_from_safe === "safe2" ? "safe2" : "safe1";
       rows.push({ date: r.expense_date, label: (r.category || "Expense") + (r.detail ? " — " + r.detail : ""), amount: Number(r.amount) || 0, safe });
     });
+    // Transfers are real cash movement out of/into a safe, so they belong in the log — but
+    // they're zero-sum between the two safes, not actual spending, so they're tagged distinctly
+    // and left out of the "Total cash out" figure below. Added 2026-10-14.
+    (transferRows || []).forEach(r => {
+      rows.push({
+        date: r.transfer_date,
+        label: (r.from_safe === "safe2" ? "Transfer: Safe 2 → Safe 1" : "Transfer: Safe 1 → Safe 2") + (r.reason ? " — " + r.reason : ""),
+        amount: Number(r.amount) || 0,
+        safe: "transfer"
+      });
+    });
     rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.amount - a.amount));
     if (!rows.length) {
       listEl.innerHTML = `<div class="hint">No cash movements recorded in this range.</div>`;
@@ -599,13 +654,13 @@ async function loadAllCashMovements() {
       listEl.innerHTML = rows.map(r => `
         <div class="acm-row">
           <div class="acm-left">
-            ${r.label}<span class="acm-tag acm-tag-${r.safe}">${r.safe === "safe2" ? "Safe 2" : "Safe 1"}</span>
+            ${r.label}<span class="acm-tag acm-tag-${r.safe}">${r.safe === "safe2" ? "Safe 2" : r.safe === "safe1" ? "Safe 1" : "Transfer"}</span>
             <div class="acm-meta">${r.date}</div>
           </div>
           <div class="acm-right">${fmtMoney(r.amount)}</div>
         </div>`).join("");
     }
-    const total = rows.reduce((s, r) => s + r.amount, 0);
+    const total = rows.filter(r => r.safe !== "transfer").reduce((s, r) => s + r.amount, 0);
     totalEl.textContent = fmtMoney(total);
   } catch (e) {
     listEl.innerHTML = `<div class="hint">Couldn't load: ${e.message}</div>`;
@@ -703,8 +758,66 @@ async function loadDay(dateStr) {
   }
   applyLockState(state.currentRow);
   recalc();
+  loadCashTransfers(dateStr);
 }
 document.getElementById("f-date").addEventListener("change", (e) => loadDay(e.target.value));
+
+// Internal Safe 1 <-> Safe 2 transfers — not a sale or an expense, just cash moving between
+// the two safes (e.g. a float handed to the till and later taken back). Both legs are
+// self-balancing, so Zeeshan (cash_custodian) can record either direction himself; see the
+// RLS policy on cash_transfers for the actual enforcement. Added 2026-10-14.
+async function loadCashTransfers(dateStr) {
+  const listEl = document.getElementById("tr-list");
+  try {
+    const rows = await sb(`cash_transfers?location_id=eq.${GULBERG_ID}&transfer_date=eq.${dateStr}&order=created_at.desc&select=from_safe,to_safe,amount,reason`);
+    if (!rows || !rows.length) { listEl.innerHTML = `<div class="hint">No transfers recorded for this day.</div>`; return; }
+    listEl.innerHTML = rows.map(r => `
+      <div class="acm-row">
+        <div class="acm-left">
+          ${r.from_safe === "safe2" ? "Safe 2 → Safe 1" : "Safe 1 → Safe 2"}${r.reason ? " — " + r.reason : ""}
+        </div>
+        <div class="acm-right">${fmtMoney(r.amount)}</div>
+      </div>`).join("");
+  } catch (e) {
+    listEl.innerHTML = `<div class="hint">Couldn't load: ${e.message}</div>`;
+  }
+}
+
+async function saveCashTransfer() {
+  const dir = document.getElementById("tr-direction").value; // "safe2_safe1" or "safe1_safe2"
+  const [fromSafe, toSafe] = dir.split("_"); // -> ["safe2","safe1"] or ["safe1","safe2"]
+  const amount = parseFloat(document.getElementById("tr-amount").value) || 0;
+  const reason = document.getElementById("tr-reason").value.trim() || null;
+  const dateStr = document.getElementById("f-date").value;
+  if (!amount || amount <= 0) return alert("Enter an amount greater than zero.");
+  const btn = document.getElementById("tr-save");
+  btn.disabled = true;
+  try {
+    await sb("cash_transfers", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        org_id: "00000000-0000-0000-0000-000000000001",
+        location_id: GULBERG_ID,
+        transfer_date: dateStr,
+        from_safe: fromSafe,
+        to_safe: toSafe,
+        amount: amount,
+        reason: reason,
+        entered_by: state.userId,
+        entered_by_manager_id: state.managerId
+      })
+    });
+    document.getElementById("tr-amount").value = "";
+    document.getElementById("tr-reason").value = "";
+    await loadDay(dateStr);
+  } catch (e) {
+    alert("Couldn't save transfer: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("tr-save").addEventListener("click", saveCashTransfer);
 
 function showSavedSafePhoto(row) {
   state.safePhoto = null;

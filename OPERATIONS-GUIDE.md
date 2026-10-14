@@ -347,6 +347,35 @@ catch a late-reported payment without hunting for which date it landed on.
 **Total Payable to Vendors** moved off this page — it now lives at the top of
 `vendor-payment.html`, which is where it's acted on.
 
+#### Internal Transfer Between Safes (added Oct 14, 2026)
+
+A card on `cash-reconciliation.html`, right below the Safe 2 flow breakdown, records cash moved
+between Safe 1 (the till) and Safe 2 (Zeeshan's safe) that is **neither a sale nor an
+expense** — e.g. Zeeshan hands the till an extra PKR 12,000 float for a busy shift, then takes
+it back later. Pick a direction (Safe 2 → Safe 1, or Safe 1 → Safe 2), enter the amount and an
+optional reason, and it flows straight into that day's Cash In/Out:
+
+- **Safe 2 → Safe 1** shows as a Safe 2 **Cash Out** line ("Transfer to Safe 1").
+- **Safe 1 → Safe 2** shows as a Safe 2 **Cash In** line ("Transfer from Safe 1").
+
+Backed by a new `cash_transfers` table. Zeeshan (role `cash_custodian`) can record **both**
+directions himself — unlike a genuine external cash injection, a transfer is self-balancing
+(one safe's amount is always the other's mirror), so there's nothing here he could fabricate to
+paper over a shortfall; recording it only states which safe currently holds money that was
+always somewhere in the business. RLS on `cash_transfers` restricts inserts to `cash_custodian`
+or `director`, verified with simulated anon-role transactions.
+
+It also appears in the **All Cash Movements** ledger above, tagged "Transfer" and shown for
+visibility — but excluded from that card's "Total cash out" figure, since a transfer isn't real
+spending.
+
+**Known gap:** this does *not* touch Safe 1's per-shift till math on `sales-entry.html` (opening
+float is still fixed at the standard PKR 40,000 by the DB trigger). If Zeeshan hands a shift
+extra float, that shift's physical count will come in over/under what the system expects —
+the shift manager should note "see Cash Reconciliation — float transfer" in that shift's
+Variance Reason box so the owner isn't left chasing a false discrepancy. Teaching the till math
+to account for mid-shift transfers directly is a possible follow-up if this comes up often.
+
 #### Advance Paid, on Goods Receipt (added Oct 13, 2026)
 
 Some vendors (e.g. **K&N**) won't deliver without an advance paid up front. Payment Status on
