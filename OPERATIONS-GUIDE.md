@@ -398,6 +398,19 @@ every day's first/Morning shift) — only how a later shift the same day inherit
 before it. If the standard float itself needs to change going forward, that's a separate,
 explicit change to `STANDARD_TILL_FLOAT` in `sales-entry.html` and the trigger's fallback value.
 
+**Correction, same day:** before the fix above went in, a PKR 20,000 "Internal Transfer" (Safe 1
+→ Safe 2, reason "20000 Float") had already been recorded by hand as a workaround for this exact
+gap. On inspection, that cash wasn't actually separate from what Zeeshan was given anyway: Morning's
+custodian handover (PKR 156,580) was already ~PKR 17,000 above the auto-suggested, sales-only
+amount (PKR 139,531), and the till's physical count came in PKR 2,951 short of what that handover
+alone would've left behind — together accounting for the same ~PKR 20,000 reduction in the till's
+leftover float. Recording it a second time as a transfer meant Safe 2's Cash In counted it twice.
+That transfer row was voided (amount reduced to PKR 0.01, a DB constraint blocks an exact zero;
+reason field marked VOID with an explanation) — the separate, legitimate PKR 12,000 transfer from
+earlier the same day was left untouched. **Going forward, with the mapping fix in place, this kind
+of manual transfer workaround for a float reduction should no longer be needed** — Evening will
+simply open at whatever Morning's till actually closed at.
+
 #### Advance Paid, on Goods Receipt (added Oct 13, 2026)
 
 Some vendors (e.g. **K&N**) won't deliver without an advance paid up front. Payment Status on
