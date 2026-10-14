@@ -469,6 +469,26 @@ K&N is a receivable (43,000 prepaid, nothing received here yet), which is exactl
 now shows. Don't blend numbers across locations when answering "what do we owe/are owed" — always
 check the page for the specific location in question.
 
+**Migration-era false receivables, cleared Oct 14, 2026.** Several vendors (Al Tayyab Foods,
+Farooq Traders Diesel, FNK Bakery, FNK Grill, Local Market, Al-Barka Water, Sheri FSD) showed up
+as receivables for the same reason as K&N above, but for a different root cause: these were real
+cash payments settling real **old-system payables** — but the old system's opening payable
+balances were never entered into this app, so each payment had nothing to net against and looked
+like a pure prepaid advance. Confirmed with the owner that each payment fully settled its vendor's
+old-system balance (no remainder owed), then cleared it by booking one `purchases` row per vendor
+— `payment_status='credit'`, dated `2025-08-01` (the app's earliest recorded date, used as a
+placeholder "opening balance" date since the real invoice dates weren't migrated), amount equal
+to the payment, notes explaining it's a migration opening balance — so each balance now nets to
+exactly PKR 0. **If a similar "payment with no purchase behind it" surfaces again, don't assume
+it's a receivable or an unrecorded Goods Receipt without asking** — it can also be exactly this:
+an old-system payable that was never migrated in. Check with the owner which case it is before
+booking anything, since the fix (and the amount to book) differs.
+
+Also noted in passing: **two separate, both-active `vendors` rows are both named "LOCAL MARKET"**
+(`46bb7358-...`, unused — zero purchases and zero payments — and `24553593-...`, the one actually
+used above). Not yet merged/deactivated; same class of issue as the K&N duplicate-vendor cleanup
+earlier, flagged for the owner to confirm before touching it.
+
 ### Standalone Authorize page (added Oct 13, 2026)
 
 `purchase-order.html` gates its Authorize panel on `role === "director"` — hardcoded, not tied
