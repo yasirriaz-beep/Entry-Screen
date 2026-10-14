@@ -498,6 +498,21 @@ shift_manager (`S.Manager`, id `67f7245e-...`) — and verify with a `SET ROLE a
 afterward, not just a normal query, since a normal query runs with elevated privileges and
 won't catch this.
 
+**Fixed Oct 14, 2026 — `purchases`' RLS was blocking real Goods Receipt users.** Zeeshan
+(`cash_custodian`) hit a 401 trying to save a "Paid Now, Cash" Goods Receipt for Malai Boti
+Chicken. Root cause: `anon_insert_purchases` and `anon_select_purchases` only allowed
+`entered_by_user_id` to belong to `store_man` or `shift_manager` — but `manage-access.html`'s
+Manage Access had already granted the `goods_receipt` page to **cash_custodian** (Zeeshan) and
+to **director** (Yasir, Admin, Imran), none of whom the RLS recognized. So the page itself let
+them in, the UI showed the form, and the save failed at the database with no warning until they
+tried. Fixed by widening both policies' role list to
+`ARRAY['store_man','shift_manager','cash_custodian','director']`, verified with simulated
+anon-role transactions: Zeeshan's insert now passes, an unrelated role (auditor) is still
+correctly blocked. **General lesson for this app: a page being reachable via Manage Access
+grants is not proof the underlying table's RLS actually permits that role** — the two are
+configured completely independently, so whenever a role is added to a page's access list, check
+whether that table's RLS role list needs the same addition.
+
 Also noted in passing: **two separate, both-active `vendors` rows are both named "LOCAL MARKET"**
 (`46bb7358-...`, unused — zero purchases and zero payments — and `24553593-...`, the one actually
 used above). Not yet merged/deactivated; same class of issue as the K&N duplicate-vendor cleanup
