@@ -140,24 +140,6 @@
   <div class="banner banner-warn" id="status-banner" hidden></div>
   <div class="banner banner-warn" id="source-drift-warning" hidden></div>
 
-  <div class="card" id="all-cash-card">
-    <div class="step-label" style="margin-bottom:10px;">All Cash Movements — Both Safes</div>
-    <div class="row2" style="margin-bottom:10px;">
-      <div>
-        <label>From</label>
-        <input type="date" id="acm-from">
-      </div>
-      <div>
-        <label>To</label>
-        <input type="date" id="acm-to">
-      </div>
-    </div>
-    <button class="btn-ghost" id="acm-load" type="button" style="margin-top:0;">Refresh</button>
-    <div id="acm-list" style="margin-top:12px;"><div class="hint">Loading…</div></div>
-    <div class="total-line"><span class="lbl">Total cash out, this range</span><span class="num" id="acm-total">PKR 0</span></div>
-    <div class="hint">Every cash vendor payment, cash goods receipt, cash expense, and internal safe transfer recorded for Gulberg in this range — independent of whether that day's reconciliation has been opened or saved. This is the place to catch a late or advance payment your staff reports after the fact, without having to hunt down which date it landed on. Transfers are shown but excluded from the total — they're cash moving between safes, not real spending.</div>
-  </div>
-
   <div class="card" id="till-summary-card">
     <div class="step-label" style="margin-bottom:12px;">Safe 1 — Till (Shift Manager's responsibility)</div>
     <div id="till-summary-body"><div class="hint">Loading…</div></div>
@@ -276,6 +258,24 @@
     <div class="step-label">History</div>
     <div id="history-list"></div>
     <div class="hint" id="history-empty" hidden>No entries yet.</div>
+  </div>
+
+  <div class="card" id="all-cash-card" style="margin-top:18px;">
+    <div class="step-label" style="margin-bottom:10px;">All Cash Movements — Both Safes</div>
+    <div class="row2" style="margin-bottom:10px;">
+      <div>
+        <label>From</label>
+        <input type="date" id="acm-from">
+      </div>
+      <div>
+        <label>To</label>
+        <input type="date" id="acm-to">
+      </div>
+    </div>
+    <button class="btn-ghost" id="acm-load" type="button" style="margin-top:0;">Refresh</button>
+    <div id="acm-list" style="margin-top:12px;"><div class="hint">Loading…</div></div>
+    <div class="total-line"><span class="lbl">Total cash out, this range</span><span class="num" id="acm-total">PKR 0</span></div>
+    <div class="hint">Every cash vendor payment, cash goods receipt, cash expense, and internal safe transfer recorded for Gulberg in this range — independent of whether that day's reconciliation has been opened or saved. This is the place to catch a late or advance payment your staff reports after the fact, without having to hunt down which date it landed on. Transfers are shown but excluded from the total — they're cash moving between safes, not real spending.</div>
   </div>
 </div>
 
