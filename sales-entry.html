@@ -101,10 +101,6 @@ button.ghost:disabled{opacity:.5;cursor:default}
       <label for="loginName">Entered by</label>
       <input type="text" id="loginName" placeholder="Code" autocomplete="username" maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
     </div>
-    <div class="field" style="flex:0 0 150px">
-      <label for="dateInput">Date</label>
-      <input type="date" id="dateInput">
-    </div>
   </div>
   <div class="field" style="margin-top:12px">
     <label for="loginPin">PIN</label>
@@ -112,6 +108,15 @@ button.ghost:disabled{opacity:.5;cursor:default}
   </div>
   <div class="login-error" id="login-error" hidden style="margin-top:8px">Incorrect code or PIN.</div>
   <button class="primary" id="continueBtn" style="margin-top:14px" disabled>Continue</button>
+  <div class="muted" style="margin-top:10px">Logging in always opens today's entry. A director can switch to a different date once logged in.</div>
+</div>
+
+<div id="dateRow" class="card" style="max-width:480px;margin:0 auto 14px;display:flex;align-items:center;justify-content:space-between;gap:14px;" hidden>
+  <div class="field" style="flex:0 0 170px">
+    <label for="dateInput">Date</label>
+    <input type="date" id="dateInput">
+  </div>
+  <div class="muted" id="dateLockNote" hidden>Only a director can change this — you're always on today's entry.</div>
 </div>
 
 <div id="shiftsContainer" class="shift-grid" hidden>
@@ -146,6 +151,7 @@ const FIELD_BASES = ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlA
 let locationId = null;
 let resolvedUserId = null;   // the real app_users.id, set only after the chosen manager's PIN verifies
 let resolvedManagerId = null;
+let resolvedRole = null;
 
 // Per-shift state. Morning and Evening are tracked completely independently — each has its
 // own opening float, its own real cash-expense total, its own "has the custodian field been
@@ -530,20 +536,31 @@ function recalcTotals(){
 }
 
 function applyLockUI(shift){
-  const closed = state[shift].status === "closed";
+  const saleDate = document.getElementById("dateInput").value;
+  const isDirector = resolvedRole === "director";
+  // A non-director who somehow still has a non-today date loaded (e.g. a stale page) is
+  // locked out of editing it entirely — view only, same as a closed shift — since only a
+  // director is allowed to touch a past date's entry. Added 2026-10-14.
+  const pastDateLocked = saleDate !== todayStr() && !isDirector;
+  const shiftClosed = state[shift].status === "closed";
+  const closed = shiftClosed || pastDateLocked;
   const lockFields = FIELD_BASES.concat(["custodianAmount","closingCash","varianceReason"]);
   lockFields.forEach(base => { document.getElementById(fid(base, shift)).disabled = closed; });
   const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
   if (collectedEl) collectedEl.disabled = closed;
   document.getElementById("saveBtn_" + shift).hidden = closed;
   document.getElementById("closeBtn_" + shift).hidden = closed;
-  document.getElementById("unlockBtn_" + shift).hidden = !closed;
+  document.getElementById("unlockBtn_" + shift).hidden = !shiftClosed || pastDateLocked;
   const badge = document.getElementById("statusBadge_" + shift);
-  badge.textContent = closed ? "Closed — locked" : "Draft";
+  badge.textContent = shiftClosed ? "Closed — locked" : (pastDateLocked ? "Past date — view only" : "Draft");
   badge.className = "status-badge " + (closed ? "closed" : "draft");
   const note = document.getElementById("lockedNote_" + shift);
   note.hidden = !closed;
-  if (closed) note.textContent = "This shift is closed and can't be edited. A director can unlock it below.";
+  if (shiftClosed) {
+    note.textContent = "This shift is closed and can't be edited. A director can unlock it below.";
+  } else if (pastDateLocked) {
+    note.textContent = "Viewing " + saleDate + " — only a director can enter or edit a past date's sales.";
+  }
 }
 
 // Shift Manager's own pending-tasks banner — reflects the same checklist the Owner
@@ -725,6 +742,10 @@ async function saveShift(shift, close){
     showBanner("Enter your code and PIN under \"Entered by\" before saving.", "danger");
     return;
   }
+  if (document.getElementById("dateInput").value !== todayStr() && resolvedRole !== "director"){
+    showBanner("Only a director can enter or edit a past date's sales. Ask a director to make this change.", "danger");
+    return;
+  }
   if (close && document.getElementById(fid("closingCash", shift)).value === ""){
     alert("Enter the actual physical cash present in the till before closing this shift.");
     return;
@@ -820,8 +841,21 @@ async function unlockShift(shift){
 function afterLogin(userId, name, managerId, role) {
   resolvedUserId = userId;
   resolvedManagerId = managerId;
+  resolvedRole = role;
   document.getElementById("whoCard").hidden = true;
   document.getElementById("shiftsContainer").hidden = false;
+
+  // Only a director can move off today's date — anyone else logging in (shift manager, cash
+  // custodian, auditor) always lands on today's entry and can't drift onto a past day, so a
+  // backdated change can't slip in through this screen. Added 2026-10-14.
+  const dateInput = document.getElementById("dateInput");
+  const dateRow = document.getElementById("dateRow");
+  const isDirector = role === "director";
+  dateRow.hidden = false;
+  dateInput.disabled = !isDirector;
+  document.getElementById("dateLockNote").hidden = isDirector;
+  if (!isDirector) dateInput.value = todayStr();
+
   hideBanner();
   loadBothShifts();
 }

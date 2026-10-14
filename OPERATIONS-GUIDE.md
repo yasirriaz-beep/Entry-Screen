@@ -161,6 +161,22 @@ responsible for the cash at each stage:
   `cash-reconciliation.html`, which now also shows a read-only **Safe 1 summary** at the top
   (both shifts, pulled live — nothing to enter there) so the two safes are visible together.
 
+### Viewing/editing a past date on Sales Entry (added Oct 14, 2026)
+
+Logging in to `sales-entry.html` always opens **today's** entry (Gulberg's business day, with
+the usual 9am PKT cutoff). Only a **director** sees an editable **Date** field after logging
+in; everyone else (shift manager, etc.) is locked to today with no way to drift onto another
+day. A director changes the date there to review or correct a past day's shift — the two shift
+panels reload for that date exactly as they do for today.
+
+This is enforced at the database level, not just hidden in the UI: `daily_sales`'s RLS insert/
+update policies require either `sale_date = current_business_date()` (the same 9am-PKT-cutoff
+function used elsewhere) or the acting user's role to be `director`. A shift manager's save
+request for a non-today date is rejected by the database itself, the same way the Purchase
+Order role checks are (see section on `manager_has_page_access`) — a client-side-only lock was
+deliberately not relied on. `public.current_business_date()` already existed from earlier work
+and is reused here rather than duplicated.
+
 ### Safe 1 — Till Cash Reconciliation (Sales Entry)
 
 This is an **audit check**, not a data-entry chore — almost everything fills in on its own.
