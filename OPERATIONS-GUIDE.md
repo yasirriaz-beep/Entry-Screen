@@ -484,6 +484,20 @@ it's a receivable or an unrecorded Goods Receipt without asking** — it can als
 an old-system payable that was never migrated in. Check with the owner which case it is before
 booking anything, since the fix (and the amount to book) differs.
 
+**Also notable: `anon_select_purchases`'s RLS only shows a row to the app if
+`entered_by_user_id` belongs to a `store_man` or `shift_manager`.** The first attempt at the
+fix above set `entered_by_user_id` to the director's own app_user id (reasonable, since the
+owner was the one directing the correction) — the row inserted fine, but then stayed invisible
+to `vendor-payment.html` itself (the anon key frontend), so the Receivables box looked
+completely unchanged even though the data existed. Same bug class as the
+`manager_has_page_access` RLS fixes elsewhere in this file: a hardcoded role allow-list that
+the fixing query's own actor doesn't satisfy. **When manually inserting into `purchases` (or
+any table with a role-gated SELECT policy like this one) always point `entered_by_user_id` at
+a real user whose role the SELECT policy actually allows** — here, re-pointed to Gulberg's
+shift_manager (`S.Manager`, id `67f7245e-...`) — and verify with a `SET ROLE anon` read
+afterward, not just a normal query, since a normal query runs with elevated privileges and
+won't catch this.
+
 Also noted in passing: **two separate, both-active `vendors` rows are both named "LOCAL MARKET"**
 (`46bb7358-...`, unused — zero purchases and zero payments — and `24553593-...`, the one actually
 used above). Not yet merged/deactivated; same class of issue as the K&N duplicate-vendor cleanup
