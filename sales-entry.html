@@ -127,6 +127,7 @@ button.ghost:disabled{opacity:.5;cursor:default}
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap">
 <script src="session.js"></script>
+<script src="pin-modal.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
@@ -841,7 +842,7 @@ async function saveShift(shift, close){
 }
 
 async function unlockShift(shift){
-  const pin = prompt("Director PIN to unlock the " + SHIFT_LABELS[shift] + " shift:");
+  const pin = await askPin("Director PIN to unlock the " + SHIFT_LABELS[shift] + " shift:");
   if (!pin) return;
   const saleDate = document.getElementById("dateInput").value;
   try {

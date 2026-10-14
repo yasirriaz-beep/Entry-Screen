@@ -278,6 +278,14 @@ whole day, not either shift alone.
   owner PIN (same PIN/pattern as "Lock/Unlock Day" on `cash-reconciliation.html`) and calls the
   `admin_unlock_shift_v1` RPC, which resets that one shift back to `status = 'draft'` so it can
   be edited and saved again.
+  - **Masked entry (added Oct 14, 2026):** this PIN prompt, and the matching "Lock Day"/"Unlock
+    Day" prompts on `cash-reconciliation.html`, used to be plain `window.prompt()` dialogs — the
+    PIN was visible in cleartext on screen as it was typed, since a native browser prompt can't
+    be masked. All three now go through a small shared modal (`pin-modal.js`, `askPin(title)`)
+    with a real `<input type="password">`, so the digits are hidden like any normal password
+    field. No RPC or PIN-check logic changed — same `verify_owner_pin()` gate as before, just a
+    masked way to type it in. If another screen is added later with an owner-PIN prompt, include
+    `pin-modal.js` and use `askPin(...)` instead of `prompt()`.
 - The old "evening manager sees a read-only Morning recap" card is gone — now redundant, since
   both shifts are always visible together on the same screen.
 

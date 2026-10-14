@@ -280,6 +280,7 @@
 </div>
 
 <script src="session.js"></script>
+<script src="pin-modal.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
@@ -974,7 +975,7 @@ async function loadTillSummary(dateStr) {
 document.getElementById("f-date").addEventListener("change", (e) => loadTillSummary(e.target.value));
 
 async function lockDay() {
-  const pin = prompt("Owner PIN to lock this day:");
+  const pin = await askPin("Owner PIN to lock this day:");
   if (!pin) return;
   try {
     await sbRpc("admin_lock_cash_ledger_v1", { p_owner_pin: pin, p_ledger_date: document.getElementById("f-date").value });
@@ -983,7 +984,7 @@ async function lockDay() {
   } catch (e) { alert("Couldn't lock: " + e.message); }
 }
 async function unlockDay() {
-  const pin = prompt("Owner PIN to unlock this day:");
+  const pin = await askPin("Owner PIN to unlock this day:");
   if (!pin) return;
   try {
     await sbRpc("admin_unlock_cash_ledger_v1", { p_owner_pin: pin, p_ledger_date: document.getElementById("f-date").value });
