@@ -148,6 +148,11 @@
         <option value="other">Other</option>
       </select>
     </div>
+    <div class="field" id="f-funded-safe2-wrap" hidden style="flex-direction:row; align-items:center; gap:8px;">
+      <input type="checkbox" id="f-funded-safe2" style="width:auto;">
+      <label for="f-funded-safe2" style="margin:0; text-transform:none; font-size:0.85rem; font-weight:400;">Cash was withdrawn from Safe 2 and deposited to make this transfer</label>
+    </div>
+    <div class="hint" id="f-funded-safe2-hint" hidden style="margin-top:-8px; margin-bottom:12px;">Check this if Zeeshan took the cash out of the safe himself — it'll count as a Safe 2 cash-out on Cash Reconciliation, the same as a cash payment. Leave unchecked if this came from the normal bank balance with no cash involved.</div>
     <div class="field">
       <label>Notes (optional)</label>
       <textarea id="f-notes" rows="2" placeholder="e.g. invoice numbers settled"></textarea>
@@ -455,12 +460,26 @@ async function handlePaymentPhotoChange(e) {
 }
 document.getElementById("f-payment-photo").addEventListener("change", handlePaymentPhotoChange);
 
+function updateFundedSafe2Visibility() {
+  const method = document.getElementById("f-method").value;
+  const wrap = document.getElementById("f-funded-safe2-wrap");
+  const hint = document.getElementById("f-funded-safe2-hint");
+  const show = method === "bank";
+  wrap.hidden = !show;
+  hint.hidden = !show;
+  if (!show) document.getElementById("f-funded-safe2").checked = false;
+}
+document.getElementById("f-method").addEventListener("change", updateFundedSafe2Visibility);
+
 async function savePayment() {
   const vendorId = document.getElementById("f-vendor").value;
   const amount = parseFloat(document.getElementById("f-amount").value) || 0;
   const date = document.getElementById("f-date").value;
   const method = document.getElementById("f-method").value;
   const notes = document.getElementById("f-notes").value.trim() || null;
+  // Only meaningful when method is "bank" — a plain cash payment is already always a Safe 2
+  // cash-out by definition, counted separately via method=eq.cash wherever Cash Out is summed.
+  const fundedFromSafe2 = method === "bank" && document.getElementById("f-funded-safe2").checked;
 
   if (!vendorId) return alert("Select a vendor.");
   if (!amount || amount <= 0) return alert("Enter an amount greater than zero.");
@@ -478,6 +497,7 @@ async function savePayment() {
         amount: amount,
         payment_date: date,
         method: method,
+        funded_from_safe2: fundedFromSafe2,
         notes: notes,
         paid_by: state.userId,
         entered_by_manager_id: state.managerId,
@@ -503,6 +523,8 @@ document.getElementById("btn-success-ok").addEventListener("click", async () => 
   document.getElementById("f-notes").value = "";
   document.getElementById("f-vendor").value = "";
   document.getElementById("f-date").value = todayStr();
+  document.getElementById("f-method").value = "cash";
+  updateFundedSafe2Visibility();
   document.getElementById("f-payment-photo").value = "";
   document.getElementById("payment-photo-status").textContent = "For a bank transfer, attach the slip or screenshot. Kept for 40 days.";
   state.paymentPhotoPath = null;

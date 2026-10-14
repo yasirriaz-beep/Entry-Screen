@@ -571,8 +571,12 @@ async function fetchCashIn(dateStr) {
 async function fetchCashOut(dateStr) {
   let vendorLines = [], receiptLines = [], safe2ExpenseLines = [], transferOutLines = [];
   try {
-    const rows = await sb(`vendor_payments?location_id=eq.${GULBERG_ID}&payment_date=eq.${dateStr}&method=eq.cash&select=amount,vendors(name)`);
-    vendorLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Vendor") + " (cash payment)", amount: Number(r.amount) || 0 }));
+    // A method=bank payment with funded_from_safe2=true means Zeeshan withdrew the cash from
+    // this safe himself and deposited it to make the transfer — the vendor-facing method is
+    // "bank", but it's still a real Safe 2 cash-out, so it's included here alongside plain cash
+    // payments. Added 2026-10-14.
+    const rows = await sb(`vendor_payments?location_id=eq.${GULBERG_ID}&payment_date=eq.${dateStr}&or=(method.eq.cash,funded_from_safe2.eq.true)&select=amount,method,vendors(name)`);
+    vendorLines = (rows || []).map(r => ({ label: (r.vendors?.name || "Vendor") + (r.method === "cash" ? " (cash payment)" : " (bank transfer, cash withdrawn from Safe 2)"), amount: Number(r.amount) || 0 }));
   } catch (e) { /* ignore */ }
   try {
     // A Goods Receipt marked "Paid Now" / Cash never creates a vendor_payments row (it's
@@ -624,13 +628,15 @@ async function loadAllCashMovements() {
   listEl.innerHTML = `<div class="hint">Loading…</div>`;
   try {
     const [vendorRows, receiptRows, expenseRows, transferRows] = await Promise.all([
-      sb(`vendor_payments?location_id=eq.${GULBERG_ID}&method=eq.cash&payment_date=gte.${from}&payment_date=lte.${to}&select=payment_date,amount,vendors(name)`),
+      // Includes method=bank payments funded_from_safe2=true -- cash Zeeshan withdrew from
+      // this safe himself and deposited, even though the vendor was paid by transfer.
+      sb(`vendor_payments?location_id=eq.${GULBERG_ID}&or=(method.eq.cash,funded_from_safe2.eq.true)&payment_date=gte.${from}&payment_date=lte.${to}&select=payment_date,amount,method,vendors(name)`),
       sb(`purchases?location_id=eq.${GULBERG_ID}&payment_status=eq.paid&payment_method=eq.cash&purchase_date=gte.${from}&purchase_date=lte.${to}&select=purchase_date,amount,vendors(name)`),
       sb(`expenses?location_id=eq.${GULBERG_ID}&payment_method=eq.cash&expense_date=gte.${from}&expense_date=lte.${to}&select=expense_date,amount,category,detail,paid_from_safe`),
       sb(`cash_transfers?location_id=eq.${GULBERG_ID}&transfer_date=gte.${from}&transfer_date=lte.${to}&select=transfer_date,amount,from_safe,to_safe,reason`)
     ]);
     const rows = [];
-    (vendorRows || []).forEach(r => rows.push({ date: r.payment_date, label: (r.vendors?.name || "Vendor") + " — cash payment", amount: Number(r.amount) || 0, safe: "safe2" }));
+    (vendorRows || []).forEach(r => rows.push({ date: r.payment_date, label: (r.vendors?.name || "Vendor") + (r.method === "cash" ? " — cash payment" : " — bank transfer, cash from Safe 2"), amount: Number(r.amount) || 0, safe: "safe2" }));
     (receiptRows || []).forEach(r => rows.push({ date: r.purchase_date, label: (r.vendors?.name || "Goods Receipt") + " — paid now, cash", amount: Number(r.amount) || 0, safe: "safe2" }));
     (expenseRows || []).forEach(r => {
       const safe = r.paid_from_safe === "safe2" ? "safe2" : "safe1";

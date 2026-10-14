@@ -513,6 +513,29 @@ grants is not proof the underlying table's RLS actually permits that role** — 
 configured completely independently, so whenever a role is added to a page's access list, check
 whether that table's RLS role list needs the same addition.
 
+#### Bank payments funded by a Safe 2 cash withdrawal (added Oct 14, 2026)
+
+`vendor_payments.method` describes how the **vendor** was paid, not where the cash physically
+came from. Zeeshan sometimes withdraws cash from Safe 2 himself and deposits it to make a bank
+transfer (the Al Tayyab Foods / Farooq Traders Diesel payments on Oct 14 were exactly this,
+PKR 250,000 and 226,132) — the vendor-facing method is "bank", but the safe still lost that cash
+the same as any other cash-out. A new `vendor_payments.funded_from_safe2` boolean (default
+`false`) disambiguates this: on `vendor-payment.html`, picking **Bank Transfer** as the method
+reveals a checkbox — "Cash was withdrawn from Safe 2 and deposited to make this transfer" —
+checked only when that's actually what happened. `cash-reconciliation.html`'s Safe 2 Cash Out
+and the All Cash Movements ledger both now match `method=cash OR funded_from_safe2=true`
+instead of `method=cash` alone, labeling the bank-but-safe2-funded ones distinctly ("bank
+transfer, cash withdrawn from Safe 2") so they're never confused with a straight cash payment.
+A plain `method=cash` row needs no flag — it's already counted by the `method=cash` half of that
+OR, same as before. The two Oct 14 payments were backfilled with `funded_from_safe2=true` once
+this was confirmed with the owner.
+
+**Known parallel gap, not yet fixed:** `goods-receipt.html`'s "Paid Now" purchases have the
+identical ambiguity (a Goods Receipt paid by bank transfer could also be funded by a Safe 2
+cash withdrawal) but `fetchCashOut`'s `purchases` query still only checks
+`payment_method=eq.cash`. Apply the same `funded_from_safe2`-style fix there if this comes up on
+a Goods Receipt.
+
 Also noted in passing: **two separate, both-active `vendors` rows are both named "LOCAL MARKET"**
 (`46bb7358-...`, unused — zero purchases and zero payments — and `24553593-...`, the one actually
 used above). Not yet merged/deactivated; same class of issue as the K&N duplicate-vendor cleanup
