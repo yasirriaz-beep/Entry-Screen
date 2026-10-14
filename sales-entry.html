@@ -706,24 +706,39 @@ async function loadShiftEntry(shift){
   // flagged JazzCash amount for the same day as what should have been collected tonight —
   // the shift manager can confirm or correct it, but doesn't have to go find the figure
   // themselves. Added 2026-10-13.
-  if (shift === "evening" && !st.jazzcashCollectedTouched) {
+  //
+  // Same fetch also previews Evening's opening float as Morning's actual closing_cash_till
+  // (when Morning has closed), instead of the fixed STANDARD_TILL_FLOAT — e.g. if cash was
+  // pulled out of the till between shifts, Evening should start from what's really left in
+  // the safe, not a fixed assumption. This only affects the on-screen preview before saving;
+  // the DB trigger (daily_sales_compute_opening_cash) does the same lookup on insert, so the
+  // saved value will match even if this fetch fails. Added 2026-10-14.
+  if (shift === "evening" && !existing) {
     try {
       const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.morning&select=jazzcash_amount`,
+        `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.morning&select=jazzcash_amount,closing_cash_till`,
         { headers }
       );
       if (res.ok) {
         const rows = await res.json();
-        const morningJazzcash = rows.length ? (Number(rows[0].jazzcash_amount) || 0) : 0;
-        setVal("jazzcashCollected", shift, morningJazzcash || "");
-        const hint = document.getElementById("jazzcashCollectedHint_evening");
-        if (hint) {
-          hint.textContent = morningJazzcash
-            ? `Morning flagged PKR ${Math.round(morningJazzcash).toLocaleString()} in JazzCash — pre-filled here. Adjust if what was actually handed over tonight differs.`
-            : "Morning's JazzCash is usually cashed out around 10pm and handed into this till — enter what was actually received here so it's counted once, not never and not twice.";
+        const morningRow = rows.length ? rows[0] : null;
+        if (!st.jazzcashCollectedTouched) {
+          const morningJazzcash = morningRow ? (Number(morningRow.jazzcash_amount) || 0) : 0;
+          setVal("jazzcashCollected", shift, morningJazzcash || "");
+          const hint = document.getElementById("jazzcashCollectedHint_evening");
+          if (hint) {
+            hint.textContent = morningJazzcash
+              ? `Morning flagged PKR ${Math.round(morningJazzcash).toLocaleString()} in JazzCash — pre-filled here. Adjust if what was actually handed over tonight differs.`
+              : "Morning's JazzCash is usually cashed out around 10pm and handed into this till — enter what was actually received here so it's counted once, not never and not twice.";
+          }
+        }
+        if (morningRow && morningRow.closing_cash_till != null) {
+          st.openingCashTill = Number(morningRow.closing_cash_till);
+          document.getElementById("openingCashDisplay_" + shift).value =
+            "PKR " + Math.round(st.openingCashTill).toLocaleString();
         }
       }
-    } catch (e) { /* leave blank */ }
+    } catch (e) { /* leave blank / fall back to standard float */ }
   }
 
   document.getElementById("openingCashDisplay_" + shift).value = "PKR " + Math.round(st.openingCashTill).toLocaleString();

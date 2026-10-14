@@ -369,12 +369,34 @@ It also appears in the **All Cash Movements** ledger above, tagged "Transfer" an
 visibility — but excluded from that card's "Total cash out" figure, since a transfer isn't real
 spending.
 
-**Known gap:** this does *not* touch Safe 1's per-shift till math on `sales-entry.html` (opening
-float is still fixed at the standard PKR 40,000 by the DB trigger). If Zeeshan hands a shift
-extra float, that shift's physical count will come in over/under what the system expects —
-the shift manager should note "see Cash Reconciliation — float transfer" in that shift's
-Variance Reason box so the owner isn't left chasing a false discrepancy. Teaching the till math
-to account for mid-shift transfers directly is a possible follow-up if this comes up often.
+**Resolved Oct 14, 2026 — Evening's opening float now maps to Morning's actual closing float.**
+Previously the opening float on `sales-entry.html` was always hardcoded to the standard PKR
+40,000, for both Morning and Evening, regardless of what actually happened to the till in
+between. If Zeeshan pulled cash out of (or added cash to) Safe 1 between shifts, Evening's
+"Opening cash" still showed 40,000 — not what was really left in the till — so the two shifts
+didn't map to each other and the mismatch looked like an unexplained variance.
+
+Fixed in the DB trigger `daily_sales_compute_opening_cash()` (fires `BEFORE INSERT` on
+`daily_sales`): for an **Evening** row, it now looks up that same day's **Morning** row for the
+same location and uses Morning's `closing_cash_till` as Evening's `opening_cash_till`, when
+Morning has one recorded. If there's no Morning row yet (or it hasn't closed), Evening falls
+back to the standard PKR 40,000, same as before. **Morning** (the first shift of the day) is
+unaffected and still always opens at the standard float. The separate `daily_sales_lock_opening_cash()`
+trigger (fires `BEFORE UPDATE`) is unchanged — it still freezes `opening_cash_till` once a row
+exists, so this mapping only happens at the moment Evening's row is first created, exactly
+mirroring the number the shift manager already sees in the on-screen preview (`sales-entry.html`
+now does the same Morning-closing-till lookup client-side, so what's shown before saving matches
+what gets saved).
+
+Net effect of today's (Oct 14) example: Morning closed with PKR 20,000 actually left in the
+till (Zeeshan took the other 20,000 out) → Evening's opening float now shows and saves as PKR
+20,000, not 40,000. No manual backdating or correction was needed since Evening's row for today
+had not yet been saved when this fix went in.
+
+Note: this does not change the *standard* PKR 40,000 float itself (still the opening float for
+every day's first/Morning shift) — only how a later shift the same day inherits from the one
+before it. If the standard float itself needs to change going forward, that's a separate,
+explicit change to `STANDARD_TILL_FLOAT` in `sales-entry.html` and the trigger's fallback value.
 
 #### Advance Paid, on Goods Receipt (added Oct 13, 2026)
 
