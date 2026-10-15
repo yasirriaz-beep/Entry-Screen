@@ -509,7 +509,12 @@ function recalcCashRecon(shift){
 
   const handoverNote = document.getElementById("handoverVarianceNote_" + shift);
   const handoverDiff = Math.round(actualHandover - autoHandover);
-  if (Math.abs(handoverDiff) > 1) {
+  if (handoverDiff > 1) {
+    // More handed over than the formula expected — just excess cash (rounding, etc.) riding
+    // along to the custodian. Nothing to double-check; only a shortfall needs a look.
+    handoverNote.style.color = "var(--success)";
+    handoverNote.textContent = `Excess cash in amount of PKR ${handoverDiff.toLocaleString()}.`;
+  } else if (handoverDiff < -1) {
     handoverNote.style.color = "var(--danger)";
     handoverNote.textContent = `Off by PKR ${Math.abs(handoverDiff).toLocaleString()} vs. the auto-generated amount — double check with the custodian, or if some of today's sales are still sitting in Card/JazzCash, enter that above.`;
   } else {
