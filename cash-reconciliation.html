@@ -149,6 +149,7 @@
 
   <div class="banner banner-warn" id="status-banner" hidden></div>
   <div class="banner banner-warn" id="source-drift-warning" hidden></div>
+  <div class="banner banner-warn" id="counted-stale-warning" hidden></div>
 
   <div class="big-box" id="jazzcash-box" style="cursor:pointer;">
     <div class="bb-label">JazzCash Outstanding (not yet converted to cash)</div>
@@ -936,9 +937,26 @@ async function loadDay(dateStr) {
     document.getElementById("fb-out").textContent = fmtMoney(shownOut);
     document.getElementById("fb-out").dataset.raw = shownOut;
     document.getElementById("f-opening").value = r.opening_cash;
-    document.getElementById("f-counted").value = r.counted_cash ?? "";
+    // A draft's counted_cash can be stale: if Zeeshan counted the safe early in the day
+    // (e.g. before any handovers had come in), that count no longer matches today's actual
+    // Cash In/Out once more cash has moved — it was only ever correct against the saved
+    // cash_in/cash_out from that moment, not today's live totals. Loading it anyway made
+    // "Closing Safe Cash" silently show that stale count instead of the newly expected
+    // figure. Only trust a draft's saved count when it was taken against the SAME cash
+    // in/out totals as right now; otherwise treat it as not yet counted today. Added
+    // 2026-10-15.
+    const countedStale = useLive && r.counted_cash !== null && r.counted_cash !== undefined &&
+      (Math.abs((Number(r.cash_in) || 0) - cashIn.total) > 0.5 || Math.abs((Number(r.cash_out) || 0) - cashOut.total) > 0.5);
+    document.getElementById("f-counted").value = countedStale ? "" : (r.counted_cash ?? "");
     document.getElementById("f-adjustment-reason").value = r.adjustment_reason || "";
     document.getElementById("opening-hint").textContent = "Loaded from today's saved entry.";
+    const staleWarning = document.getElementById("counted-stale-warning");
+    if (countedStale) {
+      staleWarning.hidden = false;
+      staleWarning.textContent = `Safe was last physically counted (PKR ${fmtMoney(r.counted_cash).replace("PKR ", "")}) before today's Cash In/Out reached its current total — that count no longer applies. Recount the safe and enter it fresh below.`;
+    } else {
+      staleWarning.hidden = true;
+    }
     showSavedSafePhoto(r);
 
     const driftedIn = Math.abs((Number(r.cash_in) || 0) - cashIn.total) > 0.5;
@@ -951,6 +969,7 @@ async function loadDay(dateStr) {
     }
   } else {
     state.currentRow = null;
+    document.getElementById("counted-stale-warning").hidden = true;
     document.getElementById("fb-in").textContent = fmtMoney(cashIn.total);
     document.getElementById("fb-in").dataset.raw = cashIn.total;
     document.getElementById("fb-out").textContent = fmtMoney(cashOut.total);
