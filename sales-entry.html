@@ -531,7 +531,14 @@ function recalcCashRecon(shift){
   const shortOverDisplay = document.getElementById("shortOverDisplay_" + shift);
 
   if (closingEntered) {
-    const closingDiff = Math.round(closing - expectedClosing);
+    // Cash Short/Over compares the counted till straight against the standard float
+    // (openingCashTill), not against a handover-dependent "expected" figure. The till is
+    // supposed to return to the float every shift regardless of what was typed in Actual
+    // Handover — so basing this on the handover field double-counted any time a manager
+    // had already folded an excess into that field by hand (typing a bumped handover, then
+    // closing, added the same excess to the handover a second time). Changed 2026-10-15,
+    // per the owner: the till having its 20,000 is what matters here, full stop.
+    const closingDiff = Math.round(closing - st.openingCashTill);
     if (closingDiff < -1) {
       closingNote.style.color = "var(--danger)";
       closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till after the handover — short by PKR ${Math.abs(closingDiff).toLocaleString()}. Worth a recount, and needs resolving below before closing.`;
@@ -724,7 +731,7 @@ function recalcTotals(){
   // the per-shift reason box, rolled up here instead of making them open each shift.
   const reasonsEl = document.getElementById("shortOverReasons");
   if (reasonsEl) {
-    const lines = ["morning","evening"].filter(s => Math.abs(state[s].shortOver || 0) > 1).map(s => {
+    const lines = ["morning","evening"].filter(s => (state[s].shortOver || 0) < -1).map(s => {
       const reason = document.getElementById(fid("varianceReason", s)).value.trim();
       return `${SHIFT_LABELS[s]}: ${reason || "<em style=\"color:var(--danger)\">reason needed</em>"}`;
     });
