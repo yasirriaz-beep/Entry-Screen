@@ -396,6 +396,7 @@ function totalsPanelHTML(){
       <div><div class="lbl">Cash expenses (both shifts)</div><div class="num" id="totalCashExpenses" style="font-size:1.1rem">PKR 0</div></div>
       <div><div class="lbl">Handed to custodian (both shifts)</div><div class="num" id="totalHandover" style="font-size:1.1rem">PKR 0</div></div>
       <div><div class="lbl">Cash Short / Over (both shifts)</div><div class="num" id="totalShortOver" style="font-size:1.1rem">PKR 0</div></div>
+      <div id="totalExcessRow" hidden><div class="lbl">Excess cash handed over (both shifts)</div><div class="num" id="totalExcess" style="font-size:1.1rem;color:var(--success)">PKR 0</div></div>
     </div>
     <div class="muted" id="shortOverReasons" style="margin-top:10px;font-size:.78rem"></div>
     <div class="muted" id="shiftStatusSummary" style="margin-top:18px;font-size:.82rem;border-top:1px solid var(--border);padding-top:12px"></div>
@@ -509,6 +510,7 @@ function recalcCashRecon(shift){
 
   const handoverNote = document.getElementById("handoverVarianceNote_" + shift);
   const handoverDiff = Math.round(actualHandover - autoHandover);
+  st.handoverDiff = handoverDiff; // rolled up into Whole Day Totals' "Excess cash handed over" line
   if (handoverDiff > 1) {
     // More handed over than the formula expected — just excess cash (rounding, etc.) riding
     // along to the custodian. Nothing to double-check; only a shortfall needs a look.
@@ -702,7 +704,7 @@ async function resolveOverage(shift){
 // Combines both shifts live from whatever is currently in each shift's fields — this is
 // the whole-day figure the director cares about, not either shift in isolation.
 function recalcTotals(){
-  let covers = 0, sale = 0, cashSales = 0, cashExpenses = 0, handover = 0, shortOver = 0;
+  let covers = 0, sale = 0, cashSales = 0, cashExpenses = 0, handover = 0, shortOver = 0, excessHandedOver = 0;
   ["morning","evening"].forEach(s => {
     covers += Math.round(nS("diCovers",s) + nS("taCovers",s) + nS("dlCovers",s) + nS("tpCovers",s) + nS("fpCovers",s));
     sale += nS("diAmount",s) + nS("taAmount",s) + nS("dlAmount",s) + nS("tpAmount",s) + nS("fpAmount",s);
@@ -710,6 +712,7 @@ function recalcTotals(){
     cashExpenses += state[s].tillCashExpenses;
     handover += nS("custodianAmount", s);
     shortOver += state[s].shortOver || 0;
+    excessHandedOver += Math.max(0, state[s].handoverDiff || 0);
   });
   document.getElementById("totalCovers").textContent = covers.toLocaleString();
   document.getElementById("totalSale").textContent = "PKR " + Math.round(sale).toLocaleString();
@@ -725,6 +728,19 @@ function recalcTotals(){
   } else {
     shortOverEl.style.color = "var(--success)";
     shortOverEl.textContent = "PKR 0";
+  }
+
+  // Not a problem to flag (see Cash Short/Over above, which checks the till itself) — just
+  // a running total of how much extra, beyond the auto-generated handover, actually went to
+  // the custodian today, so it's visible without opening each shift. Added 2026-10-15.
+  const totalExcessRow = document.getElementById("totalExcessRow");
+  const totalExcessEl = document.getElementById("totalExcess");
+  const excessRounded = Math.round(excessHandedOver);
+  if (totalExcessRow && excessRounded > 1) {
+    totalExcessRow.hidden = false;
+    totalExcessEl.textContent = "PKR " + excessRounded.toLocaleString();
+  } else if (totalExcessRow) {
+    totalExcessRow.hidden = true;
   }
 
   // The director's one-line view of WHY, if either shift has an unresolved variance —
