@@ -943,8 +943,16 @@ async function loadDay(dateStr) {
     // cash_in/cash_out from that moment, not today's live totals. Loading it anyway made
     // "Closing Safe Cash" silently show that stale count instead of the newly expected
     // figure. Only trust a draft's saved count when it was taken against the SAME cash
-    // in/out totals as right now; otherwise treat it as not yet counted today. Added
-    // 2026-10-15.
+    // in/out totals as right now; otherwise treat it as not yet counted today.
+    //
+    // This isn't an error to fix — it's the normal rhythm: Zeeshan leaves around 8pm and
+    // doesn't physically count the safe until he starts his next shift around 11am the
+    // following day, so a given date's real closing count isn't entered until the next
+    // morning. The number saved early that morning was him confirming the PRIOR day's
+    // closing (= today's opening, since nothing moves in the safe overnight) — it just
+    // got saved under today's date because that's whatever page he had open. So today's
+    // own closing naturally stays "expected, not yet counted" all day, and that's fine;
+    // the note below is informational, not a call to action. Added 2026-10-15.
     const countedStale = useLive && r.counted_cash !== null && r.counted_cash !== undefined &&
       (Math.abs((Number(r.cash_in) || 0) - cashIn.total) > 0.5 || Math.abs((Number(r.cash_out) || 0) - cashOut.total) > 0.5);
     document.getElementById("f-counted").value = countedStale ? "" : (r.counted_cash ?? "");
@@ -952,9 +960,13 @@ async function loadDay(dateStr) {
     document.getElementById("opening-hint").textContent = "Loaded from today's saved entry.";
     const staleWarning = document.getElementById("counted-stale-warning");
     if (countedStale) {
+      staleWarning.classList.remove("banner-warn");
+      staleWarning.classList.add("banner-ok");
       staleWarning.hidden = false;
-      staleWarning.textContent = `Safe was last physically counted (PKR ${fmtMoney(r.counted_cash).replace("PKR ", "")}) before today's Cash In/Out reached its current total — that count no longer applies. Recount the safe and enter it fresh below.`;
+      staleWarning.textContent = `Safe was counted this morning (PKR ${fmtMoney(r.counted_cash).replace("PKR ", "")}) — that confirmed yesterday's closing, before today's cash moved. Today's own physical count comes in tomorrow morning when Zeeshan starts his shift; until then, Closing Safe Cash below shows the expected figure.`;
     } else {
+      staleWarning.classList.remove("banner-ok");
+      staleWarning.classList.add("banner-warn");
       staleWarning.hidden = true;
     }
     showSavedSafePhoto(r);
