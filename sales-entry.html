@@ -363,8 +363,8 @@ function panelInnerHTML(shift, label){
         </div>
 
         <div id="resolveOver_${s}" hidden style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
-          <p class="muted" style="margin:0 0 8px">Every shift must net to zero before closing &mdash; this excess will be added to the custodian handover as extra cash for Safe 2.</p>
-          <button type="button" class="ghost" id="resolveOverBtn_${s}" style="width:100%">Add excess to handover</button>
+          <p class="muted" style="margin:0 0 8px">Extra cash for Safe 2 &mdash; this gets added to the custodian handover automatically when you save or close. Add it now if you'd rather see the updated handover amount first.</p>
+          <button type="button" class="ghost" id="resolveOverBtn_${s}" style="width:100%">Add excess to handover now</button>
           <p class="muted" id="resolveOverStatus_${s}" style="margin:8px 0 0;font-size:.8rem"></p>
         </div>
 
@@ -527,9 +527,14 @@ function recalcCashRecon(shift){
 
   if (closingEntered) {
     const closingDiff = Math.round(closing - expectedClosing);
-    if (Math.abs(closingDiff) > 1) {
+    if (closingDiff > 1) {
+      // Over: not a problem to investigate — just extra cash sitting in the till, folded
+      // into the handover automatically on save. Keep this reassuring, not alarming.
+      closingNote.style.color = "var(--success)";
+      closingNote.textContent = `PKR ${Math.abs(closingDiff).toLocaleString()} more than the PKR ${Math.round(expectedClosing).toLocaleString()} expected — that extra goes into the custodian handover automatically when you save.`;
+    } else if (closingDiff < -1) {
       closingNote.style.color = "var(--danger)";
-      closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till after the handover — off by PKR ${Math.abs(closingDiff).toLocaleString()}. Worth a recount, but this won't block saving.`;
+      closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till after the handover — short by PKR ${Math.abs(closingDiff).toLocaleString()}. Worth a recount, and needs resolving below before closing.`;
     } else {
       closingNote.style.color = "var(--success)";
       closingNote.textContent = `Matches the expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till.`;
