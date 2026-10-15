@@ -129,16 +129,27 @@ const STATUSES = [
 
 let state = { userId: null, userName: null, userRole: null, initials: null, managerId: null, employees: [], marks: {} };
 
-function weekRangeFor(dateStr) {
-  // Monday-to-Sunday week containing dateStr, used to enforce one Weekly Off per week.
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  const dow = dt.getUTCDay(); // 0 = Sun .. 6 = Sat
-  const mondayOffset = dow === 0 ? -6 : 1 - dow;
-  const monday = new Date(dt); monday.setUTCDate(dt.getUTCDate() + mondayOffset);
-  const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
-  const fmt = (x) => x.toISOString().slice(0, 10);
-  return { from: fmt(monday), to: fmt(sunday) };
+// Weekly Off is capped monthly, not weekly, as of Oct 15, 2026 — people sometimes skip a
+// week and take two the next, so the real rule is a monthly total, sized to how many
+// Mondays fall in that calendar month (always 4 or 5). Enforced for real by the
+// attendance_enforce_one_weekly_off_trigger in the database; this is just the matching
+// front-end pre-check so the person gets an immediate message instead of a raw API error.
+function monthRangeFor(dateStr) {
+  const [y, m] = dateStr.split("-").map(Number);
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
+
+function mondaysInMonth(dateStr) {
+  const [y, m] = dateStr.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let count = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 1) count++;
+  }
+  return count;
 }
 
 async function sb(path, opts = {}) {
@@ -353,20 +364,23 @@ async function markAttendance(e, status, rowEl) {
   const date = document.getElementById("f-date").value || todayStr();
 
   if (status === "Weekly Off") {
-    const { from, to } = weekRangeFor(date);
-    let conflicts = [];
+    const { from, to } = monthRangeFor(date);
+    const cap = mondaysInMonth(date);
+    let existing = [];
     try {
-      conflicts = await sb(`attendance_entries?employee_id=eq.${e.id}&attendance_date=gte.${from}&attendance_date=lte.${to}&attendance_date=neq.${date}&status=eq.${encodeURIComponent("Weekly Off")}&select=attendance_date`);
+      existing = await sb(`attendance_entries?employee_id=eq.${e.id}&attendance_date=gte.${from}&attendance_date=lte.${to}&attendance_date=neq.${date}&status=eq.${encodeURIComponent("Weekly Off")}&select=attendance_date`);
     } catch (err) { /* if the check fails, don't block the save over it — the database still enforces this */ }
-    if (conflicts.length) {
-      // Hard rule as of Oct 15, 2026: one Weekly Off per employee per week, enforced in the
-      // database (attendance_enforce_one_weekly_off_trigger), not just here — a manager
-      // can't get around this by calling the API directly. Only a director can override.
+    if (existing.length + 1 > cap) {
+      // Hard rule as of Oct 15, 2026: Weekly Off is capped per calendar month (4 or 5,
+      // depending on the month), enforced in the database
+      // (attendance_enforce_one_weekly_off_trigger) — a manager can't get around this by
+      // calling the API directly. Only a director can override.
+      const monthLabel = new Date(date + "T00:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", month: "short", year: "numeric" });
       if (state.userRole !== "director") {
-        alert(`${e.name} already has a Weekly Off on ${conflicts[0].attendance_date} this week (${from} to ${to}). Only one Weekly Off per employee per week is allowed.`);
+        alert(`${e.name} already has ${existing.length} Weekly Off day(s) booked in ${monthLabel} (${cap} allowed this month). Only a director can add more.`);
         return;
       }
-      const ok = confirm(`${e.name} already has a Weekly Off on ${conflicts[0].attendance_date} this week (${from} to ${to}). As a Director you can still override this — mark ${date} as Weekly Off too?`);
+      const ok = confirm(`${e.name} already has ${existing.length} Weekly Off day(s) booked in ${monthLabel} (${cap} allowed this month). As a Director you can still override this — mark ${date} as Weekly Off too?`);
       if (!ok) return;
     }
   }

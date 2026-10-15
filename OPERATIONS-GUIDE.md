@@ -620,7 +620,7 @@ supports paying a vendor ahead of any purchase being logged.
 
 ---
 
-## 5A. Attendance — past-date lock and one Weekly Off per week (as of Oct 15, 2026)
+## 5A. Attendance — past-date lock and the Weekly Off monthly cap (as of Oct 15, 2026)
 
 `attendance-entry.html` has two standing rules enforced at the **database** level, not just
 hidden in the UI — a manager can't get around either by calling the API directly.
@@ -633,18 +633,28 @@ hidden in the UI — a manager can't get around either by calling the API direct
   RLS check — all three Director accounts (Yasir, Imran, and the generic Admin account) can
   still fix a past day's attendance; this was confirmed as the intended rule (directors have
   full oversight access everywhere else in the system too), not a gap.
-- **One Weekly Off per employee per week, hard-enforced.** Added because managers were
+- **Weekly Off is capped per calendar month, hard-enforced.** Added because managers were
   overstating it — one employee already had two Weekly Offs logged in the same week (Oct 10
-  and 11) before this was tightened. `attendance_enforce_one_weekly_off_trigger`
-  (`BEFORE INSERT OR UPDATE` on `attendance_entries`) blocks a second `'Weekly Off'` row for
-  the same employee in the same Monday–Sunday week (`RAISE EXCEPTION`, not just a UI
-  warning) — unless the entering user is a Director, who can still override for a genuine
-  exception, same posture as the past-date lock. The UI's pre-check (querying for a conflict
-  before saving, so the person gets an immediate message instead of a raw database error)
-  now reflects this: a non-Director sees a flat "not allowed" alert with no way around it; a
-  Director sees a confirm dialog explaining they're overriding. The pre-existing double
-  Weekly Off (Oct 10/11, the employee that prompted this) was left as historical data, not
-  retroactively fixed — ask if that should be corrected.
+  and 11) before this was first tightened. Initially enforced as a strict one-per-week rule,
+  then same day changed to a **monthly** cap instead — people sometimes skip a week's off and
+  take two the following week, which a weekly rule would wrongly block.
+  `attendance_enforce_one_weekly_off_trigger` (`BEFORE INSERT OR UPDATE` on
+  `attendance_entries`, function name unchanged from the original weekly version, body
+  replaced) blocks a `'Weekly Off'` row once the employee's count for that calendar month
+  would exceed the cap (`RAISE EXCEPTION`, not just a UI warning) — unless the entering user
+  is a Director, who can still override for a genuine exception, same posture as the
+  past-date lock.
+  - **The cap itself** = the number of Mondays that fall in that calendar month — always 4,
+    occasionally 5, depending on where the month starts (never a fixed number, and
+    deliberately *not* "every week that touches the month at all", which can hit 6 when a
+    30-day month starts on a Sunday and ends on a Monday — e.g. Nov 2026 — since those two
+    boundary weeks only contribute one real day each to that month).
+  - The UI's pre-check (querying the employee's Weekly Off count for the calendar month
+    before saving, so the person gets an immediate message instead of a raw database error)
+    matches this: a non-Director sees a flat "X already booked, Y allowed this month" alert
+    with no way around it; a Director sees a confirm dialog explaining they're overriding.
+  - The pre-existing double Weekly Off (Oct 10/11, the employee that prompted this) was left
+    as historical data, not retroactively fixed — ask if that should be corrected.
 
 ---
 
