@@ -957,18 +957,28 @@ async function saveShift(shift, close){
     alert("Enter the actual physical cash present in the till before closing this shift.");
     return;
   }
-  // Every shift must net to zero before it can close — a shortage has to be charged to a
-  // person or the owner, and an overage automatically zeroes out once added to the
-  // handover (see resolveShortage/resolveOverage). Replaces the old free-text-reason gate,
-  // 2026-10-15, per the owner: auto-booking a blind variance was the wrong design.
+  // A shortage needs a human decision (charge it to a cashier or the owner) so closing is
+  // still blocked until that's resolved. An overage doesn't need a decision — it just goes
+  // into the custodian handover along with everything else — so it's folded in silently
+  // instead of blocking Save. Changed 2026-10-15, per the owner: stop only on a short till,
+  // not an over one — excess cash is handed to Zeeshan either way.
+  let autoFoldedOverage = 0;
   if (close && Math.abs(state[shift].shortOver || 0) > 1) {
     const st = state[shift];
     const rounded = Math.round(st.shortOver);
     const resolved = st.resolution && Math.abs(st.resolution.variance - rounded) < 1;
-    if (!resolved) {
-      alert("This shift is short/over by PKR " + Math.abs(rounded).toLocaleString() + " — resolve it in the Cash Short/Over box (charge it to a person or the owner, or add the excess to the handover) before closing.");
-      document.getElementById("shortOverBlock_" + shift).scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
+    if (rounded < 0) {
+      if (!resolved) {
+        alert("This shift is short by PKR " + Math.abs(rounded).toLocaleString() + " — resolve it in the Cash Short/Over box (charge it to a person or the owner) before closing.");
+        document.getElementById("shortOverBlock_" + shift).scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+    } else if (!resolved) {
+      autoFoldedOverage = rounded;
+      setVal("custodianAmount", shift, Math.round(nS("custodianAmount", shift) + rounded));
+      st.custodianTouched = true;
+      recalcCashRecon(shift);
+      recalcTotals();
     }
   }
 
@@ -1031,8 +1041,21 @@ async function saveShift(shift, close){
       const errText = await res.text();
       throw new Error(res.status + ": " + errText.slice(0, 200));
     }
-    showBanner((close ? "Closed — " : "Saved — ") + SHIFT_LABELS[shift] + " shift, " + saleDate + "." + (close ? " Only a director can reopen it now." : " You can keep adding to this same entry."), "success");
+    showBanner((close ? "Closed — " : "Saved — ") + SHIFT_LABELS[shift] + " shift, " + saleDate + "." + (close ? " Only a director can reopen it now." : " You can keep adding to this same entry.") + (autoFoldedOverage > 0 ? ` PKR ${autoFoldedOverage.toLocaleString()} over was added to the custodian handover automatically.` : ""), "success");
     await loadShiftEntry(shift);
+    if (autoFoldedOverage > 0 && state[shift].existingEntryId) {
+      try {
+        // Same audit trail the explicit "Add excess to handover" button logs — never blocks
+        // the UI, this is just a record of how often (and how much) a till ran over.
+        await sbRpc("resolve_till_variance_v1", {
+          p_daily_sales_id: state[shift].existingEntryId,
+          p_variance: autoFoldedOverage,
+          p_resolution_type: "over_handed",
+          p_manager_id: resolvedManagerId,
+          p_user_id: whoId,
+        });
+      } catch (e) { /* audit-trail only */ }
+    }
   } catch (err) {
     showBanner("Could not save: " + err.message, "danger");
   } finally {
