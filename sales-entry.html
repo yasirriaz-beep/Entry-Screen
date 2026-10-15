@@ -158,9 +158,34 @@ let resolvedRole = null;
 // own opening float, its own real cash-expense total, its own "has the custodian field been
 // hand-edited" flag, and its own lock status. Added 2026-10-13 for the side-by-side redesign.
 const state = {
-  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false },
-  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false },
+  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null },
+  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null },
 };
+
+// Full active employee roster at this location — the "charge to a person" picker is
+// deliberately NOT filtered to designation = Cashier, since whoever actually handled cash
+// that shift (e.g. a manager covering the till) needs to be pickable too, per the owner's
+// instruction 2026-10-15.
+let employeesList = [];
+async function loadEmployees(){
+  if (!locationId) return;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/employees?location_id=eq.${locationId}&active=eq.true&select=id,name&order=name.asc`,
+      { headers }
+    );
+    if (!res.ok) throw new Error(String(res.status));
+    employeesList = await res.json();
+  } catch (e) { employeesList = []; }
+  ["morning", "evening"].forEach(shift => {
+    const sel = document.getElementById("resolveEmployee_" + shift);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">&mdash; pick a person &mdash;</option>' +
+      employeesList.map(e => `<option value="${e.id}">${e.name}</option>`).join("");
+    if (prev) sel.value = prev;
+  });
+}
 
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -312,8 +337,34 @@ function panelInnerHTML(shift, label){
           <label style="margin:0">Cash Short / Over</label>
           <div class="num" id="shortOverDisplay_${s}" style="font-size:1.1rem">PKR 0</div>
         </div>
-        <label for="varianceReason_${s}" style="margin-top:10px">Reason (required before Close Shift)</label>
-        <input type="text" id="varianceReason_${s}" placeholder="e.g. PKR 36,876 still in JazzCash, clears end of shift">
+        <label for="varianceReason_${s}" style="margin-top:10px">Note (optional)</label>
+        <input type="text" id="varianceReason_${s}" placeholder="e.g. till was busy, recount confirmed">
+
+        <div id="resolveShort_${s}" hidden style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+          <label style="margin:0 0 8px;display:block">Every shift must net to zero before closing &mdash; charge this shortage to:</label>
+          <div style="display:flex;gap:16px;margin-bottom:8px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:.88rem">
+              <input type="radio" name="resolveChoice_${s}" id="resolveChoiceCashier_${s}" value="cashier" checked style="width:auto"> Charge to a person
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:.88rem">
+              <input type="radio" name="resolveChoice_${s}" id="resolveChoiceOwner_${s}" value="owner" style="width:auto"> Charge to owner (expense)
+            </label>
+          </div>
+          <div class="field" id="resolveEmployeeField_${s}">
+            <label for="resolveEmployee_${s}">Who was handling the cash? (deducted from their pay as an advance)</label>
+            <select id="resolveEmployee_${s}"><option value="">&mdash; pick a person &mdash;</option></select>
+          </div>
+          <button type="button" class="ghost" id="resolveShortBtn_${s}" style="margin-top:10px;width:100%">Resolve shortage</button>
+          <p class="muted" id="resolveShortStatus_${s}" style="margin:8px 0 0;font-size:.8rem"></p>
+        </div>
+
+        <div id="resolveOver_${s}" hidden style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+          <p class="muted" style="margin:0 0 8px">Every shift must net to zero before closing &mdash; this excess will be added to the custodian handover as extra cash for Safe 2.</p>
+          <button type="button" class="ghost" id="resolveOverBtn_${s}" style="width:100%">Add excess to handover</button>
+          <p class="muted" id="resolveOverStatus_${s}" style="margin:8px 0 0;font-size:.8rem"></p>
+        </div>
+
+        <p id="resolvedNote_${s}" style="margin:10px 0 0;color:var(--success);font-size:.85rem" hidden></p>
       </div>
     </div>
 
@@ -380,6 +431,17 @@ function wireShift(shift){
   document.getElementById("saveBtn_" + shift).addEventListener("click", () => saveShift(shift, false));
   document.getElementById("closeBtn_" + shift).addEventListener("click", () => saveShift(shift, true));
   document.getElementById("unlockBtn_" + shift).addEventListener("click", () => unlockShift(shift));
+
+  // Charge-to-cashier vs charge-to-owner toggle for the shortage resolution — only the
+  // employee picker needs a person named, so it's the only part that hides for "owner".
+  ["resolveChoiceCashier_" + shift, "resolveChoiceOwner_" + shift].forEach(id => {
+    document.getElementById(id).addEventListener("change", () => {
+      document.getElementById("resolveEmployeeField_" + shift).hidden =
+        !document.getElementById("resolveChoiceCashier_" + shift).checked;
+    });
+  });
+  document.getElementById("resolveShortBtn_" + shift).addEventListener("click", () => resolveShortage(shift));
+  document.getElementById("resolveOverBtn_" + shift).addEventListener("click", () => resolveOverage(shift));
 }
 
 function recalcSummary(shift){
@@ -477,15 +539,139 @@ function recalcCashRecon(shift){
       shortOverBlock.hidden = false;
       shortOverDisplay.style.color = closingDiff < 0 ? "var(--danger)" : "var(--success)";
       shortOverDisplay.textContent = (closingDiff < 0 ? "− " : "+ ") + "PKR " + Math.abs(closingDiff).toLocaleString() + (closingDiff < 0 ? " short" : " over");
+      renderResolutionUI(shift, closingDiff);
     } else {
       shortOverBlock.hidden = true;
       document.getElementById("varianceReason_" + shift).value = "";
+      st.resolution = null; // the gap is gone — a fresh slate if one opens up again later
     }
   } else {
     closingNote.style.color = "";
     closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till once the handover above is taken out.`;
     st.shortOver = 0;
     shortOverBlock.hidden = true;
+  }
+}
+
+// Decides which half of the Cash Short/Over box to show — the charge-to-cashier/owner
+// choice for a shortage, or the one-click "add to handover" for an overage — and whether
+// it's already been resolved for the variance currently on screen (added 2026-10-15, per
+// the owner's correction: every shift must net to zero before it can close, and an
+// automatic blind booking was the wrong design).
+function renderResolutionUI(shift, diff){
+  const st = state[shift];
+  const resolveShort = document.getElementById("resolveShort_" + shift);
+  const resolveOver = document.getElementById("resolveOver_" + shift);
+  const resolvedNote = document.getElementById("resolvedNote_" + shift);
+  const rounded = Math.round(diff);
+  if (diff < 0) {
+    resolveOver.hidden = true;
+    const resolved = st.resolution && Math.abs(st.resolution.variance - rounded) < 1;
+    resolveShort.hidden = !!resolved;
+    resolvedNote.hidden = !resolved;
+    if (resolved) resolvedNote.textContent = "Resolved — " + st.resolution.description;
+  } else {
+    resolveShort.hidden = true;
+    resolveOver.hidden = false;
+    resolvedNote.hidden = true;
+  }
+}
+
+async function ensureShiftId(shift){
+  const st = state[shift];
+  if (!st.existingEntryId) {
+    await saveShift(shift, false);
+  }
+  return st.existingEntryId;
+}
+
+async function resolveShortage(shift){
+  const st = state[shift];
+  const variance = Math.round(st.shortOver || 0);
+  if (variance >= 0 || Math.abs(variance) <= 1) return;
+  const statusEl = document.getElementById("resolveShortStatus_" + shift);
+  const btn = document.getElementById("resolveShortBtn_" + shift);
+  const choice = document.getElementById("resolveChoiceCashier_" + shift).checked ? "cashier" : "owner";
+  const empSel = document.getElementById("resolveEmployee_" + shift);
+
+  if (!resolvedUserId || !resolvedManagerId) {
+    statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Enter your code and PIN under \"Entered by\" first.";
+    return;
+  }
+  if (choice === "cashier" && !empSel.value) {
+    statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Pick who this shortage is charged to.";
+    return;
+  }
+
+  btn.disabled = true;
+  statusEl.style.color = "";
+  statusEl.textContent = "Saving this shift and booking the charge…";
+  try {
+    const dsId = await ensureShiftId(shift);
+    if (!dsId) throw new Error("Couldn't save this shift first — try Save, then try again.");
+    const who = choice === "cashier" ? empSel.options[empSel.selectedIndex].textContent : "the owner (regular expense)";
+    const result = await sbRpc("resolve_till_variance_v1", {
+      p_daily_sales_id: dsId,
+      p_variance: variance,
+      p_resolution_type: choice,
+      p_manager_id: resolvedManagerId,
+      p_user_id: resolvedUserId,
+      p_employee_id: choice === "cashier" ? empSel.value : null,
+      p_notes: document.getElementById(fid("varianceReason", shift)).value.trim() || null,
+    });
+    st.resolution = { variance: Math.round(result.variance), description: "charged to " + who };
+    statusEl.style.color = "var(--success)";
+    statusEl.textContent = (result.already_resolved ? "Already resolved" : "Resolved") + " — charged to " + who + ".";
+    recalcCashRecon(shift);
+    recalcTotals();
+  } catch (err) {
+    statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "Couldn't resolve: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function resolveOverage(shift){
+  const st = state[shift];
+  const variance = Math.round(st.shortOver || 0);
+  if (variance <= 1) return;
+  if (!resolvedUserId || !resolvedManagerId) {
+    showBanner("Enter your code and PIN under \"Entered by\" before saving.", "danger");
+    return;
+  }
+  const btn = document.getElementById("resolveOverBtn_" + shift);
+  const statusEl = document.getElementById("resolveOverStatus_" + shift);
+  btn.disabled = true;
+  statusEl.style.color = "";
+  statusEl.textContent = "Adding to handover and saving…";
+
+  // Fold the excess into the custodian handover — it simply becomes extra cash for Safe 2,
+  // no separate booking needed. Marked "touched" so the auto-suggestion never overwrites it.
+  setVal("custodianAmount", shift, Math.round(nS("custodianAmount", shift) + variance));
+  state[shift].custodianTouched = true;
+  recalcCashRecon(shift);
+  recalcTotals();
+
+  try {
+    await saveShift(shift, false); // persists the bumped handover and reloads this shift
+    statusEl.style.color = "var(--success)";
+    statusEl.textContent = "Added PKR " + variance.toLocaleString() + " to the handover and saved.";
+    try {
+      if (state[shift].existingEntryId) {
+        await sbRpc("resolve_till_variance_v1", {
+          p_daily_sales_id: state[shift].existingEntryId,
+          p_variance: variance,
+          p_resolution_type: "over_handed",
+          p_manager_id: resolvedManagerId,
+          p_user_id: resolvedUserId,
+        });
+      }
+    } catch (e) { /* audit-trail only — never blocks the UI */ }
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -613,6 +799,7 @@ async function init(){
 
     document.getElementById("continueBtn").disabled = false;
     loadTaskBanner();
+    loadEmployees();
   } catch (err) {
     showBanner("Could not load the location (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations' allows anon SELECT if this persists.", "danger");
     document.getElementById("continueBtn").disabled = false;
@@ -766,10 +953,19 @@ async function saveShift(shift, close){
     alert("Enter the actual physical cash present in the till before closing this shift.");
     return;
   }
-  if (close && Math.abs(state[shift].shortOver || 0) > 1 && document.getElementById(fid("varianceReason", shift)).value.trim() === ""){
-    alert("This shift is short/over by PKR " + Math.abs(Math.round(state[shift].shortOver)).toLocaleString() + " — enter a reason before closing.");
-    document.getElementById(fid("varianceReason", shift)).focus();
-    return;
+  // Every shift must net to zero before it can close — a shortage has to be charged to a
+  // person or the owner, and an overage automatically zeroes out once added to the
+  // handover (see resolveShortage/resolveOverage). Replaces the old free-text-reason gate,
+  // 2026-10-15, per the owner: auto-booking a blind variance was the wrong design.
+  if (close && Math.abs(state[shift].shortOver || 0) > 1) {
+    const st = state[shift];
+    const rounded = Math.round(st.shortOver);
+    const resolved = st.resolution && Math.abs(st.resolution.variance - rounded) < 1;
+    if (!resolved) {
+      alert("This shift is short/over by PKR " + Math.abs(rounded).toLocaleString() + " — resolve it in the Cash Short/Over box (charge it to a person or the owner, or add the excess to the handover) before closing.");
+      document.getElementById("shortOverBlock_" + shift).scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
   }
 
   const btn = document.getElementById((close ? "closeBtn_" : "saveBtn_") + shift);

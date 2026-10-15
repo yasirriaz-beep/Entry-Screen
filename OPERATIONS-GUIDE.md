@@ -235,16 +235,54 @@ will show a false "off by" warning and a false Short/Over until it's entered.
 
 Once Card and JazzCash are accounted for, whatever gap is left between the physical count and
 the expected till balance is a real **Cash Short / Over** — shown as its own labeled, colored
-box (red = short, green = over) under the physical-count field, not just a sentence. Whenever
-it's more than PKR 1:
-- A **reason** text box appears and is **required before Close Shift** (not before Save, so a
-  shift manager isn't blocked mid-shift) — e.g. "Jazzcash not yet entered", "counted short,
-  recount pending", "gave extra change by mistake".
-- Both the amount and the reason are **saved** (`daily_sales.cash_short_over`,
-  `daily_sales.variance_reason`) — a permanent record, not a warning that disappears on reload.
-- **Whole Day Totals** rolls both shifts' Short/Over into one number, with either shift's reason
+box (red = short, green = over) under the physical-count field, not just a sentence. A free-text
+**Note (optional)** field is always available for context (e.g. "till was busy, recount
+confirmed") — saved as `daily_sales.cash_short_over` / `daily_sales.variance_reason`, a permanent
+record either way.
+
+**Every shift has to net to zero before it can close (redesigned Oct 15, 2026):** when the
+variance is more than PKR 1, the box also shows a resolution step, and **Close Shift is blocked**
+until it's completed — not just logged with a reason. An earlier version of this feature
+auto-booked every variance blind the moment a shift closed; the owner corrected that design
+(Oct 15, 2026) to require an explicit choice instead:
+
+- **Short (till came in under):** pick one —
+  - **Charge to a person** — a dropdown of every active employee at the location (deliberately
+    *not* filtered to the "Cashier" designation, since whoever actually handled cash that shift —
+    a manager covering the till, say — needs to be pickable too). Clicking **Resolve shortage**
+    books it as a `Payroll`-category expense with `employee_id`/`charged_to` set, reusing the
+    exact same payroll-advance mechanism Expense Entry already uses: it deducts from that
+    person's pay this month, the same as a cash advance would.
+  - **Charge to owner (expense)** — books it as a regular **"Till Cash Shortage"** expense
+    (code 64, G&A/Other, no RGM approval) that **reduces Net Income** on the Income Statement.
+    This is deliberately a normal P&L expense, *not* a below-the-line Director Draw — the owner
+    was explicit that a till shortage should hit profitability, not be treated as a personal
+    withdrawal.
+  - Either choice calls the RPC `resolve_till_variance_v1`, which saves the shift first if it
+    hasn't been saved yet (to get a `daily_sales.id`), then books the expense, then records the
+    resolution in `till_variance_postings` (keyed on that shift's `daily_sales.id`, unique) so a
+    page reload recognizes it's already resolved instead of prompting — or double-booking —
+    again. Resolving is idempotent: calling it twice for the same shift and the same variance
+    amount books the expense only once.
+- **Over (till came in over):** one button, **"Add excess to handover"** — no choice needed.
+  Clicking it folds the excess straight into that shift's custodian handover (`custodianAmount`),
+  which is already what flows into Safe 2's cash in, so the excess simply becomes extra cash for
+  Safe 2 — no separate expense or receivable row. This naturally brings the Short/Over figure
+  back to zero (that *is* the resolution), and the shift is then free to close. A best-effort
+  `resolve_till_variance_v1` call with `resolution_type = 'over_handed'` logs it to
+  `till_variance_postings` purely for an audit trail — it never blocks the UI if it fails.
+- If the variance changes after a resolution was recorded (e.g. a recount), the old resolution no
+  longer matches and Close Shift is blocked again until it's re-resolved.
+- **Whole Day Totals** rolls both shifts' Short/Over into one number, with either shift's note
   listed underneath it — the one place the director needs to look, rather than opening each
   shift to see why.
+
+**Superseded (Oct 15, 2026):** an earlier version auto-booked every nonzero till variance the
+moment a shift closed — short → an automatic "Till Cash Shortage" expense, over → an automatic
+`custodian_receivables` row — via a DB trigger (`sync_till_variance_posting` on `daily_sales`).
+That trigger function is now a no-op (neutralized via `CREATE OR REPLACE`, not dropped, since
+DROP/DELETE statements are blocked on this project) — all booking now happens only through the
+explicit, interactive flow above.
 
 **JazzCash collected at night (added Oct 13, 2026):** at Gulberg, the JazzCash balance flagged
 during Morning is actually cashed out around 10pm and physically handed into the **Evening**
