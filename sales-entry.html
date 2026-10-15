@@ -323,7 +323,7 @@ function panelInnerHTML(shift, label){
             <p class="muted" id="autoHandoverFormula_${s}" style="margin:4px 0 0;font-size:.76rem">Auto: Cash Sales &minus; Cash Expenses</p>
           </div>
           <div class="field" style="margin:0">
-            <label for="custodianAmount_${s}">Actual handover (Hard Cash)</label>
+            <label for="custodianAmount_${s}">Actual handover (<b>Hard Cash</b>)</label>
             <input type="number" id="custodianAmount_${s}" inputmode="decimal" placeholder="0">
           </div>
         </div>
@@ -331,7 +331,7 @@ function panelInnerHTML(shift, label){
       </div>
 
       <div class="field" style="margin-top:10px">
-        <label for="closingCash_${s}">Actual physical cash present in till &mdash; only field you have to enter</label>
+        <label for="closingCash_${s}">Actual <b>Hard Cash</b> left in Till &mdash; only field you have to enter</label>
         <input type="number" id="closingCash_${s}" min="0" inputmode="decimal" placeholder="0">
         <p class="muted" id="closingVarianceNote_${s}" style="margin:4px 0 0;font-size:.76rem"></p>
       </div>
