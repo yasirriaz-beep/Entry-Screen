@@ -99,6 +99,14 @@
   .till-grid .tg-val { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
   .till-total-line { display: flex; justify-content: space-between; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border); font-weight: 700; font-family: 'Zilla Slab', Georgia, serif; }
 
+  .jc-ledger-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 480px; }
+  .jc-ledger-table th { text-align: right; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .jc-ledger-table th:first-child, .jc-ledger-table td:first-child { text-align: left; }
+  .jc-ledger-table td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .jc-ledger-table tr:last-child td { font-weight: 700; border-bottom: none; }
+  .jc-in { color: var(--ok); }
+  .jc-out { color: var(--err); }
+
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .acm-row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
   .acm-row:last-child { border-bottom: none; }
@@ -164,6 +172,11 @@
     </div>
     <button class="btn-primary" id="jc-save" type="button">Record Settlement</button>
     <div id="jc-result" style="margin-top:10px;"></div>
+
+    <div class="step-label" style="margin:16px 0 8px;">JazzCash In/Out by Date</div>
+    <div class="hint" style="margin-bottom:8px;">In = JazzCash sales flagged that day. Out = cash actually recovered that day, either same-day (collected into Evening's till) or via a settlement below. Running balance is what's still outstanding after that date.</div>
+    <div id="jc-ledger" style="overflow-x:auto;"><div class="hint">Loading&hellip;</div></div>
+
     <div class="step-label" style="margin:16px 0 8px;">Recent Settlements</div>
     <div id="jc-history"><div class="hint">Loading&hellip;</div></div>
   </div>
@@ -629,8 +642,57 @@ async function refreshJazzcashBox() {
 document.getElementById("jazzcash-box").addEventListener("click", () => {
   const card = document.getElementById("jazzcash-detail-card");
   card.hidden = !card.hidden;
-  if (!card.hidden) loadJazzcashHistory();
+  if (!card.hidden) { loadJazzcashLedger(); loadJazzcashHistory(); }
 });
+
+// Day-by-day In/Out breakdown behind the headline outstanding figure: In = jazzcash_amount
+// flagged that day (both shifts summed); Out = same-day collections (jazzcash_collected_amount)
+// plus whatever a settlement recorded as actually received that day. Running balance walks
+// forward in date order so it's easy to see exactly which days built up the backlog.
+async function loadJazzcashLedger() {
+  const wrap = document.getElementById("jc-ledger");
+  let salesRows = [], settlementRows = [];
+  try {
+    [salesRows, settlementRows] = await Promise.all([
+      sb(`daily_sales?location_id=eq.${GULBERG_ID}&select=sale_date,jazzcash_amount,jazzcash_collected_amount&order=sale_date`),
+      sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=settlement_date,amount_received&order=settlement_date`)
+    ]);
+  } catch (e) { wrap.innerHTML = `<div class="hint">Couldn't load: ${e.message}</div>`; return; }
+
+  const byDate = {};
+  const get = (d) => byDate[d] || (byDate[d] = { in: 0, outSameDay: 0, outSettled: 0 });
+  (salesRows || []).forEach(r => {
+    const d = get(r.sale_date);
+    d.in += Number(r.jazzcash_amount) || 0;
+    d.outSameDay += Number(r.jazzcash_collected_amount) || 0;
+  });
+  (settlementRows || []).forEach(r => {
+    get(r.settlement_date).outSettled += Number(r.amount_received) || 0;
+  });
+
+  const dates = Object.keys(byDate).sort();
+  if (!dates.length) { wrap.innerHTML = '<div class="hint">No JazzCash activity recorded yet.</div>'; return; }
+
+  let running = 0;
+  const rowsHtml = dates.map(d => {
+    const r = byDate[d];
+    const out = r.outSameDay + r.outSettled;
+    running += (r.in - out);
+    running = Math.round(running * 100) / 100;
+    if (r.in === 0 && out === 0) return "";
+    return `<tr>
+      <td>${d}</td>
+      <td class="jc-in">${r.in ? "+" + fmtMoney(r.in) : "—"}</td>
+      <td class="jc-out">${out ? "−" + fmtMoney(out) : "—"}</td>
+      <td>${fmtMoney(running)}</td>
+    </tr>`;
+  }).join("");
+
+  wrap.innerHTML = `<table class="jc-ledger-table">
+    <thead><tr><th>Date</th><th>In</th><th>Out</th><th>Running Balance</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>`;
+}
 
 function jcVarianceNote(outstandingBefore, received) {
   const diff = Math.round((received - outstandingBefore) * 100) / 100;
@@ -661,6 +723,7 @@ async function saveJazzcashSettlement() {
     document.getElementById("jc-amount").value = "";
     document.getElementById("jc-notes").value = "";
     refreshJazzcashBox();
+    loadJazzcashLedger();
     loadJazzcashHistory();
     loadDay(document.getElementById("f-date").value || todayStr());
   } catch (e) {
