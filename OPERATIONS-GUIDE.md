@@ -688,6 +688,38 @@ month happened to have 31 days.
 
 ---
 
+## 5C. Inventory Balance Sheet — PKR valuation (added Oct 15, 2026)
+
+`inventory-balance-sheet.html` now shows what the stock is actually worth, not just
+quantities.
+
+- **Per item**, a new **Value (PKR)** column = `ending qty × products.current_rate`. An item
+  with no rate set (or rate = 0) shows `PKR 0` with a small "no rate" badge rather than
+  silently looking like it's worth nothing for a real reason — 22 of the 600 active products
+  currently have `current_rate = 0`, and a handful more have no rate at all; worth a pass in
+  Item Master.
+- **Aggregate**, three tiles above the table — **Total Stock Value**, **Paid For**, and
+  **Still Payable** — covering every active item at this location regardless of the
+  search/category filter below them (the filter only narrows the table, not these totals,
+  since "what is the restaurant's stock worth right now" shouldn't change depending on what
+  you happened to search for).
+- **The Paid/Payable split is an estimate, stated as one on the page itself.** There's no
+  per-unit/lot cost tracking in this system — a unit sitting on the shelf today can't be
+  traced back to the specific invoice it came from. So each item's current stock value is
+  split using that item's own **lifetime purchase mix**: `paid_ratio = (sum of that item's
+  purchases.amount where payment_status='paid') / (sum of all that item's purchases.amount,
+  paid + credit, up to the as-of date)`, applied to the item's current value. An item with no
+  purchase history at all (e.g. only ever entered via an opening snapshot) defaults to 100%
+  Paid rather than overstating what's owed. This is a weighted-average proxy, not a precise
+  figure — sanity-checked against today's real data at ~PKR 818k total stock value, splitting
+  roughly 47% Paid / 53% Payable, which is a plausible mix rather than a degenerate 0/100.
+  Note this is **not** the same number as "Total Payable to Vendors" on
+  `vendor-payment.html` — that's vendor-level accounts payable (what's owed in total,
+  including stock already consumed); this is specifically the payable portion of what's
+  still sitting in inventory right now.
+
+---
+
 ## 6. Purchase Orders — Demand → Authorize → Order (advance) → Receive
 
 `purchase-order.html` is the formal path for ordering something **before** it's received,

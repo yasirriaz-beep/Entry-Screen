@@ -56,6 +56,15 @@
   .base-table .var-off { color: var(--err); font-weight: 600; }
   .base-table .var-ok { color: var(--ok); }
   .dept-row td { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; }
+  .no-rate-badge { font-size: 0.65rem; font-weight: 700; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
+  .value-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .value-tile { flex: 1; min-width: 160px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+  .value-tile .vt-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); font-weight: 600; }
+  .value-tile .vt-value { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.35rem; margin-top: 4px; }
+  .value-tile .vt-sub { font-size: 0.78rem; color: var(--ink-soft); margin-top: 2px; }
+  .value-tile.total .vt-value { color: var(--accent); }
+  .value-tile.paid .vt-value { color: var(--ok); }
+  .value-tile.payable .vt-value { color: var(--warn); }
   .top-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
   .as-of { color: var(--ink-soft); font-size: 0.8rem; }
   @media print {
@@ -109,6 +118,25 @@
     </div>
   </div>
 
+  <div class="value-summary">
+    <div class="value-tile total">
+      <div class="vt-label">Total Stock Value</div>
+      <div class="vt-value" id="val-total">PKR 0</div>
+      <div class="vt-sub" id="val-total-sub">all active items, as of the selected date</div>
+    </div>
+    <div class="value-tile paid">
+      <div class="vt-label">Paid For</div>
+      <div class="vt-value" id="val-paid">PKR 0</div>
+      <div class="vt-sub" id="val-paid-pct">—</div>
+    </div>
+    <div class="value-tile payable">
+      <div class="vt-label">Still Payable</div>
+      <div class="vt-value" id="val-payable">PKR 0</div>
+      <div class="vt-sub" id="val-payable-pct">—</div>
+    </div>
+  </div>
+  <div class="hint" style="margin-top:-10px; margin-bottom:16px;">Paid vs. Payable is an estimate, not a lot-tracked figure: each item's current stock value is split using that <em>item's own</em> lifetime purchase mix (how much of everything ever bought of it was paid for in cash vs. on credit), applied to what's on the shelf today — the same weighted-average assumption used anywhere this system can't trace a specific unit back to a specific invoice.</div>
+
   <div class="card">
     <div class="top-bar">
       <div id="row-count" class="as-of"></div>
@@ -118,7 +146,7 @@
       <table class="base-table">
         <thead>
           <tr>
-            <th>Category</th><th>Item</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th>
+            <th>Category</th><th>Item</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th><th>Value (PKR)</th>
           </tr>
         </thead>
         <tbody id="rows-body"></tbody>
@@ -165,6 +193,9 @@ async function sbRpc(fn, body) {
 function fmtQty(n) {
   const v = Number(n) || 0;
   return (Math.round(v * 100) / 100).toLocaleString();
+}
+function fmtMoney(n) {
+  return "PKR " + Math.round(Number(n) || 0).toLocaleString();
 }
 function todayStr() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -240,10 +271,10 @@ document.getElementById("filter-category").addEventListener("change", renderRows
 
 async function loadAll() {
   try {
-    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit&order=category,name`);
+    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate&order=category,name`);
   } catch (e) { state.products = []; }
   try {
-    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date`);
+    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date,amount,payment_status`);
   } catch (e) { state.purchases = []; }
   try {
     state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date`);
@@ -281,6 +312,24 @@ function baseFor(productId, date) {
   return { opening, addQty, subQty, ending, physical };
 }
 
+// This item's lifetime paid-vs-credit mix as of `date`, used only to split its current
+// stock value into an estimated Paid/Payable amount (see the hint text on the page) —
+// there's no per-unit cost-lot tracking in this system, so this is a weighted-average
+// proxy, not an exact figure.
+function paidRatioFor(productId, date) {
+  const rows = state.purchases.filter((p) => p.product_id === productId && p.purchase_date <= date);
+  let paidAmt = 0, totalAmt = 0;
+  rows.forEach((p) => {
+    const amt = Number(p.amount) || 0;
+    totalAmt += amt;
+    if (p.payment_status === "paid") paidAmt += amt;
+  });
+  // No purchase history to go on (e.g. only ever counted in via an opening snapshot) —
+  // default to fully paid rather than overstating what's owed to vendors.
+  if (totalAmt <= 0) return 1;
+  return paidAmt / totalAmt;
+}
+
 function renderRows() {
   const date = document.getElementById("f-date").value || todayStr();
   const search = document.getElementById("search-items").value.trim().toUpperCase();
@@ -302,7 +351,7 @@ function renderRows() {
     if (c !== lastCat) {
       const tr = document.createElement("tr");
       tr.className = "dept-row";
-      tr.innerHTML = `<td colspan="9">${c}</td>`;
+      tr.innerHTML = `<td colspan="10">${c}</td>`;
       body.appendChild(tr);
       lastCat = c;
     }
@@ -311,6 +360,12 @@ function renderRows() {
     const varianceCell = varianceVal === null
       ? "—"
       : `<span class="${Math.abs(varianceVal) < 0.01 ? "var-ok" : "var-off"}">${varianceVal > 0 ? "+" : ""}${fmtQty(varianceVal)}</span>`;
+
+    const rate = Number(p.current_rate) || 0;
+    const itemValue = b.ending * rate;
+    const valueCell = rate > 0
+      ? fmtMoney(itemValue)
+      : `${fmtMoney(0)} <span class="no-rate-badge">no rate</span>`;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -323,9 +378,36 @@ function renderRows() {
       <td class="end-val">${fmtQty(b.ending)}</td>
       <td>${b.physical === null ? "—" : fmtQty(b.physical)}</td>
       <td>${varianceCell}</td>
+      <td class="end-val">${valueCell}</td>
     `;
     body.appendChild(tr);
   });
+
+  renderValueSummary(date);
+}
+
+// Total stock value (and its estimated Paid/Payable split) always covers every active
+// item at this location, regardless of the search/category filter above — this is meant
+// to answer "what is all the stock in the restaurant worth right now", not a filtered view.
+function renderValueSummary(date) {
+  let totalValue = 0, paidValue = 0, payableValue = 0;
+  state.products.forEach((p) => {
+    const rate = Number(p.current_rate) || 0;
+    if (rate <= 0) return;
+    const b = baseFor(p.id, date);
+    const value = Math.max(b.ending, 0) * rate; // negative/zero stock contributes no value
+    if (value <= 0) return;
+    const ratio = paidRatioFor(p.id, date);
+    totalValue += value;
+    paidValue += value * ratio;
+    payableValue += value * (1 - ratio);
+  });
+
+  document.getElementById("val-total").textContent = fmtMoney(totalValue);
+  document.getElementById("val-paid").textContent = fmtMoney(paidValue);
+  document.getElementById("val-payable").textContent = fmtMoney(payableValue);
+  document.getElementById("val-paid-pct").textContent = totalValue > 0 ? `${Math.round((paidValue / totalValue) * 100)}% of stock value` : "—";
+  document.getElementById("val-payable-pct").textContent = totalValue > 0 ? `${Math.round((payableValue / totalValue) * 100)}% of stock value` : "—";
 }
 
 // Already logged in via home.html this visit? Skip straight to the sheet.
