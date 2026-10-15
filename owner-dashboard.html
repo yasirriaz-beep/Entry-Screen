@@ -334,6 +334,18 @@ function fmtMoney(n) {
   return "PKR " + v.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
+// Real category/subcategory the live app actually writes today (head/sub_head is dead
+// legacy data from a Sep 2025 migration — every current row has head/sub_head = null, so
+// reading those always rendered the generic fallback "Expense" no matter the real category).
+function expenseLabel(e) {
+  return `${e.category || "Expense"}${e.subcategory ? " · " + e.subcategory : ""}`;
+}
+function safeLabel(e) {
+  if (e.paid_from_safe === "safe2") return "Safe 2";
+  if (e.paid_from_safe === "safe1") return "Safe 1";
+  return "";
+}
+
 function todayStr() {
   // Gulberg's business day, not the viewer's own browser date — so this reads
   // the same whether you're looking at the dashboard from the store or from
@@ -858,7 +870,7 @@ async function loadKpis() {
     sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${from}&sale_date=lte.${to}&select=id,shift,sale_date,total_sale,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount&order=sale_date.desc`);
   } catch (e) {}
   try {
-    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,head,sub_head,detail,amount,expense_date,payment_method&order=expense_date.desc`);
+    expenses = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${from}&expense_date=lte.${to}&select=id,category,subcategory,detail,amount,expense_date,payment_method,paid_from_safe&order=expense_date.desc`);
   } catch (e) {}
   try {
     purchases = await sb(`purchases?location_id=eq.${state.locationId}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=id,purchase_date,qty,unit,rate,amount,payment_status,vendors(name),products(name)&order=purchase_date.desc`);
@@ -1008,7 +1020,7 @@ function showDetail(key) {
   } else if (key === "expenses") {
     const rows = [...state.expenseRows].sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
     const body = rows.length
-      ? rows.map(e => drawerRow(`${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, `${e.expense_date} · ${(e.payment_method || "cash")}${e.detail ? " · " + e.detail : ""}`, fmtMoney(e.amount), { table: "expenses", id: e.id })).join("")
+      ? rows.map(e => drawerRow(expenseLabel(e), `${e.expense_date} · ${(e.payment_method || "cash")}${safeLabel(e) ? " (" + safeLabel(e) + ")" : ""}${e.detail ? " · " + e.detail : ""}`, fmtMoney(e.amount), { table: "expenses", id: e.id })).join("")
       : '<div class="empty-note">No expenses recorded for this range.</div>';
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     openDrawer("Expenses", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("expenses"));
@@ -1041,7 +1053,7 @@ function showDetail(key) {
     const total = rows.reduce((s, r) => s + (Number(r.dine_in_amount) || 0) + (Number(r.takeaway_amount) || 0) + (Number(r.delivery_amount) || 0) + (Number(r.third_party_amount) || 0) + (Number(r.bakery_sale) || 0) - (Number(r.card_amount) || 0), 0);
     openDrawer("Cash Collected", sub, body + (rows.length ? `<div class="drawer-total"><span>Total</span><span>${fmtMoney(total)}</span></div>` : "") + renderRelatedLinks("cash-in"));
   } else if (key === "cash-out") {
-    const expRows = state.expenseRows.map(e => ({ main: `${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}`, sub: e.expense_date, amt: Number(e.amount) || 0 }));
+    const expRows = state.expenseRows.map(e => ({ main: expenseLabel(e), sub: `${e.expense_date}${safeLabel(e) ? " · " + safeLabel(e) : ""}`, amt: Number(e.amount) || 0 }));
     const purchRows = state.purchaseRows.filter(p => (p.payment_status || "").toLowerCase() !== "credit").map(p => ({ main: p.products?.name || "Purchase (cash-paid)", sub: `${p.purchase_date} · ${p.vendors?.name || "no vendor"}`, amt: Number(p.amount) || 0 }));
     const vendorRows = (state.vendorCashPaymentRows || []).map(v => ({ main: `${v.vendors?.name || "Vendor"} (cash payment)`, sub: `${v.payment_date}${v.notes ? " · " + v.notes : ""}`, amt: Number(v.amount) || 0 }));
     const rows = [...expRows, ...purchRows, ...vendorRows];
@@ -1154,8 +1166,8 @@ function renderTopExpenses(expenses) {
   wrap.innerHTML = top.map(e => `
     <div class="exp-row">
       <div>
-        <div class="exp-main">${e.head || "Expense"}${e.sub_head ? " · " + e.sub_head : ""}</div>
-        <div class="exp-sub">${e.expense_date}${e.detail ? " · " + e.detail : ""}</div>
+        <div class="exp-main">${expenseLabel(e)}</div>
+        <div class="exp-sub">${e.expense_date}${safeLabel(e) ? " · " + safeLabel(e) : ""}${e.detail ? " · " + e.detail : ""}</div>
       </div>
       <div class="exp-amt">${fmtMoney(e.amount)}</div>
     </div>`).join("");
