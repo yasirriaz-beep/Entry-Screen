@@ -79,6 +79,14 @@
   .po-card.selected { border-color: var(--accent); background: var(--ok-bg); }
   .po-card .po-title { font-weight: 600; }
   .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
+  .po-card.voided { opacity: 0.6; background: transparent; }
+  .po-card.voided .po-title, .po-card.voided .po-sub { text-decoration: line-through; }
+  .void-tag { display: inline-block; margin-top: 4px; font-size: 0.78rem; font-weight: 600; color: var(--err); text-decoration: none !important; }
+  .void-link { font-size: 0.8rem; color: var(--accent); cursor: pointer; margin-top: 6px; display: inline-block; }
+  .void-form { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .void-form textarea { margin-bottom: 8px; }
+  .void-form-actions { display: flex; gap: 8px; }
+  .void-form-actions button { flex: 1; }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -532,22 +540,86 @@ async function loadTodayList() {
   const list = document.getElementById("today-list");
   const emptyHint = document.getElementById("today-empty");
   try {
-    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${todayStr()}&select=id,qty,unit,amount,created_at,notes,payment_status,products(name),vendors(name)&order=created_at.desc`);
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${todayStr()}&select=id,qty,unit,rate,amount,created_at,notes,payment_status,voided_at,void_reason,original_qty,original_amount,products(name),vendors(name)&order=created_at.desc`);
     list.innerHTML = "";
     if (!rows.length) { emptyHint.hidden = false; return; }
     emptyHint.hidden = true;
     rows.forEach(r => {
       const row = document.createElement("div");
-      row.className = "po-card";
+      row.className = "po-card" + (r.voided_at ? " voided" : "");
       row.style.cursor = "default";
       const advanceTag = (r.notes || "").startsWith("Advance of PKR")
         ? ` · <span style="color:var(--accent);font-weight:600;">${(r.notes.match(/Advance of PKR [\d,]+/) || [""])[0]}</span>` : "";
+
+      if (r.voided_at) {
+        row.innerHTML = `
+          <div class="po-title">${r.products?.name || "Item"}</div>
+          <div class="po-sub">Originally ${r.original_qty ?? "?"} ${r.unit || ""} · PKR ${Math.round(r.original_amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"}</div>
+          <div class="void-tag">VOIDED — ${r.void_reason || ""}</div>`;
+        list.appendChild(row);
+        return;
+      }
+
       row.innerHTML = `
         <div class="po-title">${r.products?.name || "Item"}</div>
-        <div class="po-sub">${r.qty} ${r.unit || ""} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${advanceTag}</div>`;
+        <div class="po-sub">${r.qty} ${r.unit || ""} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${advanceTag}</div>
+        <div class="void-link" data-void-open="${r.id}">Entered by mistake? Void / correct this entry</div>
+        <div class="void-form" id="void-form-${r.id}" hidden>
+          <textarea id="void-reason-${r.id}" rows="2" placeholder="Why is this being voided? (e.g. duplicate entry, wrong item, wrong vendor)"></textarea>
+          <div class="void-form-actions">
+            <button class="btn-ghost" type="button" data-void-cancel="${r.id}">Cancel</button>
+            <button class="btn-primary" type="button" data-void-confirm="${r.id}" style="background:var(--err);color:#fff;">Confirm void</button>
+          </div>
+        </div>`;
       list.appendChild(row);
     });
+
+    list.querySelectorAll("[data-void-open]").forEach(el => {
+      el.addEventListener("click", () => {
+        document.getElementById(`void-form-${el.dataset.voidOpen}`).hidden = false;
+        el.hidden = true;
+      });
+    });
+    list.querySelectorAll("[data-void-cancel]").forEach(el => {
+      el.addEventListener("click", () => {
+        const id = el.dataset.voidCancel;
+        document.getElementById(`void-form-${id}`).hidden = true;
+        const opener = list.querySelector(`[data-void-open="${id}"]`);
+        if (opener) opener.hidden = false;
+      });
+    });
+    list.querySelectorAll("[data-void-confirm]").forEach(el => {
+      el.addEventListener("click", () => voidPurchase(el.dataset.voidConfirm, rows.find(r => r.id === el.dataset.voidConfirm)));
+    });
   } catch (e) { emptyHint.hidden = false; }
+}
+
+async function voidPurchase(id, row) {
+  const reasonEl = document.getElementById(`void-reason-${id}`);
+  const reason = (reasonEl.value || "").trim();
+  if (!reason) { reasonEl.focus(); return; }
+  const btn = document.querySelector(`[data-void-confirm="${id}"]`);
+  btn.disabled = true;
+  try {
+    await sb(`purchases?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        qty: 0,
+        amount: 0,
+        original_qty: row.qty,
+        original_rate: row.rate,
+        original_amount: row.amount,
+        voided_at: new Date().toISOString(),
+        voided_by_manager_id: state.managerId,
+        void_reason: `${reason} (voided by ${state.userName})`
+      })
+    });
+    loadTodayList();
+  } catch (e) {
+    alert("Couldn't void this entry: " + e.message);
+    btn.disabled = false;
+  }
 }
 
 function enterForm() {
