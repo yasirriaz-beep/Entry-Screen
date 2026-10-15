@@ -527,27 +527,30 @@ function recalcCashRecon(shift){
 
   if (closingEntered) {
     const closingDiff = Math.round(closing - expectedClosing);
-    if (closingDiff > 1) {
-      // Over: not a problem to investigate — just extra cash sitting in the till, folded
-      // into the handover automatically on save. Keep this reassuring, not alarming.
-      closingNote.style.color = "var(--success)";
-      closingNote.textContent = `PKR ${Math.abs(closingDiff).toLocaleString()} more than the PKR ${Math.round(expectedClosing).toLocaleString()} expected — that extra goes into the custodian handover automatically when you save.`;
-    } else if (closingDiff < -1) {
+    if (closingDiff < -1) {
       closingNote.style.color = "var(--danger)";
       closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till after the handover — short by PKR ${Math.abs(closingDiff).toLocaleString()}. Worth a recount, and needs resolving below before closing.`;
     } else {
+      // Over (or matching) needs no explanation — the till still has what it should, and
+      // any extra (rounding, etc.) just rides along in the handover to Zeeshan
+      // automatically. Deliberately doesn't surface an "expected PKR X" figure here, since
+      // showing a different number than what was counted reads as a mismatch even when
+      // it isn't one that matters. Only a short till is a real problem that needs a
+      // decision (book it against someone). Changed 2026-10-15, per the owner.
       closingNote.style.color = "var(--success)";
-      closingNote.textContent = `Matches the expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till.`;
+      closingNote.textContent = `PKR ${Math.round(closing).toLocaleString()} counted — logged.`;
     }
     // Short/Over is the same gap, surfaced as its own line (not just a sentence) with a
     // reason that gets saved — rather than a warning that vanishes once the page reloads.
     // Once Card and JazzCash are entered correctly this is usually 0; this box is for what's
-    // left after that — a real miscount or shortage. Added 2026-10-13.
+    // left after that — a real miscount or shortage. Added 2026-10-13. Only shown for a
+    // shortage now — an overage is handled silently (see note above and saveShift). Changed
+    // 2026-10-15.
     st.shortOver = closingDiff;
-    if (Math.abs(closingDiff) > 1) {
+    if (closingDiff < -1) {
       shortOverBlock.hidden = false;
-      shortOverDisplay.style.color = closingDiff < 0 ? "var(--danger)" : "var(--success)";
-      shortOverDisplay.textContent = (closingDiff < 0 ? "− " : "+ ") + "PKR " + Math.abs(closingDiff).toLocaleString() + (closingDiff < 0 ? " short" : " over");
+      shortOverDisplay.style.color = "var(--danger)";
+      shortOverDisplay.textContent = "− PKR " + Math.abs(closingDiff).toLocaleString() + " short";
       renderResolutionUI(shift, closingDiff);
     } else {
       shortOverBlock.hidden = true;
