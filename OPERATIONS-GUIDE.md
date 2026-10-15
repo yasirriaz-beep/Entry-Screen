@@ -658,6 +658,36 @@ hidden in the UI — a manager can't get around either by calling the API direct
 
 ---
 
+## 5B. Payroll — the 26-day standard
+
+Every employee's `monthly_salary` is a flat monthly figure in `employees`. The per-day rate
+used to compute an actual month's `salary_earned` is always `monthly_salary / 26` —
+**not** divided by however many calendar days are actually in that month (28–31). This is
+intentional: a calendar month averages roughly 4 Weekly Offs, so 26 is the expected number of
+*working* days in a normal month, and someone who worked every working day in the month (no
+unpaid absences) should be paid their full monthly salary, not something short because the
+month happened to have 31 days.
+
+- `perDayRate = monthly_salary / 26` — computed identically in two places:
+  `payroll-entry.html` (the real monthly payroll sheet) and `employee-master.html` (a quick
+  one-off entry point on the employee's own record). Keep both in sync if this ever changes.
+- **Days worked** comes from the month's attendance, not a flat 26: `daysWorkedFromAttendance()`
+  sums `Present + 0.5 × "Half Day"` for the period. **Weekly Off days are not counted** as
+  days worked, and are also not subtracted — they're baked into the 26 already (a full month
+  with no absences nets out to ~26 Present days once ~4 Weekly Offs are excluded from the
+  ~30-day month, which is exactly full pay). An absence directly reduces `daysWorked` below 26,
+  which reduces `salaryEarned` below the full monthly salary.
+- If no attendance was marked at all for the period, it silently defaults to `daysWorked = 26`
+  (full month) rather than zero — shown in the UI tooltip as "no daily attendance marked this
+  period — defaulted to a full month". `days_worked` is always editable by hand on the sheet
+  before saving, and editing it recalculates `salary_earned` live using the same /26 rate.
+- Nothing else in the system recomputes payroll from scratch — `reports.html`'s Income
+  Statement and `owner-dashboard.html`'s payroll-accrual readout both just read the saved
+  `payroll_entries.net_salary`/`salary_earned` values, so this one rate is the only place the
+  26-day rule needs to live.
+
+---
+
 ## 6. Purchase Orders — Demand → Authorize → Order (advance) → Receive
 
 `purchase-order.html` is the formal path for ordering something **before** it's received,
