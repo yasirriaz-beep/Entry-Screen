@@ -571,9 +571,11 @@ async function loadCashReconHistory() {
     // Food Panda settles externally and stays excluded.
     const cashSales = (Number(s.dine_in_amount) || 0) + (Number(s.takeaway_amount) || 0) + (Number(s.delivery_amount) || 0) + (Number(s.third_party_amount) || 0) - (Number(s.card_amount) || 0);
     const custodian = Number(s.custodian_cash_amount) || 0;
-    // The till always opens at the standard PKR 40,000 float (set server-side, 2026-10-13) —
-    // no longer carried forward from whatever the previous shift's physical count was.
-    const opening = Number(s.opening_cash_till) || 40000;
+    // The till always opens at the standard float (set server-side, 2026-10-13) — no longer
+    // carried forward from whatever the previous shift's physical count was. Lowered from
+    // PKR 40,000 to PKR 20,000 on 2026-10-15; the fallback below only matters for a row with
+    // no opening_cash_till recorded at all, which the trigger always populates in practice.
+    const opening = Number(s.opening_cash_till) || 20000;
     const closing = s.closing_cash_till != null ? Number(s.closing_cash_till) : null;
     const calculated = closing != null ? opening + cashSales + custodian - closing : null;
     const actual = actualByKey[s.sale_date + "|" + s.shift] || 0;
@@ -586,8 +588,9 @@ async function loadCashReconHistory() {
         ? `<span class="pill-badge pill-err">Off ${diff > 0 ? "+" : ""}${fmtMoney(diff)}</span>`
         : '<span class="pill-badge pill-ok">OK</span>';
     }
-    // The till should always close back out at the fixed PKR 40,000 float it opened with —
-    // anything else means the custodian handover didn't fully sweep the excess (or shortfall).
+    // The till should always close back out at the fixed float it opened with (`opening`,
+    // read from the row) — anything else means the custodian handover didn't fully sweep
+    // the excess (or shortfall).
     const floatNote = closing != null && Math.abs(closing - opening) > 1
       ? `<div class="alert-sub" style="margin-top:4px;">Till closed at ${fmtMoney(closing)}, not the PKR ${fmtMoney(opening).replace("PKR ", "")} float it opened with.</div>`
       : "";

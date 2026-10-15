@@ -184,7 +184,7 @@
   <div class="card" id="till-summary-card">
     <div class="step-label" style="margin-bottom:12px;">Safe 1 — Till (Shift Manager's responsibility)</div>
     <div id="till-summary-body"><div class="hint">Loading…</div></div>
-    <div class="hint" style="margin-top:10px;">Each shift's till opens and is expected to close at the standard PKR 40,000 float. The cash custodian handover below is what feeds into Safe 2's Cash In. Entered on Sales Entry — nothing to do here.</div>
+    <div class="hint" style="margin-top:10px;">Each shift's till opens and is expected to close at the standard PKR 20,000 float. The cash custodian handover below is what feeds into Safe 2's Cash In. Entered on Sales Entry — nothing to do here.</div>
   </div>
 
   <div class="step-label" style="margin:0 0 6px;">Safe 2 — Zeeshan's Safe <span id="status-badge"></span></div>
@@ -1141,7 +1141,7 @@ async function loadTillSummary(dateStr) {
       const tillExpenses = expenseByShift[s.shift] || 0;
       const custodian = Number(s.custodian_cash_amount) || 0;
       const handover = -custodian; // custodian_cash_amount is negative when cash was picked up FROM the till
-      const opening = Number(s.opening_cash_till) || 40000;
+      const opening = Number(s.opening_cash_till) || 20000; // standard float, lowered from 40,000 on 2026-10-15
       const closing = s.closing_cash_till != null ? Number(s.closing_cash_till) : null;
       totalHandover += handover;
       return `<div class="till-shift">

@@ -502,10 +502,9 @@ till (Zeeshan took the other 20,000 out) → Evening's opening float now shows a
 20,000, not 40,000. No manual backdating or correction was needed since Evening's row for today
 had not yet been saved when this fix went in.
 
-Note: this does not change the *standard* PKR 40,000 float itself (still the opening float for
-every day's first/Morning shift) — only how a later shift the same day inherits from the one
-before it. If the standard float itself needs to change going forward, that's a separate,
-explicit change to `STANDARD_TILL_FLOAT` in `sales-entry.html` and the trigger's fallback value.
+Note: this did not, by itself, change the *standard* float — only how a later shift the same
+day inherits from the one before it. (**Updated Oct 15, 2026:** the standard float itself *was*
+then explicitly lowered — see below. This paragraph is left as written at the time for context.)
 
 **Correction, same day:** before the fix above went in, a PKR 20,000 "Internal Transfer" (Safe 1
 → Safe 2, reason "20000 Float") had already been recorded by hand as a workaround for this exact
@@ -519,6 +518,19 @@ reason field marked VOID with an explanation) — the separate, legitimate PKR 1
 earlier the same day was left untouched. **Going forward, with the mapping fix in place, this kind
 of manual transfer workaround for a float reduction should no longer be needed** — Evening will
 simply open at whatever Morning's till actually closed at.
+
+**Standard float lowered from PKR 40,000 to PKR 20,000 (Oct 15, 2026), at the owner's explicit
+request.** This is the actual standing-policy change — distinct from the Oct 14 fix above, which
+only changed how Evening inherits from Morning and explicitly did *not* touch the standard float.
+Changed in two places, kept in sync:
+- `STANDARD_TILL_FLOAT` in `sales-entry.html` (the on-screen preview before saving).
+- The trigger `daily_sales_compute_opening_cash()`'s fallback (used for every Morning shift, and
+  for Evening when there's no Morning row yet to inherit from) — this is what actually gets saved.
+Every Morning shift from Oct 15, 2026 onward opens at PKR 20,000; shifts saved before this change
+keep whatever `opening_cash_till` they already have (never recalculated retroactively). A couple
+of display-only fallback literals in `owner-dashboard.html` and `cash-reconciliation.html` (used
+only if a row somehow has no `opening_cash_till` recorded at all — not expected to occur in
+practice, since the trigger always sets it) were updated to match, for consistency.
 
 #### Advance Paid, on Goods Receipt (added Oct 13, 2026)
 

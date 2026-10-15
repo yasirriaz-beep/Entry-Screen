@@ -143,7 +143,9 @@ const PAGE_KEY = "sales_entry";
 // forward from whatever the previous shift's physical count happened to be (that led to small
 // miscounts silently compounding shift after shift). Any gap between this and what the shift
 // manager physically counts is a flagged variance for that shift alone, 2026-10-13.
-const STANDARD_TILL_FLOAT = 40000;
+// Lowered from 40,000 to 20,000 at the owner's request, 2026-10-15 — a standing policy change,
+// not a one-off; keep this in sync with the trigger's fallback (daily_sales_compute_opening_cash).
+const STANDARD_TILL_FLOAT = 20000;
 
 const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
 const SHIFT_TIME = { morning: "9:00 AM &ndash; 6:00 PM", evening: "6:00 PM &ndash; 3:00 AM" };
@@ -289,7 +291,7 @@ function panelInnerHTML(shift, label){
 
     <div class="recon-box">
       <h3 style="margin:0 0 4px;font-size:.95rem">Till Cash Reconciliation</h3>
-      <p class="muted" style="margin:0 0 12px">Standard float is PKR 40,000, start and end. Almost everything below fills in on its own &mdash; you just count the till and enter what's physically there.</p>
+      <p class="muted" style="margin:0 0 12px">Standard float is PKR 20,000, start and end. Almost everything below fills in on its own &mdash; you just count the till and enter what's physically there.</p>
       <div class="row2">
         <div class="field">
           <label for="openingCashDisplay_${s}">Opening cash</label>
@@ -492,7 +494,7 @@ function recalcCashRecon(shift){
       : "Auto: Cash Sales − Cash Expenses";
   }
 
-  // Auto-generated: what should go to the custodian to keep the till at the 40,000 float.
+  // Auto-generated: what should go to the custodian to keep the till at the 20,000 float.
   const autoHandover = cashAvailable - st.tillCashExpenses;
   document.getElementById("autoHandoverDisplay_" + shift).textContent = "PKR " + Math.round(autoHandover).toLocaleString();
 
@@ -1001,7 +1003,7 @@ async function saveShift(shift, close){
     jazzcash_amount: nS("jazzcashAmount", shift),
     jazzcash_collected_amount: shift === "evening" ? (parseFloat(document.getElementById(fid("jazzcashCollected", shift)).value) || 0) : 0,
     // opening_cash_till is NOT sent — the DB trigger (daily_sales_compute_opening_cash) always
-    // sets it to the standard PKR 40,000 float on insert, and locks it on update.
+    // sets it to the standard PKR 20,000 float on insert, and locks it on update.
     custodian_cash_amount: custodianSigned,
     closing_cash_till: closingEntered ? nS("closingCash", shift) : null,
     // Logged at save time, not just shown live — so there's a permanent record of how often
