@@ -357,9 +357,16 @@ async function markAttendance(e, status, rowEl) {
     let conflicts = [];
     try {
       conflicts = await sb(`attendance_entries?employee_id=eq.${e.id}&attendance_date=gte.${from}&attendance_date=lte.${to}&attendance_date=neq.${date}&status=eq.${encodeURIComponent("Weekly Off")}&select=attendance_date`);
-    } catch (err) { /* if the check fails, don't block the save over it */ }
+    } catch (err) { /* if the check fails, don't block the save over it — the database still enforces this */ }
     if (conflicts.length) {
-      const ok = confirm(`${e.name} already has a Weekly Off on ${conflicts[0].attendance_date} this week (${from} to ${to}). Each employee should only get one Weekly Off per week. Mark ${date} as Weekly Off anyway?`);
+      // Hard rule as of Oct 15, 2026: one Weekly Off per employee per week, enforced in the
+      // database (attendance_enforce_one_weekly_off_trigger), not just here — a manager
+      // can't get around this by calling the API directly. Only a director can override.
+      if (state.userRole !== "director") {
+        alert(`${e.name} already has a Weekly Off on ${conflicts[0].attendance_date} this week (${from} to ${to}). Only one Weekly Off per employee per week is allowed.`);
+        return;
+      }
+      const ok = confirm(`${e.name} already has a Weekly Off on ${conflicts[0].attendance_date} this week (${from} to ${to}). As a Director you can still override this — mark ${date} as Weekly Off too?`);
       if (!ok) return;
     }
   }

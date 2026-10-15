@@ -620,6 +620,34 @@ supports paying a vendor ahead of any purchase being logged.
 
 ---
 
+## 5A. Attendance — past-date lock and one Weekly Off per week (as of Oct 15, 2026)
+
+`attendance-entry.html` has two standing rules enforced at the **database** level, not just
+hidden in the UI — a manager can't get around either by calling the API directly.
+
+- **Past dates are locked to Directors.** `anon_update_attendance_entries`'s RLS policy only
+  allows a write when the entering `app_users` row has `role = 'director'`, OR
+  `role = 'shift_manager'` AND the date is `current_business_date()` (today, by the same
+  9am Karachi cutover used everywhere else). Store man and Shift Manager both see a lock
+  banner in the UI once a date other than today is selected, but the real enforcement is the
+  RLS check — all three Director accounts (Yasir, Imran, and the generic Admin account) can
+  still fix a past day's attendance; this was confirmed as the intended rule (directors have
+  full oversight access everywhere else in the system too), not a gap.
+- **One Weekly Off per employee per week, hard-enforced.** Added because managers were
+  overstating it — one employee already had two Weekly Offs logged in the same week (Oct 10
+  and 11) before this was tightened. `attendance_enforce_one_weekly_off_trigger`
+  (`BEFORE INSERT OR UPDATE` on `attendance_entries`) blocks a second `'Weekly Off'` row for
+  the same employee in the same Monday–Sunday week (`RAISE EXCEPTION`, not just a UI
+  warning) — unless the entering user is a Director, who can still override for a genuine
+  exception, same posture as the past-date lock. The UI's pre-check (querying for a conflict
+  before saving, so the person gets an immediate message instead of a raw database error)
+  now reflects this: a non-Director sees a flat "not allowed" alert with no way around it; a
+  Director sees a confirm dialog explaining they're overriding. The pre-existing double
+  Weekly Off (Oct 10/11, the employee that prompted this) was left as historical data, not
+  retroactively fixed — ask if that should be corrected.
+
+---
+
 ## 6. Purchase Orders — Demand → Authorize → Order (advance) → Receive
 
 `purchase-order.html` is the formal path for ordering something **before** it's received,
