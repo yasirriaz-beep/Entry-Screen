@@ -58,6 +58,28 @@ editable from `expense-categories.html` (director access only). Each category ca
   behind the same RGM gate as everyone else, including being fully blocked on days no RGM
   was configured.
 
+  **The RGM Tasks page (added Oct 15, 2026)** puts the security back, but as a next-day
+  review rather than an entry-time block: `rgm-tasks.html`, granted only to Ahsan (the one
+  flagged `is_rgm` on `managers`). For every date without a complete review (oldest first,
+  looking back 10 days), it shows three tasks — **Attendance**, **Expenses**, and **Charge
+  to Restaurant** — each with the actual underlying records inline (attendance counts by
+  status vs. the active employee count; the expense list with amounts and details) so the
+  RGM reviews real data, not a blind checkbox. Clicking **Confirm reviewed** calls the RPC
+  `confirm_rgm_task_v1`, which records a `rgm_task_confirmations` row (unique per
+  location/date/task — confirming twice just updates the timestamp). This is a **checklist,
+  not a gate**: confirming doesn't touch the underlying attendance/expense records, and
+  nothing elsewhere is blocked by it.
+  - **Escalation:** `check_daily_task_completion()` (the same 15-minute cron job that flags
+    unclosed shifts and missing issuance) now also checks, for each of the three tasks, 2
+    full days after the task's date (9am Karachi, the same business-day cutover used
+    everywhere) — if still unconfirmed, it opens an `audit_alerts` row
+    (`task_rgm_review_missing`), which shows up on the Owner Dashboard's Alerts tab like any
+    other open alert. Confirming late immediately resolves the alert itself (the RPC calls
+    `resolve_task_alert` directly), rather than waiting for the next cron pass.
+  - Access is deliberately scoped to Ahsan only for now (via `manager_page_access`, page_key
+    `rgm_tasks`) — not tied to the `is_rgm` flag itself, so a backup reviewer could be added
+    later with no code change, just a grant.
+
 **Subcategories** are managed inside the same page (expand a category → Subcategories
 section). A category with no subcategories just skips that dropdown on the entry form.
 

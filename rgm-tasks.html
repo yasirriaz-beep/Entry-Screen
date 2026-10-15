@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RGM Tasks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  h2 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.05rem; margin: 0; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 11px 16px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 7px 12px; font-size: 0.82rem; border-radius: 8px; width: auto; }
+  [hidden] { display: none !important; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+  .badge-ok { background: var(--ok-bg); color: var(--ok); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); }
+  .badge-err { background: var(--err-bg); color: var(--err); }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+
+  .date-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .date-card-head .ddate { font-size: 1rem; }
+  .task-row { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+  .task-row:first-of-type { border-top: none; padding-top: 0; margin-top: 10px; }
+  .task-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .task-title .tt-label { font-weight: 600; font-size: 0.92rem; }
+  .task-data { font-size: 0.85rem; color: var(--ink-soft); margin: 8px 0; }
+  .task-data table { width: 100%; font-size: 0.82rem; border-collapse: collapse; }
+  .task-data th, .task-data td { text-align: left; padding: 5px 4px; border-bottom: 1px solid var(--border); }
+  .task-data th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); }
+  .task-confirmed-note { font-size: 0.82rem; color: var(--ok); margin-top: 4px; }
+  .task-status { font-size: 0.82rem; margin-top: 2px; }
+  .empty-note { color: var(--ink-soft); font-size: 0.88rem; padding: 10px 0; }
+  .all-done-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--ok-bg); color: var(--ok); border-radius: 999px; padding: 4px 10px; font-size: 0.78rem; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>RGM Tasks</h1>
+<div class="sub">Gulberg — daily review: attendance, expenses, and Charge to Restaurant entries, confirmed the day after</div>
+
+<div id="step-login" class="card">
+  <div class="hint" style="margin-bottom:10px;text-transform:uppercase;letter-spacing:0.02em;font-weight:600;color:var(--ink-soft)">Who's checking in?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN, or you don't have access to this page.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="card" id="intro-card">
+    <div id="who-label" class="hint" style="margin-bottom:4px"></div>
+    <div class="hint">Showing every date from <span id="range-from"></span> to <span id="range-to"></span> (yesterday) that still needs review. Confirming a task is a review sign-off only — it doesn't change the underlying record.</div>
+  </div>
+
+  <div id="dates-wrap"></div>
+  <div class="empty-note" id="all-clear-note" hidden>Nothing outstanding — every day in range has been reviewed.</div>
+
+  <a class="btn-ghost" href="home.html" style="display:block; text-align:center; text-decoration:none;margin-top:8px">Back to Home</a>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const GULBERG_ID = "10000000-0000-0000-0000-000000000005";
+const PAGE_KEY = "rgm_tasks";
+const CHARGE_TO_RESTAURANT_CATEGORY = "Charge to Restaurant";
+// Oldest-first so a genuinely overdue day gets dealt with before today's — covers the
+// 2-day escalation window with margin either side.
+const LOOKBACK_DAYS = 10;
+
+const TASKS = [
+  { key: "attendance", label: "Attendance" },
+  { key: "expenses", label: "Expenses" },
+  { key: "charge_to_restaurant", label: "Charge to Restaurant" },
+];
+
+let state = { userId: null, userName: null, managerId: null, role: null };
+let managerNames = {}; // id -> name, for showing who confirmed what
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+// Gulberg's business day flips at 9am PKT, same cutover used on Sales Entry / Daily
+// Checklist — "today" before 9am is still counted as yesterday.
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function addDaysStr(dateStr, n) {
+  const dt = new Date(dateStr + "T00:00:00Z");
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+
+function fmtDate(dateStr) {
+  return new Date(dateStr + "T00:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
+}
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-US", { timeZone: "Asia/Karachi", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    nameInput.value = "";
+    pinInput.value = "";
+    afterLogin(row.app_user_id, match.name, match.id, row.role);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  state.role = role;
+  document.getElementById("step-login").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("who-label").textContent = "Signed in as " + name;
+  FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+  loadEverything();
+}
+
+// managers has no public anon-select policy, so this goes through the same RPC the login
+// screen uses — it returns exactly the managers granted this page (i.e. who could have
+// confirmed a task here), which is all "confirmed by" ever needs to resolve.
+async function loadManagerNames() {
+  try {
+    const rows = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    managerNames = {};
+    (rows || []).forEach(r => { managerNames[r.id] = r.name; });
+  } catch (e) { managerNames = {}; }
+}
+
+// --- per-task data fetchers: show the RGM the actual records, not just a checkbox ---
+
+async function fetchAttendanceSummary(dateStr) {
+  const [entries, employees] = await Promise.all([
+    sb(`attendance_entries?location_id=eq.${GULBERG_ID}&attendance_date=eq.${dateStr}&select=status`),
+    sb(`employees?location_id=eq.${GULBERG_ID}&active=eq.true&select=id`),
+  ]);
+  const totalEmployees = (employees || []).length;
+  const counts = {};
+  (entries || []).forEach(e => { counts[e.status] = (counts[e.status] || 0) + 1; });
+  const breakdown = Object.keys(counts).map(k => `${counts[k]} ${k}`).join(", ") || "No entries logged";
+  return { loggedCount: (entries || []).length, totalEmployees, breakdown };
+}
+
+async function fetchExpensesList(dateStr) {
+  const rows = await sb(
+    `expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&category=neq.${encodeURIComponent(CHARGE_TO_RESTAURANT_CATEGORY)}` +
+    `&select=category,amount,detail,payment_method,charged_to&order=amount.desc`
+  );
+  const total = (rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  return { rows: rows || [], total };
+}
+
+async function fetchChargeToRestaurantList(dateStr) {
+  const rows = await sb(
+    `expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&category=eq.${encodeURIComponent(CHARGE_TO_RESTAURANT_CATEGORY)}` +
+    `&select=amount,detail,payment_method&order=amount.desc`
+  );
+  const total = (rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  return { rows: rows || [], total };
+}
+
+function expensesTableHTML(rows, emptyMsg) {
+  if (!rows.length) return `<div class="hint">${emptyMsg}</div>`;
+  return `<table><thead><tr><th>Amount</th><th>Detail</th><th>Paid</th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td>PKR ${Math.round(r.amount).toLocaleString()}</td><td>${r.detail || r.charged_to || "—"}</td><td>${r.payment_method || "—"}</td></tr>`).join("") +
+    `</tbody></table>`;
+}
+
+async function loadEverything() {
+  const wrap = document.getElementById("dates-wrap");
+  const allClear = document.getElementById("all-clear-note");
+  wrap.innerHTML = "";
+  allClear.hidden = true;
+
+  const yesterday = addDaysStr(todayStr(), -1);
+  const from = addDaysStr(yesterday, -(LOOKBACK_DAYS - 1));
+  document.getElementById("range-from").textContent = fmtDate(from);
+  document.getElementById("range-to").textContent = fmtDate(yesterday);
+
+  await loadManagerNames();
+
+  let confirmations = [];
+  try {
+    confirmations = await sb(
+      `rgm_task_confirmations?location_id=eq.${GULBERG_ID}&task_date=gte.${from}&task_date=lte.${yesterday}` +
+      `&select=task_date,task_key,confirmed_by_manager_id,confirmed_at,notes`
+    );
+  } catch (e) { confirmations = []; }
+  const confirmedMap = {}; // "date|task_key" -> confirmation row
+  (confirmations || []).forEach(c => { confirmedMap[c.task_date + "|" + c.task_key] = c; });
+
+  // Oldest first, so a backlog gets worked off the top rather than buried under today's.
+  const dates = [];
+  for (let i = 0; i < LOOKBACK_DAYS; i++) dates.push(addDaysStr(from, i));
+
+  let anyOutstanding = false;
+  for (const dateStr of dates) {
+    const allConfirmed = TASKS.every(t => confirmedMap[dateStr + "|" + t.key]);
+    // Only render a fully-confirmed day if it's yesterday (so it's visible as "done"); older
+    // fully-confirmed days are just omitted to keep the list focused on what's left.
+    if (allConfirmed && dateStr !== yesterday) continue;
+    if (!allConfirmed) anyOutstanding = true;
+    wrap.appendChild(await buildDateCard(dateStr, confirmedMap, allConfirmed));
+  }
+  allClear.hidden = anyOutstanding;
+}
+
+async function buildDateCard(dateStr, confirmedMap, allConfirmed) {
+  const card = document.createElement("div");
+  card.className = "card";
+  const head = document.createElement("div");
+  head.className = "date-card-head";
+  head.innerHTML = `<h2 class="ddate">${fmtDate(dateStr)}</h2>` +
+    (allConfirmed ? `<span class="all-done-pill">✓ All confirmed</span>` : "");
+  card.appendChild(head);
+
+  for (const task of TASKS) {
+    const existing = confirmedMap[dateStr + "|" + task.key];
+    card.appendChild(await buildTaskRow(dateStr, task, existing));
+  }
+  return card;
+}
+
+async function buildTaskRow(dateStr, task, existing) {
+  const row = document.createElement("div");
+  row.className = "task-row";
+
+  const titleHTML = `<div class="task-title"><span class="tt-label">${task.label}</span></div>`;
+
+  if (existing) {
+    const who = managerNames[existing.confirmed_by_manager_id] || "someone";
+    row.innerHTML = titleHTML +
+      `<div class="task-confirmed-note">&#10003; Confirmed by ${who}, ${fmtTime(existing.confirmed_at)}${existing.notes ? " — “" + existing.notes + "”" : ""}</div>`;
+    return row;
+  }
+
+  let dataHTML = `<div class="task-data">Loading…</div>`;
+  row.innerHTML = titleHTML + dataHTML;
+
+  try {
+    if (task.key === "attendance") {
+      const s = await fetchAttendanceSummary(dateStr);
+      const short = s.loggedCount < s.totalEmployees;
+      dataHTML = `<div class="task-data">${s.loggedCount} of ${s.totalEmployees} active employees logged — ${s.breakdown}` +
+        (short ? ` <span class="badge badge-warn">Incomplete</span>` : ` <span class="badge badge-ok">Complete</span>`) + `</div>`;
+    } else if (task.key === "expenses") {
+      const r = await fetchExpensesList(dateStr);
+      dataHTML = `<div class="task-data">PKR ${Math.round(r.total).toLocaleString()} across ${r.rows.length} entries (excludes Charge to Restaurant, reviewed separately below)` +
+        expensesTableHTML(r.rows, "No expenses logged for this date.") + `</div>`;
+    } else {
+      const r = await fetchChargeToRestaurantList(dateStr);
+      dataHTML = `<div class="task-data">PKR ${Math.round(r.total).toLocaleString()} across ${r.rows.length} entries` +
+        expensesTableHTML(r.rows, "No Charge to Restaurant entries for this date.") + `</div>`;
+    }
+  } catch (e) {
+    dataHTML = `<div class="task-data" style="color:var(--err)">Couldn't load: ${e.message}</div>`;
+  }
+
+  const noteId = `note_${dateStr}_${task.key}`;
+  const btnId = `btn_${dateStr}_${task.key}`;
+  const statusId = `status_${dateStr}_${task.key}`;
+
+  row.innerHTML = titleHTML + dataHTML +
+    `<input type="text" id="${noteId}" placeholder="Optional note" style="margin-top:8px">` +
+    `<button type="button" class="btn-ghost btn-sm" id="${btnId}" style="margin-top:8px">Confirm reviewed</button>` +
+    `<div class="task-status" id="${statusId}"></div>`;
+
+  row.querySelector("#" + btnId).addEventListener("click", () => confirmTask(dateStr, task, noteId, btnId, statusId));
+  return row;
+}
+
+async function confirmTask(dateStr, task, noteId, btnId, statusId) {
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  const note = document.getElementById(noteId).value.trim() || null;
+  btn.disabled = true;
+  statusEl.style.color = "";
+  statusEl.textContent = "Saving…";
+  try {
+    await sbRpc("confirm_rgm_task_v1", {
+      p_location_id: GULBERG_ID,
+      p_task_date: dateStr,
+      p_task_key: task.key,
+      p_manager_id: state.managerId,
+      p_user_id: state.userId,
+      p_notes: note,
+    });
+    statusEl.style.color = "var(--ok)";
+    statusEl.textContent = "Confirmed.";
+    await loadEverything();
+  } catch (err) {
+    statusEl.style.color = "var(--err)";
+    statusEl.textContent = "Couldn't confirm: " + err.message;
+    btn.disabled = false;
+  }
+}
+
+// Auto-login from an existing session (e.g. navigated here from Home).
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+}
+</script>
+</body>
+</html>
