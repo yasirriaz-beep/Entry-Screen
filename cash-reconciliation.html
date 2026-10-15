@@ -275,6 +275,7 @@
       <div><span class="hint">Expected (Opening + In − Out)</span><div class="amount-display" id="expected-display">PKR 0</div></div>
       <div><span class="hint">Variance (Counted − Expected)</span><div class="amount-display" id="variance-display">PKR 0</div></div>
     </div>
+    <div class="banner banner-warn" id="variance-alert" hidden></div>
     <div class="field">
       <label>Explanation (required if Counted ≠ Expected)</label>
       <textarea id="f-adjustment-reason" rows="2" placeholder="Why doesn't the physical count match?"></textarea>
@@ -470,18 +471,37 @@ function recalc() {
   const countedRaw = document.getElementById("f-counted").value;
   const counted = countedRaw === "" ? null : parseFloat(countedRaw) || 0;
   const variance = counted === null ? 0 : Math.round((counted - expected) * 100) / 100;
-  const closing = counted === null ? expected : counted;
+  // Closing Safe Cash is always the system-calculated figure (Opening + In − Out) — never
+  // swapped out for whatever Zeeshan counts. It's not something anyone enters or edits; the
+  // physical count is a separate, independent check against it below, and any gap between
+  // the two shows as a variance alert instead of silently overwriting this number. Changed
+  // 2026-10-15, per the owner — the two were getting conflated and it wasn't clear which
+  // number was "real."
+  const closing = expected;
 
   document.getElementById("fb-opening").textContent = fmtMoney(opening);
   document.getElementById("fb-closing").textContent = fmtMoney(closing);
-  document.getElementById("fb-closing-sub").textContent = counted === null ? "expected — not yet counted" : "as physically counted";
+  document.getElementById("fb-closing-sub").textContent = "system calculated — Opening + In − Out";
   document.getElementById("expected-display").textContent = fmtMoney(expected);
   const varEl = document.getElementById("variance-display");
   varEl.textContent = fmtMoney(variance);
   varEl.className = "amount-display " + (variance === 0 ? "variance-zero" : "variance-nonzero");
-  document.getElementById("closing-detail-hint").textContent = counted === null
-    ? `Expected = Opening + Cash In − Cash Out = ${fmtMoney(expected)}. Enter today's physical count below to confirm it.`
-    : `Shows Zeeshan's counted cash (${fmtMoney(counted)}). Expected from the math was ${fmtMoney(expected)}; variance ${fmtMoney(variance)}.`;
+  document.getElementById("closing-detail-hint").textContent =
+    `Opening ${fmtMoney(opening)} + Cash In ${fmtMoney(cashIn)} − Cash Out ${fmtMoney(cashOut)} = ${fmtMoney(expected)}. This is calculated, not editable — Zeeshan's physical count is checked against it below.`;
+
+  // The actual alert: did the safe's physical count come in different from the calculated
+  // figure? Fires for either direction (short or over) — unlike the till in Sales Entry,
+  // an over amount here still needs a look, since this is the one true count of what
+  // Zeeshan actually has.
+  const varianceAlert = document.getElementById("variance-alert");
+  if (counted !== null && Math.abs(variance) > 1) {
+    varianceAlert.hidden = false;
+    varianceAlert.textContent = variance > 0
+      ? `Counted PKR ${Math.abs(variance).toLocaleString()} more than expected — explain below before submitting.`
+      : `Counted PKR ${Math.abs(variance).toLocaleString()} less than expected — explain below before submitting.`;
+  } else {
+    varianceAlert.hidden = true;
+  }
   return { opening, cashIn, cashOut, expected, counted, variance, closing };
 }
 document.getElementById("f-opening").addEventListener("input", recalc);
