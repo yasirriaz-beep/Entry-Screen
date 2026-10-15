@@ -218,10 +218,11 @@
   <div class="flow-detail" id="detail-opening" hidden>
     <div class="fd-title">Opening Safe Cash</div>
     <div id="opening-hint" class="hint"></div>
-    <div class="field" id="opening-edit-wrap" style="margin-top:10px;" hidden>
-      <label>Set opening cash (owner only)</label>
-      <input type="number" id="f-opening" step="any">
-    </div>
+    <!-- Carried forward automatically from the previous day's closing — not editable by
+         anyone, owner included. Any correction belongs in Cash In or Cash Out instead, where
+         it's tied to an actual transaction (a transfer, an expense, a vendor payment), not a
+         number typed over the top of the chain. Changed 2026-10-15, per the owner. -->
+    <input type="hidden" id="f-opening">
   </div>
 
   <div class="flow-detail" id="detail-in" hidden>
@@ -909,10 +910,8 @@ function applyLockState(row) {
   document.getElementById("f-counted").disabled = isLocked;
   document.getElementById("f-adjustment-reason").disabled = isLocked;
   document.getElementById("f-safe-photo").disabled = isLocked;
-  document.getElementById("f-opening").disabled = isLocked || state.role !== "director";
   document.getElementById("btn-save-draft").disabled = isLocked;
   document.getElementById("btn-submit").disabled = isLocked;
-  document.getElementById("opening-edit-wrap").hidden = state.role !== "director";
   const banner = document.getElementById("status-banner");
   const badge = document.getElementById("status-badge");
   if (!row) { banner.hidden = true; badge.innerHTML = ""; return; }
