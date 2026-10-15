@@ -333,17 +333,32 @@ Cash"**.
 - **Recording a settlement** (enter the amount actually received in cash + date + optional
   notes, click Record Settlement) calls the RPC `record_jazzcash_settlement`, which atomically:
   snapshots the current outstanding balance, saves a `jazzcash_settlements` row, and then:
-  - **Short** (received < outstanding): books the shortfall automatically as an expense under
-    the new **"JazzCash Shortage"** category (code 63, G&A/Other, no RGM approval) — a real
-    P&L cost, e.g. an agent's conversion fee or an error in the amount recovered.
+  - **Partial or short (received < outstanding): no expense is booked.** The settlement retires
+    only `LEAST(amount received, outstanding before)` of the balance; the unreceived remainder
+    simply stays in the outstanding JazzCash balance until a later settlement actually collects
+    it. A partial payment is not a loss, just not fully collected yet.
   - **Over** (received > outstanding): books the excess as a row in a new
     **`custodian_receivables`** ledger, attributed to whoever is flagged `cash_custodian`
     (Zeeshan) — money he's physically holding that isn't yet recognized as settled, to be
     accounted for or returned, not silently absorbed into the day's cash.
   - **Either way**, only `MIN(amount received, outstanding before)` ever flows into Safe 2's
-    Cash In for that date (`fetchCashIn` in `cash-reconciliation.html`) — so a shortfall shows
-    up as less cash coming in (correct — less real cash actually arrived) and an overage does
-    **not** inflate Safe 2's recorded cash until the receivable above is resolved.
+    Cash In for that date (`fetchCashIn` in `cash-reconciliation.html`) — so a partial/short
+    settlement shows up as less cash coming in (correct — less real cash actually arrived) and
+    an overage does **not** inflate Safe 2's recorded cash until the receivable above is
+    resolved.
+
+  **Fixed Oct 15, 2026:** the original version above subtracted the *full* outstanding-before
+  snapshot on every settlement, so even a partial payment wiped the whole balance on paper —
+  which is why it used to also auto-book a "JazzCash Shortage" expense (code 63, G&A/Other) for
+  the "missing" difference, on the theory that the gap was a real loss. The owner flagged this as
+  wrong: a partial settlement isn't a loss, it should just stay in the outstanding payable until
+  it's actually collected. The outstanding-balance formula now caps each settlement's retirement
+  at `LEAST(amount_received, amount_outstanding_before)`, and the auto-expense branch was removed
+  entirely. The one expense this bug had already wrongly booked (PKR 88,610, `expenses.id`
+  `3685bb36-518d-4fc3-a569-b0cdfd997021`, tied to settlement
+  `dc9bf5d5-aa4c-409e-b4ea-0d9aa97f621e`) was reversed (`amount` set to 0, with a note appended
+  to `detail` rather than deleted, to preserve the audit trail) and that PKR 88,610 now correctly
+  sits back in the outstanding JazzCash balance instead.
 - `custodian_receivables` has no UI yet to mark one settled/collected — right now it's a record
   only, visible via SQL or a future small screen. Ask if a page for that becomes worth building.
 - This is deliberately separate from the "collected from Morning" field above rather than

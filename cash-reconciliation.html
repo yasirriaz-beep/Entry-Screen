@@ -155,7 +155,7 @@
   </div>
   <div class="card" id="jazzcash-detail-card" hidden>
     <div class="step-label" style="margin-bottom:8px;">Record JazzCash Converted to Cash</div>
-    <div class="hint" style="margin-bottom:12px;">Whenever JazzCash sales are actually cashed out &mdash; same day or days later &mdash; log the real amount received here. Short of the outstanding balance is booked as a JazzCash Shortage expense automatically; more than outstanding is tracked as a receivable against the cash custodian until it's accounted for.</div>
+    <div class="hint" style="margin-bottom:12px;">Whenever JazzCash sales are actually cashed out &mdash; same day or days later &mdash; log the real amount received here. A partial amount just reduces the outstanding balance by what came in &mdash; the rest stays outstanding, nothing is booked as an expense. More than outstanding is tracked as a receivable against the cash custodian until it's accounted for.</div>
     <div class="row2" style="margin-bottom:10px;">
       <div>
         <label>Amount Received (PKR)</label>
@@ -615,14 +615,24 @@ async function fetchCashIn(dateStr) {
 }
 
 // ---------- JazzCash outstanding receivable ----------
+// A settlement only ever retires what was actually received, capped at that settlement's own
+// outstanding-before snapshot (LEAST) — never the full outstanding-before regardless of what
+// came in. Fixed 2026-10-15: the previous version subtracted the full amount_outstanding_before
+// on every settlement, so even a partial payment wiped the whole balance on paper (which is why
+// record_jazzcash_settlement used to paper over the "missing" part with an auto-booked expense —
+// removed in the same fix, since a partial settlement isn't a loss, just not fully collected yet).
 async function fetchJazzcashOutstanding() {
   const [salesRows, settlementRows] = await Promise.all([
     sb(`daily_sales?location_id=eq.${GULBERG_ID}&select=jazzcash_amount,jazzcash_collected_amount`),
-    sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=amount_outstanding_before`)
+    sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=amount_received,amount_outstanding_before`)
   ]);
   const accrued = (salesRows || []).reduce((s, r) => s + (Number(r.jazzcash_amount) || 0), 0);
   const sameDayCollected = (salesRows || []).reduce((s, r) => s + (Number(r.jazzcash_collected_amount) || 0), 0);
-  const settled = (settlementRows || []).reduce((s, r) => s + (Number(r.amount_outstanding_before) || 0), 0);
+  const settled = (settlementRows || []).reduce((s, r) => {
+    const before = Number(r.amount_outstanding_before) || 0;
+    const received = Number(r.amount_received) || 0;
+    return s + Math.min(received, before);
+  }, 0);
   return Math.round((accrued - sameDayCollected - settled) * 100) / 100;
 }
 
@@ -697,7 +707,7 @@ async function loadJazzcashLedger() {
 function jcVarianceNote(outstandingBefore, received) {
   const diff = Math.round((received - outstandingBefore) * 100) / 100;
   if (Math.abs(diff) <= 1) return { text: "Matched the outstanding balance exactly.", color: "var(--success, var(--ok))" };
-  if (diff < 0) return { text: `Short by ${fmtMoney(Math.abs(diff))} — booked as a JazzCash Shortage expense.`, color: "var(--err)" };
+  if (diff < 0) return { text: `Short by ${fmtMoney(Math.abs(diff))} — stays in the outstanding balance until it's actually collected (not booked as an expense).`, color: "var(--warn)" };
   return { text: `Over by ${fmtMoney(diff)} — tracked as a receivable against the cash custodian until it's accounted for.`, color: "var(--warn)" };
 }
 
