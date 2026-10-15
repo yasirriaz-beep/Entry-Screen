@@ -1018,10 +1018,64 @@ enumerable in advance, so this function takes a simpler approach: it bulk-resolv
 `duplicate_transaction` alert at the start of each run, then re-inserts fresh ones for whatever
 duplicates still exist — avoiding orphaned alerts that never got explicitly cleared.
 
-The Oct 15 GMSA duplicate itself was left as-is in the data (owner's call, Oct 15) — the audit
-alert stays open on the dashboard for review/correction later. Correcting it (reversing 3 of the
-4 rows, which overstate today's Cash Out by PKR 347,310 and inventory by 18 phantom cylinders)
-is still outstanding.
+The Oct 15 GMSA duplicate itself was left as-is in the data. The owner was explicit that this
+class of correction is not Claude's to make: whoever entered the mistaken rows (Zeeshan / the
+store man) should fix it themselves, through the app, not via a direct database edit. That is
+what the void/correct capability below is for — the alert stays open until it's fixed that way.
+
+### Self-service void/correct on Goods Receipt (added Oct 16, 2026)
+
+Until now, nobody but a director (via the Owner Dashboard's PIN-gated delete) could undo a
+mistaken purchase entry — `purchases` had no `anon` UPDATE policy at all, so even the page that
+creates receipts (`goods-receipt.html`) had no way to fix one afterwards. Added:
+
+- An `anon_update_purchases` RLS policy (purchases previously allowed anon INSERT/SELECT only),
+  mirroring the existing `anon_update_expenses` policy: any active store_man / shift_manager /
+  cash_custodian / director at the location can update a purchase row.
+- A "Entered by mistake? Void / correct this entry" link under each row in Goods Receipt's
+  "Received Today" list. Voiding requires a typed reason, then zeroes `qty` and `amount` (so
+  every existing report, inventory and cash-reconciliation query already treats it as if it
+  never happened — no other page needed changes) while preserving the original `qty`/`rate`/
+  `amount` and the reason in new columns (`voided_at`, `voided_by_manager_id`, `void_reason`,
+  `original_qty`, `original_rate`, `original_amount`) for a full audit trail. Follows the
+  project's standing no-DELETE rule — nothing is ever removed, only corrected with a note.
+  The voided row still shows in the day's list, struck through, with the reason underneath.
+
+The GMSA duplicate (and any future one like it) gets fixed this way, by whoever entered it —
+not by a direct SQL correction.
+
+### Broader AI audit checks (added Oct 16, 2026)
+
+Four more `pg_cron` jobs (`0 * * * *`, hourly), each a Postgres function following the same
+shape as `detect_duplicate_transactions()` — bulk-resolve its own alert_type, re-insert fresh
+findings, write to `audit_alerts` so everything surfaces on the Owner Dashboard automatically:
+
+- **`detect_price_anomalies()`** — flags a purchase whose rate is ≥25% off the median of that
+  same item+vendor's last purchases in the prior 60 days (needs ≥2 prior purchases to have a
+  baseline, so a first-time item/vendor pairing never false-positives).
+- **`detect_inventory_anomalies()`** — reads the daily stock-count entries
+  (`variance_daily_entries`): flags a negative closing count or a negative implied usage
+  (physically impossible), and flags a day's opening count that doesn't match the prior day's
+  closing count for the same item (the same carry-forward problem fixed earlier in Safe 2,
+  now watched for in inventory too).
+- **`detect_vendor_payment_anomalies()`** — flags a vendor payment that exceeds what's recorded
+  as owed to that vendor (credit purchases to date minus payments already made), skipping
+  payments whose notes say "advance" since those are legitimately paid before any purchase
+  exists yet. Framed as "worth confirming," not an accusation — it can be a legitimate advance.
+- **`detect_missing_documentation()`** — flags a purchase, expense, or vendor payment of
+  PKR 10,000+ with no receipt/payment photo attached.
+
+All four were run once by hand against live data as a smoke test and found several genuine,
+pre-existing items worth a look (an onion purchase at a rate well off its recent median; several
+large cash transactions missing a receipt photo; two vendor payments — Al Tayyab Foods and
+Farooq Traders Diesel — that exceed their recorded credit-purchase balance). None of these were
+corrected — they are sitting as open audit alerts for review, same as the GMSA duplicate.
+
+**Known gap, flagged but not fixed:** `expense_categories` and `expense_subcategories` have RLS
+disabled entirely (fully exposed to the anon key, unlike every other table). This was surfaced
+by Supabase's own advisory, not asked for — it needs a decision on which policies to add before
+enabling RLS (enabling it with no policies would block the Expense Entry/Edit dropdowns
+entirely), so it was deliberately left alone pending the owner's decision.
 
 ---
 
