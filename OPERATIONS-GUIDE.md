@@ -258,6 +258,39 @@ correct it — the actual cash handed over at 10pm is what should go here), so M
 amount is counted exactly once: never (if ignored) and never twice (if someone also folded it
 into an Evening sales field by hand). Saved as `daily_sales.jazzcash_collected_amount`.
 
+**JazzCash that ISN'T converted same day — the outstanding receivable (added Oct 14, 2026):**
+the mechanism above only covers Morning's same-day, same-amount handover into Evening. When
+JazzCash backs up for days (agent unavailable, holiday, etc.), `cash-reconciliation.html` now
+has a **"JazzCash Outstanding"** box right at the top (big red-bordered tile, same style as
+Vendor Payment's Payable/Receivable boxes) — tap it to expand **"Record JazzCash Converted to
+Cash"**.
+
+- **The outstanding balance** = all JazzCash ever flagged across every shift/day
+  (`SUM(daily_sales.jazzcash_amount)`) minus same-day collections already recorded
+  (`SUM(daily_sales.jazzcash_collected_amount)`) minus every formal settlement already recorded
+  below (`SUM(jazzcash_settlements.amount_outstanding_before)`). It's computed live from these
+  three sources — nothing is pre-aggregated into a stored balance column.
+- **Recording a settlement** (enter the amount actually received in cash + date + optional
+  notes, click Record Settlement) calls the RPC `record_jazzcash_settlement`, which atomically:
+  snapshots the current outstanding balance, saves a `jazzcash_settlements` row, and then:
+  - **Short** (received < outstanding): books the shortfall automatically as an expense under
+    the new **"JazzCash Shortage"** category (code 63, G&A/Other, no RGM approval) — a real
+    P&L cost, e.g. an agent's conversion fee or an error in the amount recovered.
+  - **Over** (received > outstanding): books the excess as a row in a new
+    **`custodian_receivables`** ledger, attributed to whoever is flagged `cash_custodian`
+    (Zeeshan) — money he's physically holding that isn't yet recognized as settled, to be
+    accounted for or returned, not silently absorbed into the day's cash.
+  - **Either way**, only `MIN(amount received, outstanding before)` ever flows into Safe 2's
+    Cash In for that date (`fetchCashIn` in `cash-reconciliation.html`) — so a shortfall shows
+    up as less cash coming in (correct — less real cash actually arrived) and an overage does
+    **not** inflate Safe 2's recorded cash until the receivable above is resolved.
+- `custodian_receivables` has no UI yet to mark one settled/collected — right now it's a record
+  only, visible via SQL or a future small screen. Ask if a page for that becomes worth building.
+- This is deliberately separate from the "collected from Morning" field above rather than
+  replacing it — that field still handles the common same-day case inline on the sales entry
+  screen; this new mechanism is for backlog that spans multiple days and needs short/over
+  accounting, which the simple same-day field was never designed to do.
+
 **Superseded:** an earlier same-day design (a manual "Cash left in till for next shift" field,
 `till_leftover_amount` column; a Custodian "gave/picked" direction dropdown) is no longer
 used — the custodian amount is now a single signed field (positive = cash left the till) and

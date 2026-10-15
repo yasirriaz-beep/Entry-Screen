@@ -140,6 +140,34 @@
   <div class="banner banner-warn" id="status-banner" hidden></div>
   <div class="banner banner-warn" id="source-drift-warning" hidden></div>
 
+  <div class="big-box" id="jazzcash-box" style="cursor:pointer;">
+    <div class="bb-label">JazzCash Outstanding (not yet converted to cash)</div>
+    <div class="bb-value" id="jazzcash-outstanding-value">PKR 0</div>
+    <div class="bb-hint" id="jazzcash-outstanding-hint">Tap to record cash received &mdash; click to expand</div>
+  </div>
+  <div class="card" id="jazzcash-detail-card" hidden>
+    <div class="step-label" style="margin-bottom:8px;">Record JazzCash Converted to Cash</div>
+    <div class="hint" style="margin-bottom:12px;">Whenever JazzCash sales are actually cashed out &mdash; same day or days later &mdash; log the real amount received here. Short of the outstanding balance is booked as a JazzCash Shortage expense automatically; more than outstanding is tracked as a receivable against the cash custodian until it's accounted for.</div>
+    <div class="row2" style="margin-bottom:10px;">
+      <div>
+        <label>Amount Received (PKR)</label>
+        <input type="number" id="jc-amount" min="0" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Date</label>
+        <input type="date" id="jc-date">
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Notes (optional)</label>
+      <input type="text" id="jc-notes" placeholder="e.g. backlog from last 3 days, agent fee deducted">
+    </div>
+    <button class="btn-primary" id="jc-save" type="button">Record Settlement</button>
+    <div id="jc-result" style="margin-top:10px;"></div>
+    <div class="step-label" style="margin:16px 0 8px;">Recent Settlements</div>
+    <div id="jc-history"><div class="hint">Loading&hellip;</div></div>
+  </div>
+
   <div class="card" id="till-summary-card">
     <div class="step-label" style="margin-bottom:12px;">Safe 1 — Till (Shift Manager's responsibility)</div>
     <div id="till-summary-body"><div class="hint">Loading…</div></div>
@@ -388,6 +416,8 @@ function afterLogin(userId, name, managerId, role) {
   loadDay(todayStr());
   loadHistory();
   loadTillSummary(todayStr());
+  document.getElementById("jc-date").value = todayStr();
+  refreshJazzcashBox();
 
   const today = todayStr();
   const fromDate = new Date(today + "T00:00:00Z");
@@ -556,8 +586,105 @@ async function fetchCashIn(dateStr) {
       lines.push({ label: "Transfer from Safe 1" + (r.reason ? " — " + r.reason : ""), amount: amt });
     });
   } catch (e) { /* ignore */ }
+  try {
+    // JazzCash actually converted to cash this day. Only the portion that was genuinely
+    // outstanding counts as real Cash In here — if more came in than was outstanding, the
+    // excess is held back as a custodian receivable instead (see record_jazzcash_settlement),
+    // so it doesn't inflate this safe's recorded cash until it's accounted for. Added 2026-10-14.
+    const rows = await sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&settlement_date=eq.${dateStr}&select=amount_received,amount_outstanding_before`);
+    (rows || []).forEach(r => {
+      const amt = Math.max(0, Math.min(Number(r.amount_received) || 0, Number(r.amount_outstanding_before) || 0));
+      if (amt > 0) { net += amt; lines.push({ label: "JazzCash converted to cash", amount: amt }); }
+    });
+  } catch (e) { /* ignore */ }
   net = Math.max(0, Math.round(net * 100) / 100);
   return { total: net, lines };
+}
+
+// ---------- JazzCash outstanding receivable ----------
+async function fetchJazzcashOutstanding() {
+  const [salesRows, settlementRows] = await Promise.all([
+    sb(`daily_sales?location_id=eq.${GULBERG_ID}&select=jazzcash_amount,jazzcash_collected_amount`),
+    sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=amount_outstanding_before`)
+  ]);
+  const accrued = (salesRows || []).reduce((s, r) => s + (Number(r.jazzcash_amount) || 0), 0);
+  const sameDayCollected = (salesRows || []).reduce((s, r) => s + (Number(r.jazzcash_collected_amount) || 0), 0);
+  const settled = (settlementRows || []).reduce((s, r) => s + (Number(r.amount_outstanding_before) || 0), 0);
+  return Math.round((accrued - sameDayCollected - settled) * 100) / 100;
+}
+
+async function refreshJazzcashBox() {
+  try {
+    const outstanding = await fetchJazzcashOutstanding();
+    document.getElementById("jazzcash-outstanding-value").textContent = fmtMoney(outstanding);
+    document.getElementById("jazzcash-outstanding-hint").textContent =
+      outstanding > 1 ? "Tap to record cash received — click to expand" : "Nothing outstanding right now — tap to record a settlement anyway";
+    return outstanding;
+  } catch (e) {
+    document.getElementById("jazzcash-outstanding-value").textContent = "—";
+    return null;
+  }
+}
+
+document.getElementById("jazzcash-box").addEventListener("click", () => {
+  const card = document.getElementById("jazzcash-detail-card");
+  card.hidden = !card.hidden;
+  if (!card.hidden) loadJazzcashHistory();
+});
+
+function jcVarianceNote(outstandingBefore, received) {
+  const diff = Math.round((received - outstandingBefore) * 100) / 100;
+  if (Math.abs(diff) <= 1) return { text: "Matched the outstanding balance exactly.", color: "var(--success, var(--ok))" };
+  if (diff < 0) return { text: `Short by ${fmtMoney(Math.abs(diff))} — booked as a JazzCash Shortage expense.`, color: "var(--err)" };
+  return { text: `Over by ${fmtMoney(diff)} — tracked as a receivable against the cash custodian until it's accounted for.`, color: "var(--warn)" };
+}
+
+async function saveJazzcashSettlement() {
+  const amount = parseFloat(document.getElementById("jc-amount").value);
+  const date = document.getElementById("jc-date").value || todayStr();
+  const notes = document.getElementById("jc-notes").value.trim() || null;
+  const resultEl = document.getElementById("jc-result");
+  resultEl.innerHTML = "";
+  if (isNaN(amount) || amount < 0) return alert("Enter the amount actually received in cash.");
+  const btn = document.getElementById("jc-save");
+  btn.disabled = true;
+  try {
+    const res = await sbRpc("record_jazzcash_settlement", {
+      p_location_id: GULBERG_ID,
+      p_amount_received: amount,
+      p_manager_id: state.managerId,
+      p_settlement_date: date,
+      p_notes: notes
+    });
+    const note = jcVarianceNote(res.outstanding_before, res.amount_received);
+    resultEl.innerHTML = `<div class="hint" style="color:${note.color};">Outstanding before: ${fmtMoney(res.outstanding_before)}. Received: ${fmtMoney(res.amount_received)}. ${note.text}</div>`;
+    document.getElementById("jc-amount").value = "";
+    document.getElementById("jc-notes").value = "";
+    refreshJazzcashBox();
+    loadJazzcashHistory();
+    loadDay(document.getElementById("f-date").value || todayStr());
+  } catch (e) {
+    resultEl.innerHTML = `<div class="hint" style="color:var(--err);">Couldn't save: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("jc-save").addEventListener("click", saveJazzcashSettlement);
+
+async function loadJazzcashHistory() {
+  const wrap = document.getElementById("jc-history");
+  let rows = [];
+  try {
+    rows = await sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=settlement_date,amount_outstanding_before,amount_received,variance,notes&order=created_at.desc&limit=8`);
+  } catch (e) { wrap.innerHTML = `<div class="hint">Couldn't load: ${e.message}</div>`; return; }
+  if (!rows.length) { wrap.innerHTML = '<div class="hint">No settlements recorded yet.</div>'; return; }
+  wrap.innerHTML = rows.map(r => {
+    const note = jcVarianceNote(Number(r.amount_outstanding_before), Number(r.amount_received));
+    return `<div class="hist-row" style="cursor:default;">
+      <div class="hr-top"><span>${r.settlement_date}</span><span>${fmtMoney(r.amount_received)}</span></div>
+      <div class="hint">Outstanding was ${fmtMoney(r.amount_outstanding_before)}. <span style="color:${note.color};">${note.text}</span>${r.notes ? " — " + r.notes : ""}</div>
+    </div>`;
+  }).join("");
 }
 
 // Cash Out here is deliberately narrow: only cash that actually left THIS safe, in Zeeshan's
