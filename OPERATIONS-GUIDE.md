@@ -922,6 +922,109 @@ Movement. Verified against real data: the row before Oct 15 is Oct 13 (`counted_
 
 ---
 
+### Sales Entry / Cash Reconciliation — till overage no longer blocks closing, Safe 2 fixes (Oct 15–16, 2026)
+
+A cluster of related fixes to `sales-entry.html` and `cash-reconciliation.html`, all from the
+owner reviewing the Till Cash Reconciliation and Daily Cash Safe Check flows closely on Oct 15:
+
+- **Till overage no longer blocks Save/Close.** Previously, closing a shift with the till short
+  OR over by more than PKR 1 required an explicit resolution (charge a shortage to a person/the
+  owner, or click "Add excess to handover") before Save would go through. Per the owner: only a
+  shortage (missing cash) is a real problem needing a decision — an overage just gets handed to
+  the custodian either way, no decision required. Save now only blocks on a short till; a
+  positive variance folds into the custodian handover automatically (same math as the old "Add
+  excess to handover" button) before the save proceeds, and the audit RPC
+  (`resolve_till_variance_v1`, `over_handed`) still logs it. The per-shift UI shows no variance
+  explanation at all for an overage (just "PKR X counted — logged" in green) — only a shortage
+  shows the Cash Short/Over box, the recount note, and the booking requirement.
+- **Fixed a Cash Short/Over double-counting bug.** It used to compare the counted till against
+  a handover-dependent "expected closing" figure. If a manager had already typed a bumped
+  Actual Handover themselves (e.g. auto 315,475 + a 115 rounding excess = 315,590), the till's
+  own "variance" showed that same 115 again (since counted till == float whenever handover ==
+  auto + the real variance) — so closing the shift auto-folded the excess into the handover a
+  **second time** (115 → 230 doubled). Fixed by comparing the counted till straight against the
+  standard float (`openingCashTill`) instead of the handover field — the till returning to its
+  float is the only thing this check verifies. (The Oct 15 evening entry that got doubled this
+  way was corrected: `custodian_cash_amount` reverted from -315,705 to -315,590,
+  `cash_short_over` cleared to 0.)
+- **"Actual handover" relabeled "Actual handover (Hard Cash)"**, and "Actual physical cash
+  present in till" relabeled "Actual **Hard Cash** left in Till" (bolded), for clarity that both
+  fields are physical cash, not card/JazzCash.
+- **Closing Safe Cash (Daily Cash Safe Check) is now a pure system calculation**, never the
+  counted figure. It used to swap from the calculated `Opening + In − Out` to whatever Zeeshan
+  physically counted once a count existed — exactly the kind of ambiguity behind the till bug
+  above. Now it's always the calculated figure, labeled "system calculated — Opening + In − Out",
+  not editable by anyone. Physical Count is a fully separate check against it: entering a count
+  now shows a dedicated variance alert banner for **either** direction (short or over) — unlike
+  the till in Sales Entry, an overage in Safe 2 still needs an explanation, since this is the one
+  authoritative record of what Zeeshan actually has. (Submitting without an explanation when
+  Counted ≠ Expected was already blocked; this just surfaces the mismatch immediately.)
+- **Fixed a stale-count bug specific to draft days.** Cash In/Cash Out already recompute live
+  for a draft day (fixed 2026-10-13), but `counted_cash` didn't get the same treatment — a
+  draft's saved count loaded unconditionally even if it was taken hours earlier, before the
+  day's real activity came in, making "Closing Safe Cash" show a stale number. This turned out
+  to be the **normal daily rhythm**, not an error: Zeeshan leaves around 8pm and doesn't
+  physically count the safe again until he starts his next shift around 11am the next day, so a
+  given day's early-morning "count" is really him confirming the *prior* day's closing (= that
+  day's opening, since nothing moves in the safe overnight) — it just gets saved under today's
+  date because that's whatever page is open. Fixed: a draft's saved count is only trusted when
+  it was taken against the same Cash In/Out totals as right now; otherwise the field is left
+  blank and an informational (green, not orange) banner explains why — not a call to action.
+- **Removed the "Set opening cash (owner only)" manual override entirely.** Opening Safe Cash is
+  now always carried forward automatically from the previous day's closing, for every role. This
+  was the exact gap that let Oct 15's opening silently drift to 724,346 instead of the real
+  703,321 (Oct 14 itself was never actually reconciled/submitted in the system at all — nobody
+  opened Daily Cash Safe Check for that date — so someone hand-typed a number into Oct 15's
+  opening that didn't match Oct 14's real transactions). Backfilled a proper Oct 14 row
+  (submitted, opening 1,020,500 + Cash In 312,930 − Cash Out 630,109 = closing 703,321, zero
+  variance) and corrected Oct 15's opening to 703,321 so the chain is continuous again. Any real
+  correction now has to go through Cash In or Cash Out instead — each tied to an actual
+  transaction (a transfer, an expense, a vendor payment), never a number typed over the chain.
+- **Cash In/Cash Out breakdown rows now link to their receipt photos** ("📷 View", opens a
+  signed URL) when one exists — `payment_photo_path` on `vendor_payments` (bucket
+  `vendor-payment-photos`), `receipt_photo_path` on `purchases` and `expenses` (bucket
+  `receipts`). Rows without a photo show "no photo"; till handovers, internal transfers, and
+  JazzCash settlements show neither tag since they have no photo concept at all.
+- **Whole Day Totals gained an "Excess cash handed over (both shifts)" line** (green,
+  informational, shown only when positive) — separate from Cash Short/Over, which now correctly
+  reads PKR 0 whenever both tills are at float. This is the sum of each shift's
+  handover-minus-auto-generated difference, so the day's rounding excess stays visible even
+  though it's no longer flagged as a till problem.
+
+### Duplicate-transaction detection (added Oct 15, 2026)
+
+While reviewing Cash Out receipt photos, the owner caught **4 identical GMSA purchases**
+(6 LPG cylinders, PKR 115,770 each, same vendor/product/qty/rate) entered 3 minutes apart on
+Oct 15 — almost certainly one real delivery re-submitted 3 extra times (3 of the 4 rows share
+the exact same receipt photo). This had gone unnoticed because nothing in the system flagged
+duplicate entries; it only surfaced because the owner happened to scan the vendor names in a
+breakdown list.
+
+Built a general-purpose duplicate detector, `detect_duplicate_transactions()` (Postgres
+function, scheduled via `pg_cron` as job `detect_duplicate_transactions`, every 15 minutes —
+same cadence as the existing `daily_task_checklist` job), covering the three transaction types
+that move real cash: **purchases**, **expenses**, and **vendor payments**. For each table it
+groups the last 3 days of rows by their identifying attributes (purchases: vendor + product +
+qty + rate; expenses: category + subcategory + amount + detail; vendor payments: vendor +
+amount + method) and flags any group with more than one row entered within a 30-minute window —
+tight clustering is what distinguishes an accidental resubmission from two genuinely separate
+same-day transactions that happen to match. Each flagged group writes a `high`-severity row to
+`audit_alerts` (`alert_type = 'duplicate_transaction'`) with the matching record IDs listed in
+the body, so it shows up automatically in the Owner Dashboard's existing "Open Audit Alerts"
+section — no new UI needed.
+
+Unlike the fixed daily-checklist alerts (`check_daily_task_completion`), duplicate groups aren't
+enumerable in advance, so this function takes a simpler approach: it bulk-resolves every open
+`duplicate_transaction` alert at the start of each run, then re-inserts fresh ones for whatever
+duplicates still exist — avoiding orphaned alerts that never got explicitly cleared.
+
+The Oct 15 GMSA duplicate itself was left as-is in the data (owner's call, Oct 15) — the audit
+alert stays open on the dashboard for review/correction later. Correcting it (reversing 3 of the
+4 rows, which overstate today's Cash Out by PKR 347,310 and inventory by 18 phantom cylinders)
+is still outstanding.
+
+---
+
 ## 7. Open items / things still being built out
 
 This system is being built incrementally. When something needed isn't there yet, it gets
