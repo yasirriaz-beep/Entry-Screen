@@ -179,7 +179,11 @@
       <div class="kpi kpi-clickable" data-detail="payables"><div class="kpi-label">Payables Added</div><div class="kpi-value" id="cash-credit">—</div></div>
       <div class="kpi kpi-clickable" id="cash-net-card" data-detail="cash-net"><div class="kpi-label">Net Cash Movement</div><div class="kpi-value" id="cash-net">—</div></div>
     </div>
-    <div class="hint" style="margin-top:10px;">Combines both safes. Cash Collected = dine-in + takeaway + own-delivery + Third Party (Careem/other) + bakery, minus any card-paid portion. Food Panda and card payments settle later (see Receivables) — they're not cash in Zeeshan's hand today. Cash Paid Out = expenses (either safe) + any purchase actually paid in cash (rare — most purchases go to Payables instead, see below) + vendor payments made in cash from Safe 2 (vendor bills settled, PO advances like K&N's).</div>
+    <div class="kpi-grid" style="grid-template-columns: repeat(2, 1fr) !important; margin-top:10px;">
+      <div class="kpi"><div class="kpi-label">Opening Balance</div><div class="kpi-value" id="cash-opening">—</div></div>
+      <div class="kpi" id="cash-closing-card"><div class="kpi-label">Expected Closing Balance</div><div class="kpi-value" id="cash-closing">—</div></div>
+    </div>
+    <div class="hint" style="margin-top:10px;">Combines both safes. Cash Collected = dine-in + takeaway + own-delivery + Third Party (Careem/other) + bakery, minus any card-paid portion. Food Panda and card payments settle later (see Receivables) — they're not cash in Zeeshan's hand today. Cash Paid Out = expenses (either safe) + any purchase actually paid in cash (rare — most purchases go to Payables instead, see below) + vendor payments made in cash from Safe 2 (vendor bills settled, PO advances like K&N's). Opening Balance carries forward from Safe 2's last counted (or expected) closing before this range, from Daily Cash Safe Check below — so Expected Closing Balance = Opening + Net Cash Movement is the actual cash that should be sitting in the safes right now, not just today's flow in isolation.</div>
   </div>
 
   <div class="card">
@@ -861,6 +865,21 @@ async function loadPayables() {
     `<div class="drawer-total" style="margin-top:6px;"><span>Total owed</span><span>${fmtMoney(total)}</span></div>`;
 }
 
+// Safe 2's last known balance before this range's start date, same logic as
+// cash-reconciliation.html's fetchPreviousClosing(): carry forward the custodian's actual
+// physical count when that day was counted, otherwise fall back to the expected figure
+// (opening + in − out). This is what lets Cash Position show a real running balance instead
+// of just today's isolated net movement. Added 2026-10-16.
+async function fetchPreviousClosing(dateStr) {
+  try {
+    const rows = await sb(`cash_safe_ledger?ledger_date=lt.${dateStr}&select=ledger_date,counted_cash,opening_cash,cash_in,cash_out&order=ledger_date.desc&limit=1`);
+    if (!rows || !rows[0]) return 0;
+    const r = rows[0];
+    if (r.counted_cash !== null && r.counted_cash !== undefined) return Number(r.counted_cash) || 0;
+    return (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
+  } catch (e) { return 0; }
+}
+
 async function loadKpis() {
   const { from, to, label } = rangeDates();
   document.getElementById("kpi-heading").textContent = label + " — Snapshot";
@@ -938,6 +957,14 @@ async function loadKpis() {
   const cashNetCard = document.getElementById("cash-net-card");
   cashNetCard.classList.remove("net-pos", "net-neg");
   cashNetCard.classList.add(netCash >= 0 ? "net-pos" : "net-neg");
+
+  const openingBalance = await fetchPreviousClosing(from);
+  const closingBalance = openingBalance + netCash;
+  document.getElementById("cash-opening").textContent = fmtMoney(openingBalance);
+  document.getElementById("cash-closing").textContent = fmtMoney(closingBalance);
+  const cashClosingCard = document.getElementById("cash-closing-card");
+  cashClosingCard.classList.remove("net-pos", "net-neg");
+  cashClosingCard.classList.add(closingBalance >= 0 ? "net-pos" : "net-neg");
 
   document.getElementById("rec-fp").textContent = fmtMoney(foodPandaReceivable);
   document.getElementById("rec-card").textContent = fmtMoney(cardReceivable);

@@ -878,6 +878,50 @@ To let someone else authorize demands: open `manage-access.html`, grant them the
 
 ---
 
+### Owner Dashboard — Expenses drawer label bug + Cash Position carry-forward (fixed Oct 16, 2026)
+
+Yasir reported three things on the Owner Dashboard's Expenses drill-down and Cash Position card:
+every expense row showed the generic word "Expense" instead of its real category, Safe 2
+expenses looked missing from the drawer, and the Cash Position card didn't reflect the prior
+day's cash balance.
+
+**Root cause of the label bug**: the `expenses` table has two parallel category column sets —
+legacy `head`/`sub_head` (populated only for a one-time Sep 2025 migration, 586 rows, all dated
+Sep 2025) and the current `category`/`subcategory` (what `expense-entry.html` actually writes
+today). Zero rows have both populated. `owner-dashboard.html`'s drawer, "Cash Paid Out"
+breakdown, and Top Expenses list all selected and rendered `head`/`sub_head`, which is `null`
+for every current row — so every modern expense fell back to the literal string `"Expense"`,
+regardless of category. "Charge to salary X" entries are actually `category="Payroll"`,
+`subcategory="Employee Charge"`; "Charge to Restaurant" entries are
+`category="Charge to Restaurant"` with a subcategory like "Complimentary/Comp Charge". Fixed by
+switching all three render sites to `category`/`subcategory` via a shared `expenseLabel()`
+helper, and adding a `safeLabel()` helper so each row also shows "Safe 1" / "Safe 2" next to the
+payment method — which also resolves the "Safe 2 looks missing" complaint: Safe 2 expenses were
+already included in the query and in every total, they just weren't visually distinguishable
+from Safe 1 ones without a category label to anchor on.
+
+**Cash/non-cash classification** — confirmed with Yasir: today's "Charge to salary X"
+(Payroll · Employee Charge) and "Charge to Restaurant" entries are correctly recorded as real
+cash leaving the safe at the time of entry (e.g. cash paid now for a bike repair, recovered via
+a later payroll deduction) — the existing cash/non-cash split on the Expenses KPI tile is
+correct as-is and needed no logic change, only the label fix above so the categories are
+actually visible when reviewing the split.
+
+**Cash Position carry-forward** — the Cash Position card (Cash Collected / Cash Paid Out /
+Payables Added / Net Cash Movement) only ever showed the selected range's flow, with no opening
+balance, so it couldn't say what should actually be sitting in the safes right now. Safe 2's
+running balance was already tracked correctly in Daily Cash Safe Check (`cash_safe_ledger`,
+carried forward day to day in `cash-reconciliation.html`) — it just wasn't surfaced on the
+summary card above it. Added two tiles, **Opening Balance** and **Expected Closing Balance**,
+using the same carry-forward logic as `cash-reconciliation.html`'s `fetchPreviousClosing()`:
+pull the most recent `cash_safe_ledger` row before the range's start date, use its
+`counted_cash` (the custodian's actual physical count) when available, otherwise fall back to
+`opening_cash + cash_in − cash_out`. Expected Closing Balance = Opening Balance + Net Cash
+Movement. Verified against real data: the row before Oct 15 is Oct 13 (`counted_cash =
+1,020,500`, the uncounted Oct 14 gap skipped correctly), which becomes Oct 15's Opening Balance.
+
+---
+
 ## 7. Open items / things still being built out
 
 This system is being built incrementally. When something needed isn't there yet, it gets
