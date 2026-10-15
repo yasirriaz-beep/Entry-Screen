@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RGM Tasks</title>
+<title>Tasks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -32,6 +32,7 @@
   body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
   h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
   h2 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.05rem; margin: 0; }
+  h3 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.15rem; margin: 28px 0 10px; }
   .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
   label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
@@ -42,6 +43,10 @@
   .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
   .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
   .btn-sm { padding: 7px 12px; font-size: 0.82rem; border-radius: 8px; width: auto; }
+  .btn-ok { background: var(--ok-bg); color: var(--ok); }
+  .btn-err { background: var(--err-bg); color: var(--err); }
+  .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+  .btn-row button { flex: 1; width: auto; }
   [hidden] { display: none !important; }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
   .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
@@ -69,12 +74,32 @@
   .task-status { font-size: 0.82rem; margin-top: 2px; }
   .empty-note { color: var(--ink-soft); font-size: 0.88rem; padding: 10px 0; }
   .all-done-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--ok-bg); color: var(--ok); border-radius: 999px; padding: 4px 10px; font-size: 0.78rem; font-weight: 600; }
+
+  .approval-row { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+  .approval-row:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+  .approval-amount { font-weight: 700; font-size: 1.05rem; }
+  .approval-meta { font-size: 0.82rem; color: var(--ink-soft); margin-top: 2px; }
+  .approval-detail { font-size: 0.88rem; margin-top: 6px; }
+
+  .todo-tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 2px; }
+  .todo-tab { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+  .todo-tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .todo-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
+  .todo-item:first-of-type { border-top: none; }
+  .todo-item input[type=checkbox] { width: auto; margin-top: 2px; accent-color: var(--accent); }
+  .todo-text { flex: 1; font-size: 0.92rem; min-width: 0; word-break: break-word; }
+  .todo-meta { font-size: 0.74rem; color: var(--ink-soft); margin-top: 2px; }
+  .todo-done .todo-text { text-decoration: line-through; color: var(--ink-soft); }
+  .add-todo-row { display: flex; gap: 8px; margin-top: 12px; }
+  .add-todo-row input { flex: 1; }
+  .add-todo-row button { width: auto; flex: 0 0 auto; }
+  .show-done-toggle { font-size: 0.78rem; color: var(--accent); background: none; border: none; padding: 8px 0 0; cursor: pointer; text-decoration: underline; }
 </style>
 </head>
 <body>
 
-<h1>RGM Tasks</h1>
-<div class="sub">Gulberg — daily review: attendance, expenses, and Charge to Restaurant entries, confirmed the day after</div>
+<h1>Tasks</h1>
+<div class="sub">Gulberg — Charge to Restaurant approvals, daily RGM review, and a running to-do list for each role</div>
 
 <div id="step-login" class="card">
   <div class="hint" style="margin-bottom:10px;text-transform:uppercase;letter-spacing:0.02em;font-weight:600;color:var(--ink-soft)">Who's checking in?</div>
@@ -89,9 +114,38 @@
 <div id="panel-main" hidden>
   <div class="card" id="intro-card">
     <div id="who-label" class="hint" style="margin-bottom:4px"></div>
-    <div class="hint">Showing every date from <span id="range-from"></span> to <span id="range-to"></span> (yesterday) that still needs review. Confirming a task is a review sign-off only — it doesn't change the underlying record.</div>
+    <div class="hint">Everything on this page is a review/sign-off layer — confirming or approving something here never changes the underlying record, it just tracks that it was looked at.</div>
   </div>
 
+  <div id="section-approvals" hidden>
+    <h3>Charge to Restaurant — needs approval</h3>
+    <div class="card" id="approvals-wrap">
+      <div class="hint">Loading…</div>
+    </div>
+  </div>
+
+  <div id="section-owner-review" hidden>
+    <h3>Charge to Restaurant — for your review</h3>
+    <div class="card" id="owner-review-wrap">
+      <div class="hint">Loading…</div>
+    </div>
+  </div>
+
+  <h3>To-Do Lists</h3>
+  <div class="card">
+    <div class="todo-tabs" id="todo-tabs"></div>
+    <div id="todo-list-wrap"><div class="hint">Loading…</div></div>
+    <div class="add-todo-row">
+      <input type="text" id="todo-new-text" placeholder="Add a to-do for this role…">
+      <button type="button" class="btn-ghost btn-sm" id="todo-add-btn">Add</button>
+    </div>
+    <div class="hint" id="todo-add-status"></div>
+  </div>
+
+  <h3>Daily Review (RGM)</h3>
+  <div class="card" id="intro-card-rgm">
+    <div class="hint">Showing every date from <span id="range-from"></span> to <span id="range-to"></span> (yesterday) that still needs review.</div>
+  </div>
   <div id="dates-wrap"></div>
   <div class="empty-note" id="all-clear-note" hidden>Nothing outstanding — every day in range has been reviewed.</div>
 
@@ -115,8 +169,21 @@ const TASKS = [
   { key: "charge_to_restaurant", label: "Charge to Restaurant" },
 ];
 
+// role_key values match the DB check constraint on role_todos.role_key. "rgm" is kept
+// distinct from "shift_manager" even though Ahsan is technically a shift_manager app_user,
+// because his RGM duties are a separate standing list from the other shift managers'.
+const TODO_ROLES = [
+  { key: "store_man", label: "Store Man" },
+  { key: "shift_manager", label: "Shift Manager" },
+  { key: "rgm", label: "RGM" },
+  { key: "auditor", label: "Auditor" },
+  { key: "director", label: "Director" },
+];
+
 let state = { userId: null, userName: null, managerId: null, role: null };
-let managerNames = {}; // id -> name, for showing who confirmed what
+let managerNames = {}; // id -> name, for showing who confirmed/approved/entered what
+let activeTodoRole = TODO_ROLES[0].key;
+let showDoneTodos = false;
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -219,23 +286,266 @@ function afterLogin(userId, name, managerId, role) {
   state.role = role;
   document.getElementById("step-login").hidden = true;
   document.getElementById("panel-main").hidden = false;
-  document.getElementById("who-label").textContent = "Signed in as " + name;
+  document.getElementById("who-label").textContent = "Signed in as " + name + " (" + role.replace("_", " ") + ")";
   FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+
+  // Default the To-Do tab to whatever's most relevant for this person.
+  if (role === "director") activeTodoRole = "director";
+  else if (TODO_ROLES.some(r => r.key === role)) activeTodoRole = role;
+  else activeTodoRole = TODO_ROLES[0].key;
+
+  const canApprove = role === "auditor" || role === "director";
+  document.getElementById("section-approvals").hidden = !canApprove;
+  document.getElementById("section-owner-review").hidden = role !== "director";
+
   loadEverything();
 }
 
-// managers has no public anon-select policy, so this goes through the same RPC the login
-// screen uses — it returns exactly the managers granted this page (i.e. who could have
-// confirmed a task here), which is all "confirmed by" ever needs to resolve.
+// managers/manager_page_access have no public anon-select policy, so names are resolved
+// through this public RPC — every active manager, regardless of which pages they're
+// granted (directors included), which is what "confirmed/approved/entered by" needs.
 async function loadManagerNames() {
   try {
-    const rows = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const rows = await sbRpc("list_all_managers", {});
     managerNames = {};
     (rows || []).forEach(r => { managerNames[r.id] = r.name; });
   } catch (e) { managerNames = {}; }
 }
 
-// --- per-task data fetchers: show the RGM the actual records, not just a checkbox ---
+async function loadEverything() {
+  await loadManagerNames();
+  const tasks = [loadTodos()];
+  if (!document.getElementById("section-approvals").hidden) tasks.push(loadApprovals());
+  if (!document.getElementById("section-owner-review").hidden) tasks.push(loadOwnerReview());
+  tasks.push(loadDailyReview());
+  await Promise.all(tasks);
+}
+
+// ---------- Charge to Restaurant: Hammad's (or a director's) approval queue ----------
+
+async function loadApprovals() {
+  const wrap = document.getElementById("approvals-wrap");
+  try {
+    const rows = await sb(
+      `expenses?location_id=eq.${GULBERG_ID}&category=eq.${encodeURIComponent(CHARGE_TO_RESTAURANT_CATEGORY)}` +
+      `&review_status=eq.pending_review&select=id,expense_date,amount,detail,payment_method,entered_by_manager_id&order=expense_date.asc`
+    );
+    if (!rows || !rows.length) {
+      wrap.innerHTML = `<div class="hint">Nothing waiting on approval.</div>`;
+      return;
+    }
+    wrap.innerHTML = "";
+    rows.forEach(r => wrap.appendChild(buildApprovalRow(r)));
+  } catch (e) {
+    wrap.innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load: ${e.message}</div>`;
+  }
+}
+
+function buildApprovalRow(r) {
+  const row = document.createElement("div");
+  row.className = "approval-row";
+  const who = managerNames[r.entered_by_manager_id] || "someone";
+  const rowId = "appr_" + r.id;
+  row.innerHTML = `
+    <div class="approval-amount">PKR ${Math.round(r.amount).toLocaleString()}</div>
+    <div class="approval-meta">${fmtDate(r.expense_date)} — entered by ${who}${r.payment_method ? " · " + r.payment_method : ""}</div>
+    <div class="approval-detail">${r.detail || "—"}</div>
+    <input type="text" id="${rowId}_notes" placeholder="Optional note" style="margin-top:8px">
+    <div class="btn-row">
+      <button type="button" class="btn-sm btn-ok" id="${rowId}_approve">Approve</button>
+      <button type="button" class="btn-sm btn-err" id="${rowId}_reject">Reject</button>
+    </div>
+    <div class="task-status" id="${rowId}_status"></div>
+  `;
+  row.querySelector("#" + rowId + "_approve").addEventListener("click", () => reviewExpense(r.id, true, rowId));
+  row.querySelector("#" + rowId + "_reject").addEventListener("click", () => reviewExpense(r.id, false, rowId));
+  return row;
+}
+
+async function reviewExpense(expenseId, approve, rowId) {
+  const statusEl = document.getElementById(rowId + "_status");
+  const notes = document.getElementById(rowId + "_notes").value.trim() || null;
+  document.getElementById(rowId + "_approve").disabled = true;
+  document.getElementById(rowId + "_reject").disabled = true;
+  statusEl.style.color = "";
+  statusEl.textContent = "Saving…";
+  try {
+    await sbRpc("review_charge_to_restaurant_v1", {
+      p_expense_id: expenseId, p_manager_id: state.managerId, p_approve: approve, p_notes: notes,
+    });
+    statusEl.style.color = "var(--ok)";
+    statusEl.textContent = approve ? "Approved." : "Rejected.";
+    await loadApprovals();
+    if (!document.getElementById("section-owner-review").hidden) await loadOwnerReview();
+  } catch (err) {
+    statusEl.style.color = "var(--err)";
+    statusEl.textContent = "Couldn't save: " + err.message;
+    document.getElementById(rowId + "_approve").disabled = false;
+    document.getElementById(rowId + "_reject").disabled = false;
+  }
+}
+
+// ---------- Charge to Restaurant: owner's (director's) FYI list ----------
+// Informational only — nothing is gated on "Got it", it's just a way to clear an item
+// off the list once you've actually seen it.
+
+async function loadOwnerReview() {
+  const wrap = document.getElementById("owner-review-wrap");
+  try {
+    const rows = await sb(
+      `expenses?location_id=eq.${GULBERG_ID}&category=eq.${encodeURIComponent(CHARGE_TO_RESTAURANT_CATEGORY)}` +
+      `&review_status=eq.approved&owner_seen_at=is.null&select=id,expense_date,amount,detail,payment_method,entered_by_manager_id,reviewed_at&order=reviewed_at.asc`
+    );
+    if (!rows || !rows.length) {
+      wrap.innerHTML = `<div class="hint">Nothing new — you're caught up.</div>`;
+      return;
+    }
+    wrap.innerHTML = "";
+    rows.forEach(r => wrap.appendChild(buildOwnerReviewRow(r)));
+  } catch (e) {
+    wrap.innerHTML = `<div class="hint" style="color:var(--err)">Couldn't load: ${e.message}</div>`;
+  }
+}
+
+function buildOwnerReviewRow(r) {
+  const row = document.createElement("div");
+  row.className = "approval-row";
+  const who = managerNames[r.entered_by_manager_id] || "someone";
+  const rowId = "own_" + r.id;
+  row.innerHTML = `
+    <div class="approval-amount">PKR ${Math.round(r.amount).toLocaleString()} <span class="badge badge-ok">Approved</span></div>
+    <div class="approval-meta">${fmtDate(r.expense_date)} — entered by ${who}, approved ${fmtTime(r.reviewed_at)}</div>
+    <div class="approval-detail">${r.detail || "—"}</div>
+    <button type="button" class="btn-ghost btn-sm" id="${rowId}_seen">Got it</button>
+    <div class="task-status" id="${rowId}_status"></div>
+  `;
+  row.querySelector("#" + rowId + "_seen").addEventListener("click", () => markOwnerSeen(r.id, rowId));
+  return row;
+}
+
+async function markOwnerSeen(expenseId, rowId) {
+  const statusEl = document.getElementById(rowId + "_status");
+  document.getElementById(rowId + "_seen").disabled = true;
+  try {
+    await sbRpc("mark_charge_to_restaurant_seen_v1", { p_expense_id: expenseId, p_manager_id: state.managerId });
+    await loadOwnerReview();
+  } catch (err) {
+    statusEl.style.color = "var(--err)";
+    statusEl.textContent = "Couldn't clear: " + err.message;
+    document.getElementById(rowId + "_seen").disabled = false;
+  }
+}
+
+// ---------- To-Do Lists, one per role, kept simple on purpose: anyone on this page can
+// add an item to any role's list (Yasir is usually the one adding for others) or check
+// one off. Nothing here is time-bound or escalates — it's just a running list meant to
+// grow over time as new standing responsibilities come up. ----------
+
+let todoRows = []; // all rows, loaded once per refresh; filtered client-side by tab
+
+function renderTodoTabs() {
+  const tabsEl = document.getElementById("todo-tabs");
+  tabsEl.innerHTML = "";
+  TODO_ROLES.forEach(r => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "todo-tab" + (r.key === activeTodoRole ? " active" : "");
+    btn.textContent = r.label;
+    btn.addEventListener("click", () => { activeTodoRole = r.key; renderTodoTabs(); renderTodoList(); });
+    tabsEl.appendChild(btn);
+  });
+}
+
+async function loadTodos() {
+  renderTodoTabs();
+  try {
+    todoRows = await sb(`role_todos?order=created_at.desc&select=id,role_key,text,status,created_by_manager_id,created_at,done_by_manager_id,done_at`) || [];
+  } catch (e) {
+    todoRows = [];
+  }
+  renderTodoList();
+}
+
+function renderTodoList() {
+  const wrap = document.getElementById("todo-list-wrap");
+  const rows = todoRows.filter(r => r.role_key === activeTodoRole);
+  const open = rows.filter(r => r.status === "open");
+  const done = rows.filter(r => r.status === "done");
+
+  wrap.innerHTML = "";
+  if (!open.length && !done.length) {
+    wrap.innerHTML = `<div class="hint">Nothing on this list yet.</div>`;
+  } else if (!open.length) {
+    wrap.innerHTML = `<div class="hint">Nothing open right now.</div>`;
+  } else {
+    open.forEach(r => wrap.appendChild(buildTodoItem(r)));
+  }
+
+  if (done.length) {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "show-done-toggle";
+    toggle.textContent = showDoneTodos ? "Hide completed" : `Show ${done.length} completed`;
+    toggle.addEventListener("click", () => { showDoneTodos = !showDoneTodos; renderTodoList(); });
+    wrap.appendChild(toggle);
+    if (showDoneTodos) done.forEach(r => wrap.appendChild(buildTodoItem(r)));
+  }
+}
+
+function buildTodoItem(r) {
+  const item = document.createElement("div");
+  item.className = "todo-item" + (r.status === "done" ? " todo-done" : "");
+  const who = managerNames[r.created_by_manager_id] || "someone";
+  const doneWho = r.done_by_manager_id ? (managerNames[r.done_by_manager_id] || "someone") : null;
+  const meta = r.status === "done"
+    ? `Done by ${doneWho}, ${fmtTime(r.done_at)}`
+    : `Added by ${who}, ${fmtTime(r.created_at)}`;
+  item.innerHTML = `
+    <input type="checkbox" ${r.status === "done" ? "checked" : ""}>
+    <div>
+      <div class="todo-text">${r.text}</div>
+      <div class="todo-meta">${meta}</div>
+    </div>
+  `;
+  item.querySelector("input").addEventListener("change", (e) => toggleTodo(r, e.target.checked));
+  return item;
+}
+
+async function toggleTodo(row, done) {
+  try {
+    await sbRpc("set_role_todo_status_v1", { p_todo_id: row.id, p_manager_id: state.managerId, p_done: done });
+    await loadTodos();
+  } catch (e) {
+    alert("Couldn't update: " + e.message);
+    renderTodoList();
+  }
+}
+
+async function addTodo() {
+  const input = document.getElementById("todo-new-text");
+  const statusEl = document.getElementById("todo-add-status");
+  const text = input.value.trim();
+  if (!text) return;
+  const btn = document.getElementById("todo-add-btn");
+  btn.disabled = true;
+  statusEl.style.color = "";
+  statusEl.textContent = "Adding…";
+  try {
+    await sbRpc("add_role_todo_v1", { p_role_key: activeTodoRole, p_location_id: GULBERG_ID, p_text: text, p_manager_id: state.managerId });
+    input.value = "";
+    statusEl.textContent = "";
+    await loadTodos();
+  } catch (err) {
+    statusEl.style.color = "var(--err)";
+    statusEl.textContent = "Couldn't add: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("todo-add-btn").addEventListener("click", addTodo);
+document.getElementById("todo-new-text").addEventListener("keydown", (e) => { if (e.key === "Enter") addTodo(); });
+
+// ---------- Daily Review (RGM): attendance / expenses / Charge to Restaurant, confirmed the day after ----------
 
 async function fetchAttendanceSummary(dateStr) {
   const [entries, employees] = await Promise.all([
@@ -261,20 +571,26 @@ async function fetchExpensesList(dateStr) {
 async function fetchChargeToRestaurantList(dateStr) {
   const rows = await sb(
     `expenses?location_id=eq.${GULBERG_ID}&expense_date=eq.${dateStr}&category=eq.${encodeURIComponent(CHARGE_TO_RESTAURANT_CATEGORY)}` +
-    `&select=amount,detail,payment_method&order=amount.desc`
+    `&select=amount,detail,payment_method,review_status&order=amount.desc`
   );
   const total = (rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
   return { rows: rows || [], total };
 }
 
-function expensesTableHTML(rows, emptyMsg) {
+function expensesTableHTML(rows, emptyMsg, showReview) {
   if (!rows.length) return `<div class="hint">${emptyMsg}</div>`;
+  const reviewBadge = (s) => {
+    if (!showReview) return "";
+    if (s === "approved") return ` <span class="badge badge-ok">Approved</span>`;
+    if (s === "rejected") return ` <span class="badge badge-err">Rejected</span>`;
+    return ` <span class="badge badge-warn">Pending</span>`;
+  };
   return `<table><thead><tr><th>Amount</th><th>Detail</th><th>Paid</th></tr></thead><tbody>` +
-    rows.map(r => `<tr><td>PKR ${Math.round(r.amount).toLocaleString()}</td><td>${r.detail || r.charged_to || "—"}</td><td>${r.payment_method || "—"}</td></tr>`).join("") +
+    rows.map(r => `<tr><td>PKR ${Math.round(r.amount).toLocaleString()}${reviewBadge(r.review_status)}</td><td>${r.detail || r.charged_to || "—"}</td><td>${r.payment_method || "—"}</td></tr>`).join("") +
     `</tbody></table>`;
 }
 
-async function loadEverything() {
+async function loadDailyReview() {
   const wrap = document.getElementById("dates-wrap");
   const allClear = document.getElementById("all-clear-note");
   wrap.innerHTML = "";
@@ -284,8 +600,6 @@ async function loadEverything() {
   const from = addDaysStr(yesterday, -(LOOKBACK_DAYS - 1));
   document.getElementById("range-from").textContent = fmtDate(from);
   document.getElementById("range-to").textContent = fmtDate(yesterday);
-
-  await loadManagerNames();
 
   let confirmations = [];
   try {
@@ -353,12 +667,12 @@ async function buildTaskRow(dateStr, task, existing) {
         (short ? ` <span class="badge badge-warn">Incomplete</span>` : ` <span class="badge badge-ok">Complete</span>`) + `</div>`;
     } else if (task.key === "expenses") {
       const r = await fetchExpensesList(dateStr);
-      dataHTML = `<div class="task-data">PKR ${Math.round(r.total).toLocaleString()} across ${r.rows.length} entries (excludes Charge to Restaurant, reviewed separately below)` +
-        expensesTableHTML(r.rows, "No expenses logged for this date.") + `</div>`;
+      dataHTML = `<div class="task-data">PKR ${Math.round(r.total).toLocaleString()} across ${r.rows.length} entries (excludes Charge to Restaurant, reviewed separately above)` +
+        expensesTableHTML(r.rows, "No expenses logged for this date.", false) + `</div>`;
     } else {
       const r = await fetchChargeToRestaurantList(dateStr);
-      dataHTML = `<div class="task-data">PKR ${Math.round(r.total).toLocaleString()} across ${r.rows.length} entries` +
-        expensesTableHTML(r.rows, "No Charge to Restaurant entries for this date.") + `</div>`;
+      dataHTML = `<div class="task-data">PKR ${Math.round(r.total).toLocaleString()} across ${r.rows.length} entries — approval status shown per row` +
+        expensesTableHTML(r.rows, "No Charge to Restaurant entries for this date.", true) + `</div>`;
     }
   } catch (e) {
     dataHTML = `<div class="task-data" style="color:var(--err)">Couldn't load: ${e.message}</div>`;
@@ -395,7 +709,7 @@ async function confirmTask(dateStr, task, noteId, btnId, statusId) {
     });
     statusEl.style.color = "var(--ok)";
     statusEl.textContent = "Confirmed.";
-    await loadEverything();
+    await loadDailyReview();
   } catch (err) {
     statusEl.style.color = "var(--err)";
     statusEl.textContent = "Couldn't confirm: " + err.message;

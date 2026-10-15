@@ -59,16 +59,16 @@ editable from `expense-categories.html` (director access only). Each category ca
   was configured.
 
   **The RGM Tasks page (added Oct 15, 2026)** puts the security back, but as a next-day
-  review rather than an entry-time block: `rgm-tasks.html`, granted only to Ahsan (the one
-  flagged `is_rgm` on `managers`). For every date without a complete review (oldest first,
-  looking back 10 days), it shows three tasks — **Attendance**, **Expenses**, and **Charge
-  to Restaurant** — each with the actual underlying records inline (attendance counts by
-  status vs. the active employee count; the expense list with amounts and details) so the
-  RGM reviews real data, not a blind checkbox. Clicking **Confirm reviewed** calls the RPC
-  `confirm_rgm_task_v1`, which records a `rgm_task_confirmations` row (unique per
-  location/date/task — confirming twice just updates the timestamp). This is a **checklist,
-  not a gate**: confirming doesn't touch the underlying attendance/expense records, and
-  nothing elsewhere is blocked by it.
+  review rather than an entry-time block: `rgm-tasks.html`, originally granted only to Ahsan
+  (the one flagged `is_rgm` on `managers`). For every date without a complete review (oldest
+  first, looking back 10 days), it shows three tasks — **Attendance**, **Expenses**, and
+  **Charge to Restaurant** — each with the actual underlying records inline (attendance
+  counts by status vs. the active employee count; the expense list with amounts and
+  details) so the RGM reviews real data, not a blind checkbox. Clicking **Confirm reviewed**
+  calls the RPC `confirm_rgm_task_v1`, which records a `rgm_task_confirmations` row (unique
+  per location/date/task — confirming twice just updates the timestamp). This is a
+  **checklist, not a gate**: confirming doesn't touch the underlying attendance/expense
+  records, and nothing elsewhere is blocked by it.
   - **Escalation:** `check_daily_task_completion()` (the same 15-minute cron job that flags
     unclosed shifts and missing issuance) now also checks, for each of the three tasks, 2
     full days after the task's date (9am Karachi, the same business-day cutover used
@@ -76,9 +76,55 @@ editable from `expense-categories.html` (director access only). Each category ca
     (`task_rgm_review_missing`), which shows up on the Owner Dashboard's Alerts tab like any
     other open alert. Confirming late immediately resolves the alert itself (the RPC calls
     `resolve_task_alert` directly), rather than waiting for the next cron pass.
-  - Access is deliberately scoped to Ahsan only for now (via `manager_page_access`, page_key
-    `rgm_tasks`) — not tied to the `is_rgm` flag itself, so a backup reviewer could be added
-    later with no code change, just a grant.
+
+  **Grown into a general "Tasks" page (Oct 15, 2026 — same day):** the page (still
+  `rgm-tasks.html`/page_key `rgm_tasks`, relabeled "Tasks" on Home) now does three things,
+  stacked top to bottom, each shown or hidden based on who's logged in:
+
+  1. **Charge to Restaurant — needs approval** (visible to Hammad/auditor and Directors).
+     Managers still enter Charge to Restaurant freely on `expense-entry.html` — nothing
+     blocks the save. A `BEFORE INSERT` trigger (`expenses_set_review_status()`) stamps
+     every new row in that category `review_status = 'pending_review'`. This section lists
+     every pending row (amount, date, who entered it, detail) with **Approve**/**Reject**
+     buttons that call `review_charge_to_restaurant_v1(expense_id, manager_id, approve,
+     notes)` — gated to `role IN ('auditor','director')` inside the RPC itself, not just by
+     page access. Approving/rejecting only ever changes `review_status` +
+     `reviewed_by_manager_id`/`reviewed_at`/`review_notes` on the expense row; the amount,
+     category, and everything else about the expense is untouched, and it already counted
+     in every report from the moment it was entered — this is a review trail, not a
+     financial control.
+  2. **Charge to Restaurant — for your review** (visible to Directors only). Once Hammad (or
+     a director) approves an entry, it shows up here for Yasir — amount, date, who entered
+     it, when it was approved. No action is required; a **Got it** button
+     (`mark_charge_to_restaurant_seen_v1`) just clears it off the list by stamping
+     `owner_seen_at`, director-only, purely for the owner's own tidiness.
+  3. **To-Do Lists** — a running, manually-maintained checklist per role (Store Man, Shift
+     Manager, RGM, Auditor, Director), meant to grow over time as new standing
+     responsibilities come up, rather than anything auto-generated. Backed by a new table,
+     `role_todos` (`role_key, text, status, created_by_manager_id, created_at,
+     done_by_manager_id, done_at`). Anyone with access to this page can add an item to any
+     role's list or check one off — there's no per-role write restriction, since in practice
+     Yasir is usually the one adding items for other roles. Adding goes through
+     `add_role_todo_v1`, checking off through `set_role_todo_status_v1` — both
+     `SECURITY DEFINER` RPCs that verify the caller is an active manager granted the
+     `rgm_tasks` page (reads of the table go straight through PostgREST, since
+     `role_todos`'s own `SELECT` policy is just `USING (true)`).
+
+  - **Access** was broadened the same day from Ahsan-only to also include Hammad, Store
+    Person, Hamza, Aqib, and Anjum (via `manager_page_access`, page_key `rgm_tasks`) — still
+    not tied to the `is_rgm`/`auditor` role flags themselves, just individual grants, so
+    access can be adjusted later with no code change. Directors see every section regardless
+    (same universal-access rule as every other page).
+  - **Why RPCs, not raw table policies, for the new writes:** `managers` has RLS enabled
+    with zero policies (see the JazzCash/RGM-tasks note elsewhere in this doc), so any RLS
+    `WITH CHECK` on another table that joins `managers` to verify the caller — which is what
+    a first attempt at `role_todos`'s own insert/update policies did — silently evaluates to
+    false for the `anon` key, because `anon` can't see any rows in `managers` either, even
+    inside someone else's policy. `confirm_rgm_task_v1` already sidesteps this by writing as
+    a `SECURITY DEFINER` function instead of a raw REST call; `add_role_todo_v1` and
+    `set_role_todo_status_v1` follow the same pattern. The table's own insert/update RLS
+    policies are left in place but are effectively dead code — real writes only ever go
+    through the RPCs.
 
 **Subcategories** are managed inside the same page (expand a category → Subcategories
 section). A category with no subcategories just skips that dropdown on the entry form.
