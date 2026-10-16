@@ -373,17 +373,27 @@ document.getElementById("btn-back").addEventListener("click", backToNames);
 
 async function loadBalances() {
   const list = document.getElementById("balance-list");
-  let vendors = [], purchases = [], payments = [];
+  let vendors = [], purchases = [], payments = [], overrides = [];
   try { vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance,opening_balance_as_of&order=name`); } catch (e) {}
   try { purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&select=vendor_id,amount,purchase_date`); } catch (e) {}
   try { payments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&select=vendor_id,amount,payment_date`); } catch (e) {}
+  // Vendors shared across locations (e.g. IRC DAIRY PRODUCT, bought by both
+  // Gulberg and Johar Town) can't use a single global opening_payable_balance
+  // on the vendors row without corrupting one location's numbers, so a
+  // per-location override lives in vendor_location_opening_balances. When a
+  // row exists for this vendor+location, it wins over the vendor-level field.
+  try { overrides = await sb(`vendor_location_opening_balances?location_id=eq.${LOCATION_ID}&select=vendor_id,opening_payable_balance,opening_balance_as_of`); } catch (e) {}
+  const overrideMap = {};
+  overrides.forEach(o => { overrideMap[o.vendor_id] = o; });
 
   state.vendors = vendors;
+  state.overrideMap = overrideMap;
   state.balances = {};
   state.breakdown = {};
   let total = 0;
   vendors.forEach(v => {
-    const asOf = v.opening_balance_as_of || null;
+    const ov = overrideMap[v.id];
+    const asOf = (ov ? ov.opening_balance_as_of : v.opening_balance_as_of) || null;
     // Presentation mirrors the vendor's own credit-payment sheet: Opening Balance
     // (the baseline as of opening_balance_as_of, already netted against whatever
     // purchases/payments existed up to that date so nothing is double-counted),
@@ -393,7 +403,7 @@ async function loadBalances() {
     let periodOwed = 0, periodPaid = 0;
     purchases.forEach(p => { if (p.vendor_id === v.id && (!asOf || p.purchase_date > asOf)) periodOwed += (Number(p.amount) || 0); });
     payments.forEach(p => { if (p.vendor_id === v.id && (!asOf || p.payment_date > asOf)) periodPaid += (Number(p.amount) || 0); });
-    const opening = Number(v.opening_payable_balance) || 0;
+    const opening = Number(ov ? ov.opening_payable_balance : v.opening_payable_balance) || 0;
     const bal = opening + periodOwed - periodPaid;
     state.balances[v.id] = bal;
     state.breakdown[v.id] = { opening, periodOwed, periodPaid, asOf };
@@ -401,7 +411,7 @@ async function loadBalances() {
   });
 
   const isDirector = state.role === "director";
-  const owing = vendors.filter(v => state.balances[v.id] > 0.01 || (isDirector && Number(v.opening_payable_balance))).sort((a, b) => state.balances[b.id] - state.balances[a.id]);
+  const owing = vendors.filter(v => state.balances[v.id] > 0.01 || (isDirector && Number(state.breakdown[v.id].opening))).sort((a, b) => state.balances[b.id] - state.balances[a.id]);
   if (!owing.length && !isDirector) {
     list.innerHTML = '<div class="empty-note">No outstanding balances against any vendor right now.</div>';
     document.getElementById("balance-total-wrap").hidden = true;
@@ -422,8 +432,9 @@ async function loadBalances() {
       ${isDirector ? `
       <div class="hint" style="margin:-4px 0 8px; display:flex; align-items:center; gap:6px;">
         Opening balance (pre-system dues):
-        <input type="number" step="any" value="${v.opening_payable_balance || 0}" data-opening-for="${v.id}" style="width:120px; padding:4px 6px; font-size:0.82rem;">
+        <input type="number" step="any" value="${b.opening || 0}" data-opening-for="${v.id}" style="width:120px; padding:4px 6px; font-size:0.82rem;">
         <button type="button" data-save-opening="${v.id}" style="padding:4px 8px; font-size:0.8rem; border-radius:6px; width:auto;">Save</button>
+        ${state.overrideMap[v.id] ? '<span class="hint" style="font-size:0.72rem;">(location-specific override — Save updates this location only)</span>' : ""}
       </div>` : ""}`; }).join("");
     document.querySelectorAll(".balance-row").forEach(row => {
       row.addEventListener("click", () => {
@@ -504,11 +515,24 @@ async function saveOpeningBalance(vendorId) {
   const input = document.querySelector(`[data-opening-for="${vendorId}"]`);
   const amount = parseFloat(input.value) || 0;
   try {
-    await sb(`vendors?id=eq.${vendorId}`, {
-      method: "PATCH",
-      headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify({ opening_payable_balance: amount, opening_balance_as_of: todayStr(), opening_balance_updated_by: state.userId })
-    });
+    if (state.overrideMap && state.overrideMap[vendorId]) {
+      // Vendor is shared across locations (e.g. bought by both Gulberg and
+      // Johar Town) and already has a per-location override row, so edit
+      // THAT row — writing the global vendors.opening_payable_balance here
+      // would either do nothing (it's overridden) or, worse, bleed into the
+      // other location's numbers if the override is ever removed.
+      await sb(`vendor_location_opening_balances?vendor_id=eq.${vendorId}&location_id=eq.${LOCATION_ID}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ opening_payable_balance: amount, opening_balance_as_of: todayStr(), opening_balance_updated_by: state.userId })
+      });
+    } else {
+      await sb(`vendors?id=eq.${vendorId}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ opening_payable_balance: amount, opening_balance_as_of: todayStr(), opening_balance_updated_by: state.userId })
+      });
+    }
     await loadBalances();
   } catch (e) { alert("Couldn't save opening balance: " + e.message); }
 }

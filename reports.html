@@ -796,29 +796,44 @@ async function runPayReport() {
     const nextMonth = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10); // first day of next month
     const monthEndExclusive = nextMonth;
 
-    const vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance&order=name`);
+    const vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance,opening_balance_as_of&order=name`);
+    // Vendors shared across locations (e.g. IRC DAIRY PRODUCT, bought by both
+    // Gulberg and Johar Town) can't use a single global opening balance on the
+    // vendors row, so a per-location override lives in
+    // vendor_location_opening_balances — it wins over the vendor-level field
+    // whenever a row exists for this location. See vendor-payment.html.
+    const overrides = await sb(`vendor_location_opening_balances?location_id=eq.${LOCATION_ID}&select=vendor_id,opening_payable_balance,opening_balance_as_of`);
+    const overrideMap = {};
+    overrides.forEach(o => { overrideMap[o.vendor_id] = o; });
+
     const allPurchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&purchase_date=lt.${monthEndExclusive}&select=vendor_id,amount,purchase_date`);
     const allPayments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=lt.${monthEndExclusive}&select=vendor_id,amount,payment_date`);
 
-    const owedToDate = {}, paidToDate = {}, owedInMonth = {}, paidInMonth = {};
-    allPurchases.forEach(p => {
-      if (!p.vendor_id) return;
-      owedToDate[p.vendor_id] = (owedToDate[p.vendor_id] || 0) + (Number(p.amount) || 0);
-      if (p.purchase_date >= monthStart) owedInMonth[p.vendor_id] = (owedInMonth[p.vendor_id] || 0) + (Number(p.amount) || 0);
-    });
-    allPayments.forEach(p => {
-      if (!p.vendor_id) return;
-      paidToDate[p.vendor_id] = (paidToDate[p.vendor_id] || 0) + (Number(p.amount) || 0);
-      if (p.payment_date >= monthStart) paidInMonth[p.vendor_id] = (paidInMonth[p.vendor_id] || 0) + (Number(p.amount) || 0);
-    });
-
     let grandBalance = 0;
     const blocks = vendors.map(v => {
-      const balance = (Number(v.opening_payable_balance) || 0) + (owedToDate[v.id] || 0) - (paidToDate[v.id] || 0);
-      const activityThisMonth = (owedInMonth[v.id] || 0) + (paidInMonth[v.id] || 0);
+      const ov = overrideMap[v.id];
+      // opening_payable_balance is a baseline AS OF opening_balance_as_of, already
+      // netted against purchases/payments up to that date, so only activity dated
+      // AFTER that baseline date counts here — otherwise pre-baseline purchases get
+      // counted twice (once inside the baseline, once again from raw history).
+      const asOf = (ov ? ov.opening_balance_as_of : v.opening_balance_as_of) || null;
+      const opening = Number(ov ? ov.opening_payable_balance : v.opening_payable_balance) || 0;
+      let owedToDate = 0, paidToDate = 0, owedInMonth = 0, paidInMonth = 0;
+      allPurchases.forEach(p => {
+        if (p.vendor_id !== v.id || (asOf && !(p.purchase_date > asOf))) return;
+        owedToDate += Number(p.amount) || 0;
+        if (p.purchase_date >= monthStart) owedInMonth += Number(p.amount) || 0;
+      });
+      allPayments.forEach(p => {
+        if (p.vendor_id !== v.id || (asOf && !(p.payment_date > asOf))) return;
+        paidToDate += Number(p.amount) || 0;
+        if (p.payment_date >= monthStart) paidInMonth += Number(p.amount) || 0;
+      });
+      const balance = opening + owedToDate - paidToDate;
+      const activityThisMonth = owedInMonth + paidInMonth;
       if (Math.abs(balance) < 0.01 && activityThisMonth < 0.01) return null;
       grandBalance += balance;
-      return { name: v.name, purchased: owedInMonth[v.id] || 0, paid: paidInMonth[v.id] || 0, balance };
+      return { name: v.name, purchased: owedInMonth, paid: paidInMonth, balance };
     }).filter(Boolean).sort((a, b) => b.balance - a.balance);
 
     if (!blocks.length) { resultEl.innerHTML = '<div class="empty-note">No vendor activity or balance for this month.</div>'; return; }
