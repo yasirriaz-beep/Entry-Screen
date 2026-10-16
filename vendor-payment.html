@@ -60,6 +60,19 @@
   .v-breakdown .v-col-val { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.82rem; }
   .v-breakdown .v-col-closing .v-col-val { color: var(--warn); font-weight: 700; }
   @media (max-width: 420px) { .v-breakdown { grid-template-columns: repeat(2, 1fr); gap: 8px 10px; } }
+
+  #entries-log { max-height: 340px; overflow-y: auto; }
+  .log-day { margin-bottom: 10px; }
+  .log-day-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); padding: 4px 0; position: sticky; top: 0; background: var(--surface); }
+  .log-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 0.85rem; }
+  .log-row:last-child { border-bottom: none; }
+  .log-row .log-left { min-width: 0; }
+  .log-row .log-vendor { font-weight: 600; }
+  .log-row .log-type { font-size: 0.72rem; color: var(--ink-soft); margin-left: 6px; }
+  .log-row .log-note { font-size: 0.72rem; color: var(--ink-soft); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .log-row .log-amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .log-amt.log-amt-purchase { color: var(--warn); }
+  .log-amt.log-amt-payment { color: var(--ok); }
   .balance-total { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 0 0; margin-top: 4px; border-top: 2px solid var(--border); font-family: 'Zilla Slab', Georgia, serif; }
   .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
   .selected-balance { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 13px; font-size: 0.88rem; margin-top: -4px; margin-bottom: 14px; font-weight: 600; }
@@ -117,6 +130,11 @@
       <div class="bb-value" id="receivables-value">PKR 0</div>
       <div class="bb-hint">Prepaid, not yet received — breakdown below</div>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Recent Entries <span class="hint">(everything added, by date)</span></div>
+    <div id="entries-log"><div class="hint">Loading…</div></div>
   </div>
 
   <div class="card">
@@ -294,6 +312,54 @@ function afterLogin(userId, name, managerId, role) {
   document.getElementById("panel-main").hidden = false;
   document.getElementById("f-date").value = todayStr();
   loadBalances();
+  loadEntriesLog();
+}
+
+function fmtLogDate(d) {
+  const dt = new Date(d + "T00:00:00");
+  return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+
+// Chronological feed of every purchase/payment entered for this location, newest
+// first, so a director or store person can see exactly what's been added and when
+// — including the PDF-reconciliation catch-up entries, which show up like any
+// other entry (their note explains what they are).
+async function loadEntriesLog() {
+  const wrap = document.getElementById("entries-log");
+  let purchases = [], payments = [], vendorNames = {};
+  try {
+    purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=vendor_id,amount,purchase_date,payment_status,notes,created_at&order=purchase_date.desc&limit=200`);
+  } catch (e) {}
+  try {
+    payments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&select=vendor_id,amount,payment_date,notes,created_at,method&order=payment_date.desc&limit=200`);
+  } catch (e) {}
+  (state.vendors || []).forEach(v => { vendorNames[v.id] = v.name; });
+
+  const entries = [
+    ...purchases.map(p => ({ date: p.purchase_date, type: p.payment_status === "credit" ? "Purchase (credit)" : "Purchase (paid)", cls: "purchase", vendor: vendorNames[p.vendor_id] || "Unknown vendor", amount: Number(p.amount) || 0, notes: p.notes, created_at: p.created_at })),
+    ...payments.map(p => ({ date: p.payment_date, type: "Payment" + (p.method ? ` (${p.method})` : ""), cls: "payment", vendor: vendorNames[p.vendor_id] || "Unknown vendor", amount: Number(p.amount) || 0, notes: p.notes, created_at: p.created_at }))
+  ].filter(e => e.date).sort((a, b) => (b.date + (b.created_at || "")).localeCompare(a.date + (a.created_at || "")));
+
+  if (!entries.length) {
+    wrap.innerHTML = '<div class="empty-note">No entries recorded yet.</div>';
+    return;
+  }
+
+  const byDay = {};
+  entries.forEach(e => { (byDay[e.date] = byDay[e.date] || []).push(e); });
+
+  wrap.innerHTML = Object.keys(byDay).map(date => `
+    <div class="log-day">
+      <div class="log-day-label">${fmtLogDate(date)}</div>
+      ${byDay[date].map(e => `
+        <div class="log-row">
+          <div class="log-left">
+            <span class="log-vendor">${e.vendor}</span><span class="log-type">${e.type}</span>
+            ${e.notes ? `<span class="log-note" title="${e.notes.replace(/"/g, "&quot;")}">${e.notes}</span>` : ""}
+          </div>
+          <span class="log-amt log-amt-${e.cls}">${fmtMoney(e.amount)}</span>
+        </div>`).join("")}
+    </div>`).join("");
 }
 
 function backToNames() {
