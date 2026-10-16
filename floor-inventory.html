@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Floor Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 110px; max-width: 820px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .tab-btn { flex: 1 1 18%; min-width: 70px; background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 6px; font-weight: 600; cursor: pointer; color: var(--ink); font-size: 0.85rem; }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .item-block { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--field-bg); }
+  .item-block .item-title { font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .item-block .item-title .var-tag { font-size: 0.78rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .grid-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .grid-fields.kitchen { grid-template-columns: repeat(5, 1fr); }
+  .grid-fields > div { min-width: 0; }
+  .grid-fields label { font-size: 0.62rem; margin-bottom: 4px; }
+  .grid-fields input { padding: 8px; font-size: 0.85rem; text-align: right; }
+  .grid-fields input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .sticky-save { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 820px; margin: 0 auto; }
+  .sticky-save button { max-width: 820px; margin: 0 auto; display: block; }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+
+  .dough-row { display: grid; grid-template-columns: 1fr 90px; gap: 8px; align-items: end; margin-bottom: 8px; }
+  .dough-row .remove-ing { background: transparent; border: 1px solid var(--border); color: var(--err); padding: 10px; }
+  table.recipe-tbl { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  table.recipe-tbl th, table.recipe-tbl td { border-bottom: 1px solid var(--border); padding: 6px 4px; text-align: left; }
+  table.recipe-tbl td.num { text-align: right; }
+  .output-row { display: grid; grid-template-columns: 1fr 90px; gap: 8px; margin-bottom: 8px; }
+  .pill-btn { display: inline-block; background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 8px 14px; font-size: 0.82rem; cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit; width:auto;">← Entry Screen</a>
+
+<h1>Floor Inventory</h1>
+<div class="sub">Beginning Balance carries forward automatically. Addition is pulled from store issuance. The only thing to type is the Ending Count.</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-floor="KITCHEN">Kitchen</button>
+    <button type="button" class="tab-btn" data-floor="BOH">BOH</button>
+    <button type="button" class="tab-btn" data-floor="FOH">FOH</button>
+    <button type="button" class="tab-btn" data-floor="BAR">Bar</button>
+    <button type="button" class="tab-btn" data-floor="DEL">Delivery</button>
+  </div>
+
+  <div class="card" id="kitchen-shift-card">
+    <div class="step-label">Shift</div>
+    <select id="f-shift">
+      <option value="Morning">Morning</option>
+      <option value="Evening">Evening</option>
+    </select>
+    <div class="hint">Pick the shift you're counting for. Starting a new shift closes the running period and opens a fresh one, carrying the Ending Count forward as the next Beginning Balance.</div>
+  </div>
+
+  <div class="card">
+    <div class="hint" style="margin-bottom:10px;" id="floor-formula-hint">Expected = Beginning + Addition. Ending Count is what you physically count.</div>
+    <div id="item-list"></div>
+    <div class="hint" id="item-list-empty" hidden>No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear.</div>
+  </div>
+
+  <div class="card" id="dough-card">
+    <h2 style="font-family:'Zilla Slab',Georgia,serif; font-size:1.15rem; margin:0 0 10px;">Dough Batch Log</h2>
+    <div class="hint" style="margin-bottom:10px;">Logging a batch auto-deducts the recipe's ingredients from Kitchen's floor stock for the current period.</div>
+    <label>Batches Made</label>
+    <input type="number" id="db-batches" step="any" min="0" placeholder="e.g. 3">
+    <div style="margin-top:10px;">
+      <label>Pizza Sizes Made From This Batch</label>
+      <div id="db-outputs"></div>
+      <span class="pill-btn" id="db-add-output">+ Add size</span>
+    </div>
+    <button class="btn-primary" id="db-save" style="margin-top:14px;">Log Dough Batch</button>
+    <div class="hint" id="db-status" style="margin-top:8px;"></div>
+
+    <div id="recipe-admin" style="margin-top:20px; border-top:1px solid var(--border); padding-top:14px;" hidden>
+      <div class="step-label">Dough Recipe (per batch) — director only</div>
+      <div id="recipe-rows"></div>
+      <div class="dough-row" style="margin-top:6px;">
+        <select id="recipe-new-product"><option value="">Add ingredient…</option></select>
+        <input type="number" id="recipe-new-qty" step="any" placeholder="qty/batch">
+      </div>
+      <button class="btn-ghost" id="recipe-add-btn" type="button">Add Ingredient</button>
+    </div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div class="sticky-save" id="sticky-save" hidden>
+  <button class="btn-primary" id="btn-save-all" type="button">Save Ending Counts (<span id="dirty-count">0</span>)</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const PAGE_KEY = "floor_inventory";
+const EPOCH = "2000-01-01T00:00:00.000Z";
+
+let state = {
+  userId: null, userName: null, userRole: null, managerId: null,
+  floor: "KITCHEN", shift: "Morning",
+  items: [],       // {id, name, unit, period, addedLive, doughUsageLive}
+  dirty: {},       // product_id -> ending_qty
+  recipe: [],      // dough_recipe_items rows (joined product name/unit)
+  allProducts: [],
+  doughOutputs: []
+};
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+  });
+  if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`${res.status} ${text}`); }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text; try { msg = JSON.parse(text).message || text; } catch (e) {}
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function fmtQty(n) {
+  const v = Number(n) || 0;
+  return (Math.round(v * 100) / 100).toLocaleString();
+}
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    nameInput.value = ""; pinInput.value = "";
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    setTimeout(() => afterLogin(row.app_user_id, match.name, match.id, row.role), 150);
+  } catch (err) {
+    errEl.hidden = false; pinInput.value = ""; pinInput.focus();
+  } finally { submitBtn.disabled = false; }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId; state.userName = name; state.managerId = managerId; state.userRole = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("recipe-admin").hidden = role !== "director";
+  loadProductsOnce().then(() => setFloor("KITCHEN"));
+}
+function backToNames() {
+  state.userId = null;
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => setFloor(btn.dataset.floor)));
+document.getElementById("f-shift").addEventListener("change", (e) => { state.shift = e.target.value; if (state.floor === "KITCHEN") loadFloor(); });
+
+function setFloor(floor) {
+  state.floor = floor;
+  state.dirty = {};
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.floor === floor));
+  document.getElementById("kitchen-shift-card").hidden = floor !== "KITCHEN";
+  document.getElementById("dough-card").hidden = floor !== "KITCHEN";
+  document.getElementById("floor-formula-hint").textContent = floor === "KITCHEN"
+    ? "Expected = Beginning + Addition − Dough Batch Usage. Ending Count is what you physically count."
+    : "Expected = Beginning + Addition. Ending Count is what you physically count.";
+  loadFloor();
+  if (floor === "KITCHEN") loadDoughRecipe();
+}
+
+async function loadProductsOnce() {
+  if (state.allProducts.length) return;
+  state.allProducts = await sb(`products?select=id,name,unit&order=name`);
+  const sel = document.getElementById("recipe-new-product");
+  sel.innerHTML = `<option value="">Add ingredient…</option>` + state.allProducts.map(p => `<option value="${p.id}">${p.name} (${p.unit})</option>`).join("");
+}
+
+async function loadFloor() {
+  const list = document.getElementById("item-list");
+  const emptyHint = document.getElementById("item-list-empty");
+  list.innerHTML = `<div class="hint">Loading…</div>`;
+  updateSaveBar();
+
+  const floor = state.floor;
+  let issuedIds = [];
+  try {
+    const rows = await sb(`daily_issues?issued_to=eq.${floor}&location_id=eq.${LOCATION_ID}&select=product_id`);
+    issuedIds = [...new Set(rows.map(r => r.product_id))];
+  } catch (e) { issuedIds = []; }
+  let trackedIds = [];
+  try {
+    const rows = await sb(`floor_stock_periods?floor=eq.${floor}&location_id=eq.${LOCATION_ID}&select=product_id`);
+    trackedIds = rows.map(r => r.product_id);
+  } catch (e) { trackedIds = []; }
+  const ids = [...new Set([...issuedIds, ...trackedIds])];
+
+  if (!ids.length) { list.innerHTML = ""; emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  const prodMap = {};
+  state.allProducts.forEach(p => { prodMap[p.id] = p; });
+
+  let periodRows = [];
+  try {
+    periodRows = await sb(`floor_stock_periods?floor=eq.${floor}&location_id=eq.${LOCATION_ID}&product_id=in.(${ids.join(",")})&order=created_at.desc&select=*`);
+  } catch (e) { periodRows = []; }
+  const latestByProduct = {};
+  periodRows.forEach(r => { if (!latestByProduct[r.product_id]) latestByProduct[r.product_id] = r; });
+
+  // Open a fresh period for any item whose latest period is missing or closed.
+  const toOpen = [];
+  ids.forEach(id => {
+    const latest = latestByProduct[id];
+    if (!latest || latest.period_end_at) {
+      toOpen.push({
+        product_id: id,
+        beginning_qty: latest ? (latest.ending_qty || 0) : 0,
+        period_start_at: latest ? latest.period_end_at : EPOCH
+      });
+    }
+  });
+  if (toOpen.length) {
+    const label = floor === "KITCHEN" ? `${todayStr()} ${state.shift}` : todayStr();
+    for (const o of toOpen) {
+      try {
+        const created = await sb(`floor_stock_periods`, {
+          method: "POST", headers: { "Prefer": "return=representation" },
+          body: JSON.stringify({
+            location_id: LOCATION_ID, floor, product_id: o.product_id, period_label: label,
+            period_start_at: o.period_start_at, beginning_qty: o.beginning_qty,
+            entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+          })
+        });
+        if (created && created[0]) latestByProduct[o.product_id] = created[0];
+      } catch (e) { /* likely already open from a race — ignore, will refetch */ }
+    }
+  }
+
+  // Live Addition (store issuance since period_start_at) per item.
+  const items = [];
+  for (const id of ids) {
+    const period = latestByProduct[id];
+    if (!period) continue;
+    const prod = prodMap[id] || { name: "(unknown item)", unit: "" };
+    let added = 0;
+    try {
+      const rows = await sb(`daily_issues?issued_to=eq.${floor}&location_id=eq.${LOCATION_ID}&product_id=eq.${id}&created_at=gte.${encodeURIComponent(period.period_start_at)}&select=qty`);
+      added = rows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+    } catch (e) {}
+    let doughUsage = 0;
+    if (floor === "KITCHEN") {
+      doughUsage = await doughUsageSince(id, period.period_start_at);
+    }
+    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage });
+  }
+  items.sort((a, b) => a.name.localeCompare(b.name));
+  state.items = items;
+  renderItemList();
+}
+
+async function doughUsageSince(productId, sinceIso) {
+  const recipeRow = state.recipe.find(r => r.product_id === productId);
+  if (!recipeRow) return 0;
+  try {
+    const batches = await sb(`dough_batches?location_id=eq.${LOCATION_ID}&created_at=gte.${encodeURIComponent(sinceIso)}&select=batches_made`);
+    const totalBatches = batches.reduce((s, b) => s + (Number(b.batches_made) || 0), 0);
+    return totalBatches * (Number(recipeRow.qty_per_batch) || 0);
+  } catch (e) { return 0; }
+}
+
+function fieldHtml(label, value, note) {
+  return `<div><label>${label}</label><input type="text" value="${value}" disabled>${note ? `<div class="hint" style="margin-top:2px;">${note}</div>` : ""}</div>`;
+}
+
+function renderItemList() {
+  const list = document.getElementById("item-list");
+  list.innerHTML = "";
+  const isKitchen = state.floor === "KITCHEN";
+  state.items.forEach(it => {
+    const beginning = Number(it.period.beginning_qty) || 0;
+    const expected = beginning + it.added - (isKitchen ? it.doughUsage : 0);
+    const dirtyVal = state.dirty[it.id];
+    const enteredEnding = it.period.ending_qty != null ? it.period.ending_qty : "";
+    const showEnding = dirtyVal != null ? dirtyVal : enteredEnding;
+    const variance = showEnding !== "" ? (Number(showEnding) - expected) : null;
+
+    const block = document.createElement("div");
+    block.className = "item-block";
+    block.innerHTML = `
+      <div class="item-title">
+        <span>${it.name} <span class="hint" style="margin:0;">(${it.unit})</span></span>
+        <span class="var-tag">${variance != null ? "Var: " + fmtQty(variance) : ""}</span>
+      </div>
+      <div class="grid-fields ${isKitchen ? "kitchen" : ""}">
+        ${fieldHtml("Beginning", fmtQty(beginning))}
+        ${fieldHtml("Addition", fmtQty(it.added))}
+        ${isKitchen ? fieldHtml("Dough Used", fmtQty(it.doughUsage)) : ""}
+        ${fieldHtml("Expected", fmtQty(expected))}
+        <div><label>Ending Count</label><input type="number" step="any" class="f-ending" value="${showEnding}" placeholder="count"></div>
+      </div>
+    `;
+    const endingInput = block.querySelector(".f-ending");
+    const varTag = block.querySelector(".var-tag");
+    if (state.dirty[it.id] != null) endingInput.classList.add("dirty");
+    endingInput.addEventListener("input", () => {
+      const v = parseFloat(endingInput.value);
+      state.dirty[it.id] = isNaN(v) ? "" : v;
+      endingInput.classList.add("dirty");
+      varTag.textContent = !isNaN(v) ? `Var: ${fmtQty(v - expected)}` : "";
+      updateSaveBar();
+    });
+    list.appendChild(block);
+  });
+}
+
+function updateSaveBar() {
+  const count = Object.keys(state.dirty).length;
+  document.getElementById("dirty-count").textContent = count;
+  document.getElementById("sticky-save").hidden = count === 0;
+}
+
+async function saveAllEntries() {
+  const ids = Object.keys(state.dirty);
+  if (!ids.length) return;
+  const btn = document.getElementById("btn-save-all");
+  btn.disabled = true;
+  let done = 0, failed = 0;
+  for (const id of ids) {
+    const item = state.items.find(i => i.id === id);
+    if (!item) continue;
+    const endingVal = state.dirty[id];
+    if (endingVal === "" || endingVal == null) continue;
+    try {
+      await sb(`floor_stock_periods?id=eq.${item.period.id}`, {
+        method: "PATCH", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          ending_qty: endingVal, added_qty: item.added, dough_usage_qty: item.doughUsage,
+          period_end_at: new Date().toISOString(),
+          closed_by_user_id: state.userId, closed_by_manager_id: state.managerId
+        })
+      });
+      done++;
+    } catch (e) { failed++; }
+    btn.textContent = `Saving ${done + failed}/${ids.length}…`;
+  }
+  btn.textContent = `Save Ending Counts (0)`;
+  btn.disabled = false;
+  state.dirty = {};
+  updateSaveBar();
+  await loadFloor();
+  if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
+}
+document.getElementById("btn-save-all").addEventListener("click", saveAllEntries);
+
+/* ---------- Dough Recipe (director) ---------- */
+async function loadDoughRecipe() {
+  try {
+    const rows = await sb(`dough_recipe_items?location_id=eq.${LOCATION_ID}&active=eq.true&select=*`);
+    const prodMap = {}; state.allProducts.forEach(p => { prodMap[p.id] = p; });
+    state.recipe = rows.map(r => ({ ...r, _name: prodMap[r.product_id]?.name || "(item)", _unit: prodMap[r.product_id]?.unit || "" }));
+  } catch (e) { state.recipe = []; }
+  renderRecipe();
+}
+function renderRecipe() {
+  const box = document.getElementById("recipe-rows");
+  if (!state.recipe.length) { box.innerHTML = `<div class="hint">No recipe set yet — add ingredients below (e.g. Pizza Flour, Dough Blend, Oil) with the exact quantity used per batch.</div>`; return; }
+  box.innerHTML = `<table class="recipe-tbl"><tr><th>Ingredient</th><th>Qty / batch</th><th>Unit</th></tr>` +
+    state.recipe.map(r => `<tr><td>${r._name}</td><td class="num">${fmtQty(r.qty_per_batch)}</td><td>${r._unit}</td></tr>`).join("") +
+    `</table>`;
+}
+document.getElementById("recipe-add-btn").addEventListener("click", async () => {
+  const pid = document.getElementById("recipe-new-product").value;
+  const qty = parseFloat(document.getElementById("recipe-new-qty").value);
+  if (!pid || isNaN(qty) || qty <= 0) { alert("Pick an ingredient and a quantity per batch."); return; }
+  try {
+    await sb(`dough_recipe_items`, {
+      method: "POST", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ location_id: LOCATION_ID, product_id: pid, qty_per_batch: qty, created_by: state.userId })
+    });
+    document.getElementById("recipe-new-product").value = "";
+    document.getElementById("recipe-new-qty").value = "";
+    await loadDoughRecipe();
+  } catch (e) { alert("Could not add ingredient: " + e.message); }
+});
+
+/* ---------- Dough Batch Log ---------- */
+function addOutputRow(label = "", qty = "") {
+  const box = document.getElementById("db-outputs");
+  const row = document.createElement("div");
+  row.className = "output-row";
+  row.innerHTML = `<input type="text" class="o-label" placeholder="e.g. Medium" value="${label}"><input type="number" class="o-qty" step="any" placeholder="qty" value="${qty}">`;
+  box.appendChild(row);
+}
+document.getElementById("db-add-output").addEventListener("click", () => addOutputRow());
+addOutputRow();
+
+document.getElementById("db-save").addEventListener("click", async () => {
+  const statusEl = document.getElementById("db-status");
+  const batches = parseFloat(document.getElementById("db-batches").value);
+  if (isNaN(batches) || batches <= 0) { statusEl.textContent = "Enter how many batches were made."; return; }
+  if (!state.recipe.length) { statusEl.textContent = "No dough recipe set up yet — ask the director to add ingredients above first."; return; }
+  const outputs = [...document.querySelectorAll("#db-outputs .output-row")].map(r => ({
+    label: r.querySelector(".o-label").value.trim(),
+    qty: parseFloat(r.querySelector(".o-qty").value)
+  })).filter(o => o.label && !isNaN(o.qty) && o.qty > 0);
+
+  statusEl.textContent = "Saving…";
+  try {
+    const created = await sb(`dough_batches`, {
+      method: "POST", headers: { "Prefer": "return=representation" },
+      body: JSON.stringify({
+        location_id: LOCATION_ID, batch_date: todayStr(), shift_label: state.shift,
+        batches_made: batches, entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+      })
+    });
+    const batchId = created && created[0] && created[0].id;
+    for (const o of outputs) {
+      await sb(`dough_batch_outputs`, {
+        method: "POST", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ dough_batch_id: batchId, size_label: o.label, qty: o.qty })
+      });
+    }
+    statusEl.textContent = "Logged. Kitchen floor stock will reflect the deduction above.";
+    document.getElementById("db-batches").value = "";
+    document.getElementById("db-outputs").innerHTML = "";
+    addOutputRow();
+    await loadFloor();
+  } catch (e) { statusEl.textContent = "Could not save: " + e.message; }
+});
+
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+}
+</script>
+</body>
+</html>
