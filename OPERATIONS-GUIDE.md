@@ -1118,6 +1118,31 @@ Two things worth knowing:
   compare current inventory value to it and flag whether cash was actually freed by running
   inventory down rather than genuine profit.
 
+### Goods Receipt against a PO silently failed for cash_custodian (fixed Oct 16, 2026)
+
+Yasir reported that after entering a Goods Receipt against a Purchase Order (qty + payment),
+the same item kept showing up again to receive. Root cause: `goods-receipt.html` lets
+store_man, shift_manager, cash_custodian, and director all receive against a PO, and the
+`purchases` insert succeeded for all of them — but the follow-up `purchase_orders` UPDATE
+(the one that flips the PO's status to "Received" so it stops showing in the pick list) was
+gated by an RLS policy, `anon_receive_purchase_orders`, that only allowed store_man and
+shift_manager. For Zeeshan (cash_custodian), the insert worked and the PATCH silently 401'd
+(caught by the page's generic error alert, screenshot confirmed: `new row violates row-level
+security policy for table "purchase_orders"`), so the PO never left Authorized/Ordered and kept
+reappearing — he re-entered the same receipt multiple times believing it hadn't saved the first
+time. Widened the policy (`ALTER POLICY`, not `CREATE OR REPLACE` — Postgres doesn't support
+that for policies, and `DROP POLICY` trips the same destructive-SQL-cancellation quirk as
+`DROP TRIGGER`, so this one has to go through `ALTER POLICY ... USING (...) WITH CHECK (...)`
+on the existing policy name) to include cash_custodian and director, matching who can actually
+submit a receipt. Backfilled the 4 Purchase Orders this had already affected (LPG Cylinders /
+GMSA, Tandoori Sauce, Delux Sauce, Malai Boti / FNK Grill) to status "Received" with the real
+qty/timestamp from their linked purchases — those receipts had genuinely happened, this just
+corrects the status that silently failed to update, it is not a data correction of anyone's
+entry. Three of those POs had already picked up duplicate purchases from the repeated re-entry
+(matching what the duplicate-transaction audit alert had flagged); Zeeshan had already voided
+the extras himself via the Goods Receipt void/correct feature before this was diagnosed, which
+is exactly the intended self-service workflow working as designed.
+
 ### Cash Priority & Payments page (added Oct 16, 2026)
 
 The waterfall above lived only on the Owner Dashboard, which the owner didn't want to open up
