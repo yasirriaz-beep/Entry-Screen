@@ -1118,6 +1118,28 @@ Two things worth knowing:
   compare current inventory value to it and flag whether cash was actually freed by running
   inventory down rather than genuine profit.
 
+### Cash Priority & Payments page (added Oct 16, 2026)
+
+The waterfall above lived only on the Owner Dashboard, which the owner didn't want to open up
+to managers wholesale. Split it out into its own page, `cash-priority.html`, with its own
+page_key (`cash_priority`) so it can be granted to specific managers from Manage Access without
+giving them the rest of the Owner Dashboard. It shows:
+
+- **Cash Available Right Now** — Safe 2's latest actual count (or expected figure if not yet
+  counted), same carry-forward logic as Cash Position elsewhere.
+- **This Month's Priorities** — the same waterfall tiers as the dashboard card.
+- **Suggested Payments Today** — new. Takes cash-on-hand, holds back whatever's still short on
+  an unfunded fixed tier (salaries/rent/electricity) this month, then proposes specific vendor
+  payments against outstanding balances with whatever's left — dairy (cheese) vendors first,
+  then protein (chicken), largest balance first within each, stopping when the cash runs out.
+  Each suggestion deep-links to `vendor-payment.html?vendor=<id>&amount=<n>`, which now reads
+  those params and pre-fills the form (`applyPrefillFromUrl()`) -- the manager still has to
+  review and hit Save themselves, nothing is submitted automatically.
+- **Outstanding Vendor Balances** — same payables calc as the dashboard, with dairy/protein
+  vendors tagged.
+
+Purely advisory, same as the dashboard card — no payment is blocked or auto-submitted.
+
 ---
 
 ## 7. Open items / things still being built out
