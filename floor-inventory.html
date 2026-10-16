@@ -71,6 +71,9 @@
   table.recipe-tbl td.num { text-align: right; }
   .output-row { display: grid; grid-template-columns: 1fr 90px; gap: 8px; margin-bottom: 8px; }
   .pill-btn { display: inline-block; background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 8px 14px; font-size: 0.82rem; cursor: pointer; font-weight: 600; }
+  .move-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .move-row select { width: auto; flex: 1; font-size: 0.78rem; padding: 6px 8px; }
+  .move-row .move-label { font-size: 0.72rem; color: var(--ink-soft); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -151,6 +154,8 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const PAGE_KEY = "floor_inventory";
 const EPOCH = "2000-01-01T00:00:00.000Z";
+const FLOORS = ["KITCHEN", "BOH", "FOH", "BAR", "DEL"];
+const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bar", DEL: "Delivery" };
 
 let state = {
   userId: null, userName: null, userRole: null, managerId: null,
@@ -281,7 +286,10 @@ async function loadFloor() {
   } catch (e) { issuedIds = []; }
   let trackedIds = [];
   try {
-    const rows = await sb(`floor_stock_periods?floor=eq.${floor}&location_id=eq.${LOCATION_ID}&select=product_id`);
+    // Only items with a still-open period stay listed here without active issuance —
+    // once a period is closed out (e.g. via "Move to another floor") it doesn't come back
+    // unless store issuance to this floor resumes.
+    const rows = await sb(`floor_stock_periods?floor=eq.${floor}&location_id=eq.${LOCATION_ID}&period_end_at=is.null&select=product_id`);
     trackedIds = rows.map(r => r.product_id);
   } catch (e) { trackedIds = []; }
   const ids = [...new Set([...issuedIds, ...trackedIds])];
@@ -368,6 +376,7 @@ function renderItemList() {
   const list = document.getElementById("item-list");
   list.innerHTML = "";
   const isKitchen = state.floor === "KITCHEN";
+  const canMove = state.userRole === "store_man" || state.userRole === "director";
   state.items.forEach(it => {
     const beginning = Number(it.period.beginning_qty) || 0;
     const expected = beginning + it.added - (isKitchen ? it.doughUsage : 0);
@@ -390,7 +399,23 @@ function renderItemList() {
         ${fieldHtml("Expected", fmtQty(expected))}
         <div><label>Ending Count</label><input type="number" step="any" class="f-ending" value="${showEnding}" placeholder="count"></div>
       </div>
+      ${canMove ? `
+      <div class="move-row">
+        <span class="move-label">Wrong floor?</span>
+        <select class="move-select">
+          <option value="">Move to…</option>
+          ${FLOORS.filter(f => f !== state.floor).map(f => `<option value="${f}">${FLOOR_LABELS[f]}</option>`).join("")}
+        </select>
+      </div>` : ""}
     `;
+    if (canMove) {
+      block.querySelector(".move-select").addEventListener("change", (e) => {
+        const to = e.target.value;
+        if (!to) return;
+        moveItemToFloor(it, to);
+        e.target.value = "";
+      });
+    }
     const endingInput = block.querySelector(".f-ending");
     const varTag = block.querySelector(".var-tag");
     if (state.dirty[it.id] != null) endingInput.classList.add("dirty");
@@ -403,6 +428,31 @@ function renderItemList() {
     });
     list.appendChild(block);
   });
+}
+
+async function moveItemToFloor(item, toFloor) {
+  const fromFloor = state.floor;
+  if (!confirm(`Move "${item.name}" from ${FLOOR_LABELS[fromFloor]} to ${FLOOR_LABELS[toFloor]}?\n\nThis reclassifies its past store issuance to the new floor and closes out its count here.`)) return;
+  try {
+    // Reclassify all historical issuance for this item on this floor to the new floor.
+    await sb(`daily_issues?location_id=eq.${LOCATION_ID}&product_id=eq.${item.id}&issued_to=eq.${fromFloor}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ issued_to: toFloor, reclassified_by_user_id: state.userId })
+    });
+    // Close out the open period here so it stops showing under the wrong floor —
+    // treated as relocated stock, not consumed, so Ending = Expected (no variance).
+    const beginning = Number(item.period.beginning_qty) || 0;
+    const expected = beginning + item.added - (fromFloor === "KITCHEN" ? item.doughUsage : 0);
+    await sb(`floor_stock_periods?id=eq.${item.period.id}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        ending_qty: expected, added_qty: item.added, dough_usage_qty: item.doughUsage,
+        period_end_at: new Date().toISOString(),
+        closed_by_user_id: state.userId, closed_by_manager_id: state.managerId
+      })
+    });
+    await loadFloor();
+  } catch (e) { alert("Couldn't move: " + e.message); }
 }
 
 function updateSaveBar() {
