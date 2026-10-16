@@ -75,6 +75,8 @@
   .sheet-row select.sr-product { margin-bottom: 8px; }
   .sheet-row.unmatched { border-color: var(--warn); }
   .sheet-row.unmatched .sr-top { color: var(--warn); }
+  .bucket-row { display: grid; grid-template-columns: 1.3fr 1fr 32px; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .bucket-row .b-remove { background: transparent; border: 1px solid var(--border); color: var(--err); padding: 10px 0; width: 32px; }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -137,23 +139,15 @@
     </div>
 
     <div class="field">
-      <label>Issued To</label>
-      <div class="dest-grid">
-        <button type="button" class="dest-pill" data-val="BOH">Kitchen (BOH)</button>
-        <button type="button" class="dest-pill" data-val="FOH">Front Floor (FOH)</button>
-        <button type="button" class="dest-pill" data-val="DEL">Delivery (DEL)</button>
-      </div>
+      <label>Split Across Buckets</label>
+      <div class="hint" style="margin-bottom:8px;">Same item, issued to more than one place in one go — e.g. some drinks to BOH, some to Delivery. Add a row per destination.</div>
+      <div id="bucket-rows"></div>
+      <span class="pill-btn" id="btn-add-bucket" style="display:inline-block; background:var(--field-bg); border:1px solid var(--border); border-radius:999px; padding:8px 14px; font-size:0.82rem; cursor:pointer; font-weight:600; margin-top:4px;">+ Add another destination</span>
     </div>
 
-    <div class="row2 field">
-      <div>
-        <label>Qty</label>
-        <input type="number" id="f-qty" step="any" placeholder="0">
-      </div>
-      <div>
-        <label>Rate (PKR)</label>
-        <input type="number" id="f-rate" step="any" placeholder="0">
-      </div>
+    <div class="field">
+      <label>Rate (PKR)</label>
+      <input type="number" id="f-rate" step="any" placeholder="0">
     </div>
 
     <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:4px;">
@@ -188,7 +182,8 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const PAGE_KEY = "issue_entry";
 
-let state = { userId: null, userName: null, managerId: null, products: [], destination: null, pendingFlags: [], acknowledged: false };
+let state = { userId: null, userName: null, managerId: null, products: [], buckets: [{ destination: "", qty: "" }], pendingFlags: [], acknowledged: false };
+const DEST_LABELS = { KITCHEN: "Kitchen", BOH: "BOH (Back of House)", FOH: "FOH (Front of House)", BAR: "Bar", DEL: "Delivery" };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -527,8 +522,40 @@ function selectItem(id) {
   recalcAmount();
 }
 
+function renderBuckets() {
+  const wrap = document.getElementById("bucket-rows");
+  wrap.innerHTML = "";
+  state.buckets.forEach((b, idx) => {
+    const row = document.createElement("div");
+    row.className = "bucket-row";
+    const destOptions = `<option value="">Destination…</option>` + KNOWN_DESTINATIONS.map(d => `<option value="${d}" ${d === b.destination ? "selected" : ""}>${DEST_LABELS[d] || d}</option>`).join("");
+    row.innerHTML = `
+      <select class="b-dest">${destOptions}</select>
+      <input type="number" class="b-qty" step="any" placeholder="qty" value="${b.qty}">
+      <button type="button" class="b-remove" ${state.buckets.length <= 1 ? "disabled" : ""}>×</button>`;
+    row.querySelector(".b-dest").addEventListener("change", (e) => { b.destination = e.target.value; });
+    row.querySelector(".b-qty").addEventListener("input", (e) => { b.qty = e.target.value; resetAiBanner(); recalcAmount(); });
+    row.querySelector(".b-remove").addEventListener("click", () => {
+      state.buckets.splice(idx, 1);
+      renderBuckets();
+      resetAiBanner();
+      recalcAmount();
+    });
+    wrap.appendChild(row);
+  });
+}
+document.getElementById("btn-add-bucket").addEventListener("click", () => {
+  state.buckets.push({ destination: "", qty: "" });
+  renderBuckets();
+});
+renderBuckets();
+
+function totalQty() {
+  return state.buckets.reduce((s, b) => s + (parseFloat(b.qty) || 0), 0);
+}
+
 function recalcAmount() {
-  const qty = parseFloat(document.getElementById("f-qty").value) || 0;
+  const qty = totalQty();
   const rate = parseFloat(document.getElementById("f-rate").value) || 0;
   const amount = qty * rate;
   document.getElementById("total-display").textContent = "PKR " + amount.toLocaleString("en-PK", { maximumFractionDigits: 2 });
@@ -573,12 +600,13 @@ function renderFlags(reasons) {
 
 async function runCheckAndMaybeSave() {
   const itemSel = document.getElementById("f-item-select");
-  const qty = recalcAmount() > -1 ? (parseFloat(document.getElementById("f-qty").value) || 0) : 0;
   const date = document.getElementById("f-date").value;
+  const validBuckets = state.buckets.filter(b => b.destination && parseFloat(b.qty) > 0);
+  const qty = totalQty();
 
   if (!date) return alert("Pick a date.");
   if (!itemSel.value) return alert("Pick an item.");
-  if (!state.destination) return alert("Pick where this is being issued to.");
+  if (!validBuckets.length) return alert("Add at least one destination with a quantity greater than zero.");
   if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
 
   if (state.pendingFlags.length > 0 && !state.acknowledged) {
@@ -617,33 +645,35 @@ async function runCheckAndMaybeSave() {
 
 async function saveIssue() {
   const itemSel = document.getElementById("f-item-select");
-  const p = state.products.find(x => x.id === itemSel.value);
-  const qty = parseFloat(document.getElementById("f-qty").value) || 0;
   const rate = parseFloat(document.getElementById("f-rate").value) || 0;
   const date = document.getElementById("f-date").value;
-
-  const payload = {
-    location_id: LOCATION_ID,
-    product_id: itemSel.value,
-    issue_date: date,
-    issued_to: state.destination,
-    qty: qty,
-    rate: rate,
-    amount: qty * rate,
-    entered_by_user_id: state.userId,
-    entered_by_manager_id: state.managerId
-  };
+  const validBuckets = state.buckets.filter(b => b.destination && parseFloat(b.qty) > 0);
 
   try {
     document.getElementById("btn-check").disabled = true;
-    await sb("daily_issues", {
-      method: "POST",
-      headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify(payload)
-    });
+    let failed = 0;
+    for (const b of validBuckets) {
+      const qty = parseFloat(b.qty) || 0;
+      try {
+        await sb("daily_issues", {
+          method: "POST",
+          headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({
+            location_id: LOCATION_ID,
+            product_id: itemSel.value,
+            issue_date: date,
+            issued_to: b.destination,
+            qty: qty,
+            rate: rate,
+            amount: qty * rate,
+            entered_by_user_id: state.userId,
+            entered_by_manager_id: state.managerId
+          })
+        });
+      } catch (e) { failed++; }
+    }
+    if (failed) { alert(`${validBuckets.length - failed} of ${validBuckets.length} bucket(s) saved — ${failed} failed, try again.`); if (failed === validBuckets.length) return; }
     showSuccess();
-  } catch (e) {
-    alert("Couldn't save: " + e.message);
   } finally {
     document.getElementById("btn-check").disabled = false;
   }
@@ -660,11 +690,10 @@ function resetForm() {
   document.getElementById("f-item-select").value = "";
   document.getElementById("f-item-results").innerHTML = "";
   document.getElementById("f-item-results").hidden = true;
-  document.getElementById("f-qty").value = "";
   document.getElementById("f-rate").value = "";
   document.getElementById("item-hint").textContent = "";
-  document.querySelectorAll(".dest-pill").forEach(p => p.classList.remove("selected"));
-  state.destination = null;
+  state.buckets = [{ destination: "", qty: "" }];
+  renderBuckets();
   resetAiBanner();
   recalcAmount();
   document.getElementById("step-success").hidden = true;
@@ -672,15 +701,6 @@ function resetForm() {
   loadTodayList();
 }
 
-document.querySelectorAll(".dest-pill").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".dest-pill").forEach(p => p.classList.remove("selected"));
-    btn.classList.add("selected");
-    state.destination = btn.dataset.val;
-  });
-});
-
-document.getElementById("f-qty").addEventListener("input", () => { resetAiBanner(); recalcAmount(); });
 document.getElementById("f-rate").addEventListener("input", recalcAmount);
 document.getElementById("f-item-search").addEventListener("input", (e) => populateItemResults(e.target.value));
 document.getElementById("f-item-search").addEventListener("keydown", (e) => {
