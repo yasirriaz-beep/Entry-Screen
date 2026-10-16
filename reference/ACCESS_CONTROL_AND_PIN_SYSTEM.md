@@ -110,6 +110,7 @@ share the same underlying `shift_manager` app_user row).
 | `vendor_payment` | vendor-payment.html | Zeeshan, + Directors |
 | `stock_count` | stock-count.html | Hammad, Imran, + Directors |
 | `inventory_balance_sheet` | inventory-balance-sheet.html | Store Person, Hammad, Imran, + Directors (read-only ledger, 2026-10-09) |
+| `inventory_balance_sheet_monthly` | inventory-balance-sheet.html (Monthly view toggle) | Directors by default; granted per-manager via Manage Access, same page, restricted monthly view, 2026-10-16 |
 | `settlements` | settlements.html | Zeeshan, + Directors |
 | `variance_entry` | variance-entry.html | Store Person, Ahsan, Hamza, Aqib, Anjum, + Directors |
 | `goods_receipt` | goods-receipt.html | Store Person, Ahsan, Hamza, Aqib, Anjum, + Directors |
