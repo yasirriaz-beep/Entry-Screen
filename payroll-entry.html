@@ -122,9 +122,11 @@
   <div class="card">
     <div class="step-label">This Month So Far</div>
     <div class="summary-grid">
-      <div class="summary-tile"><div class="lbl">Employees</div><div class="val" id="sum-count">0</div></div>
+      <div class="summary-tile"><div class="lbl">Current Employees</div><div class="val" id="sum-count-active">0</div></div>
+      <div class="summary-tile"><div class="lbl">Retired (this period)</div><div class="val" id="sum-count-retired">0</div></div>
+      <div class="summary-tile"><div class="lbl">New Hires (this period)</div><div class="val" id="sum-count-new">0</div></div>
       <div class="summary-tile"><div class="lbl">Net Payroll</div><div class="val" id="sum-net">PKR 0</div></div>
-      <div class="summary-tile"><div class="lbl">Paid So Far</div><div class="val" id="sum-paid">PKR 0</div></div>
+      <div class="summary-tile"><div class="lbl">Advances Paid</div><div class="val" id="sum-paid">PKR 0</div></div>
       <div class="summary-tile"><div class="lbl">Outstanding</div><div class="val" id="sum-outstanding">PKR 0</div></div>
     </div>
   </div>
@@ -308,7 +310,7 @@ async function loadEmployees() {
   // this only pulled active employees, so a retired employee's last days worked never
   // appeared here at all -- added 2026-10-16.
   try {
-    state.allEmployees = await sb(`employees?location_id=eq.${LOCATION_ID}&select=id,name,department,designation,employment_type,monthly_salary,active,retired_at&order=department,name`);
+    state.allEmployees = await sb(`employees?location_id=eq.${LOCATION_ID}&select=id,name,department,designation,employment_type,monthly_salary,active,retired_at,hire_date&order=department,name`);
   } catch (e) { state.allEmployees = []; }
 }
 
@@ -384,14 +386,49 @@ function daysWorkedFromAttendance(att) {
   return att.Present + 0.5 * att["Half Day"];
 }
 
+// Same figures buildSheetRow() computes per row (saved values where they exist, otherwise
+// the live default from attendance/advances/KM) -- pulled out so the summary tiles can total
+// across EVERY employee currently shown, not just rows that have already been saved. Net
+// Payroll previously only summed saved payroll_entries.net_salary, which is why it always read
+// PKR 0 until every single row had been saved once. Fixed 2026-10-16.
+function computeEmployeeFigures(e) {
+  const existing = state.entries[e.id];
+  const advance = state.advances[e.id] || { total: 0, count: 0 };
+  const attendance = state.attendance[e.id] || null;
+  const perDayRate = (Number(e.monthly_salary) || 0) / 26;
+  const attendanceDays = daysWorkedFromAttendance(attendance);
+  const daysWorked = existing ? Number(existing.days_worked) : (attendanceDays !== null ? attendanceDays : 26);
+  const salaryEarned = existing ? Number(existing.salary_earned) : Math.round(perDayRate * daysWorked * 100) / 100;
+  const kmInfo = state.km[e.id] || { totalKm: 0, orders: 0, amount: 0, flaggedCount: 0 };
+  const kmAmount = existing && existing.km_amount != null ? Number(existing.km_amount) : kmInfo.amount;
+  const bonus = existing ? Number(existing.bonus) || 0 : 0;
+  const phoneLoad = existing ? Number(existing.phone_load) || 0 : 0;
+  const loanDeduction = existing ? Number(existing.loan_deduction) || 0 : 0;
+  const advanceDeduction = existing && existing.advance_deduction != null ? Number(existing.advance_deduction) : advance.total;
+  const paidAmount = existing && existing.paid_amount != null ? Number(existing.paid_amount) : 0;
+  const net = salaryEarned + kmAmount + bonus + phoneLoad - advanceDeduction - loanDeduction;
+  return { net, paidAmount };
+}
+
 function renderSummary() {
-  const entries = Object.values(state.entries);
-  document.getElementById("sum-count").textContent = state.employees.length;
-  const totalNet = entries.reduce((s, e) => s + (Number(e.net_salary) || 0), 0);
-  const totalPaid = entries.reduce((s, e) => s + (Number(e.paid_amount) || 0), 0);
+  const activeCount = state.employees.filter(e => e.active).length;
+  const retiredCount = state.employees.filter(e => !e.active).length;
+  const newHireCount = state.employees.filter(e => e.hire_date && e.hire_date >= state.periodStart && e.hire_date <= state.periodEnd).length;
+  document.getElementById("sum-count-active").textContent = activeCount;
+  document.getElementById("sum-count-retired").textContent = retiredCount;
+  document.getElementById("sum-count-new").textContent = newHireCount;
+
+  let totalNet = 0, totalFinalPaid = 0, totalAdvancesPaid = 0;
+  state.employees.forEach(e => {
+    const { net, paidAmount } = computeEmployeeFigures(e);
+    totalNet += net;
+    totalFinalPaid += paidAmount;
+  });
+  Object.values(state.advances).forEach(a => { totalAdvancesPaid += a.total; });
+
   document.getElementById("sum-net").textContent = fmtMoney(totalNet);
-  document.getElementById("sum-paid").textContent = fmtMoney(totalPaid);
-  document.getElementById("sum-outstanding").textContent = fmtMoney(totalNet - totalPaid);
+  document.getElementById("sum-paid").textContent = fmtMoney(totalAdvancesPaid);
+  document.getElementById("sum-outstanding").textContent = fmtMoney(totalNet - totalFinalPaid);
 }
 
 function renderEmpList() {
