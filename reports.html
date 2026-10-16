@@ -797,9 +797,9 @@ async function runPayReport() {
     const monthEndExclusive = nextMonth;
 
     const vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance,opening_balance_as_of&order=name`);
-    // Vendors shared across locations (e.g. IRC DAIRY PRODUCT, bought by both
-    // Gulberg and Johar Town) can't use a single global opening balance on the
-    // vendors row, so a per-location override lives in
+    // Some vendors (e.g. IRC DAIRY PRODUCT) are bought by more than one
+    // location, so they can't use a single global opening balance on the
+    // vendors row — a per-location override lives in
     // vendor_location_opening_balances — it wins over the vendor-level field
     // whenever a row exists for this location. See vendor-payment.html.
     const overrides = await sb(`vendor_location_opening_balances?location_id=eq.${LOCATION_ID}&select=vendor_id,opening_payable_balance,opening_balance_as_of`);
