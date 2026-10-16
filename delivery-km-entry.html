@@ -252,7 +252,7 @@ document.getElementById("f-date").addEventListener("change", loadLogsForDate);
 
 async function loadRiders() {
   try {
-    state.riders = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&department=eq.DELIVERY&select=id,name,designation&order=name`);
+    state.riders = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&department=eq.DELIVERY&designation=ilike.rider&select=id,name,designation&order=name`);
   } catch (e) { state.riders = []; }
 }
 

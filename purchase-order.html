@@ -539,7 +539,7 @@ async function submitDemand() {
         notes: notes
       })
     });
-    showSuccess("Demand submitted", `${p ? p.name : "Item"} — ${qty} ${p ? p.unit || "" : ""} sent to Yasir for authorization.`, () => { backToNames(); });
+    showSuccess("Demand submitted", `${p ? p.name : "Item"} — ${qty} ${p ? p.unit || "" : ""} sent to Yasir for authorization.`, () => { enterDemandPanelAgain(); });
   } catch (e) {
     alert("Couldn't submit: " + e.message);
   } finally {
@@ -645,6 +645,17 @@ function enterAuthorizePanelAgain() {
   document.getElementById("step-success").hidden = true;
   showStage("panel-authorize");
   loadDemandList();
+}
+
+// Fixed 2026-10-16: submitDemand() used to send the person all the way back to
+// backToNames() (the name/PIN screen) after adding a single item, which looked
+// like the app had logged them out just for adding one demand item. Mirrors
+// enterAuthorizePanelAgain() above — stay logged in, stay on the Demand tab,
+// clear the form, and reload the lists so the next item can be added right away.
+function enterDemandPanelAgain() {
+  document.getElementById("step-success").hidden = true;
+  showStage("panel-demand");
+  enterDemandPanel();
 }
 
 document.getElementById("btn-authorize-back").addEventListener("click", backToNames);

@@ -75,6 +75,8 @@
   table.sheet thead th:first-child { z-index: 2; }
   table.sheet tbody tr:hover td { background: var(--field-bg); }
   table.sheet .dept-row td { background: var(--border); color: var(--ink); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.03em; text-align: left; position: static; }
+  table.sheet .dept-subtotal-row td { background: var(--field-bg); color: var(--ink-soft); font-weight: 700; font-size: 0.78rem; text-align: right; position: static; border-bottom: 2px solid var(--border); }
+  table.sheet .dept-subtotal-row td:first-child { text-align: left; position: static; }
   table.sheet .cell-input { width: 84px; text-align: right; padding: 5px 6px; font-size: 0.85rem; border-radius: 6px; }
   table.sheet .emp-name { font-weight: 600; }
   table.sheet .emp-sub2 { font-size: 0.72rem; color: var(--ink-soft); font-weight: 400; }
@@ -446,17 +448,28 @@ function renderEmpList() {
   const activeRows = allRows.filter(e => e.active);
   const retiredRows = allRows.filter(e => !e.active);
 
-  let lastDept = null;
+  // Group by a case-normalized department key -- the underlying data has both "Delivery"
+  // and "DELIVERY" for the same department, which used to render as two separate headers
+  // even though the CSS uppercases both for display. Normalize so they merge into one
+  // group regardless of source casing, and sort groups by that normalized key so same-named
+  // departments always stay adjacent. Fixed 2026-10-16.
+  const deptKey = (e) => (e.department || "Unassigned").trim().toUpperCase();
+  const groupsMap = new Map();
   activeRows.forEach(e => {
-    const dept = e.department || "Unassigned";
-    if (dept !== lastDept) {
-      const deptRow = document.createElement("tr");
-      deptRow.className = "dept-row";
-      deptRow.innerHTML = `<td colspan="12">${dept}</td>`;
-      body.appendChild(deptRow);
-      lastDept = dept;
-    }
-    body.appendChild(buildSheetRow(e));
+    const key = deptKey(e);
+    if (!groupsMap.has(key)) groupsMap.set(key, []);
+    groupsMap.get(key).push(e);
+  });
+  const sortedKeys = Array.from(groupsMap.keys()).sort();
+
+  sortedKeys.forEach(key => {
+    const rows = groupsMap.get(key);
+    const deptRow = document.createElement("tr");
+    deptRow.className = "dept-row";
+    deptRow.innerHTML = `<td colspan="12">${key}</td>`;
+    body.appendChild(deptRow);
+    rows.forEach(e => body.appendChild(buildSheetRow(e)));
+    body.appendChild(buildSubtotalRow(rows));
   });
 
   if (retiredRows.length) {
@@ -465,7 +478,17 @@ function renderEmpList() {
     deptRow.innerHTML = `<td colspan="12">Retired — final settlement for this period only</td>`;
     body.appendChild(deptRow);
     retiredRows.forEach(e => body.appendChild(buildSheetRow(e)));
+    body.appendChild(buildSubtotalRow(retiredRows));
   }
+}
+
+function buildSubtotalRow(rows) {
+  let totalNet = 0;
+  rows.forEach(e => { totalNet += computeEmployeeFigures(e).net; });
+  const tr = document.createElement("tr");
+  tr.className = "dept-subtotal-row";
+  tr.innerHTML = `<td colspan="9">${rows.length} employee${rows.length === 1 ? "" : "s"} — subtotal</td><td colspan="3">${fmtMoney(totalNet)}</td>`;
+  return tr;
 }
 
 function buildSheetRow(e) {

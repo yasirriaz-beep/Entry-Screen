@@ -276,7 +276,7 @@ document.getElementById("f-date").addEventListener("change", loadForDate);
 
 async function loadRiders() {
   try {
-    state.riders = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&department=eq.DELIVERY&select=id,name&order=name`);
+    state.riders = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&department=eq.DELIVERY&designation=ilike.rider&select=id,name&order=name`);
   } catch (e) { state.riders = []; }
   const opts = state.riders.map(r => `<option value="${r.id}">${r.name}</option>`).join("");
   document.getElementById("order-rider").innerHTML = opts;
