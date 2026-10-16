@@ -101,7 +101,16 @@
 <div id="panel-main" hidden>
 
   <div class="card controls">
-    <div class="filter-row">
+    <div class="filter-row" id="view-switch-row" hidden>
+      <div>
+        <label>View</label>
+        <select id="f-view">
+          <option value="daily">Daily (as of a date)</option>
+          <option value="monthly">Monthly (restricted)</option>
+        </select>
+      </div>
+    </div>
+    <div class="filter-row" id="row-daily-controls">
       <div>
         <label>As of date</label>
         <input type="date" id="f-date">
@@ -116,6 +125,22 @@
       </div>
       <button class="btn-ghost no-print" id="btn-print" type="button">Print / Export</button>
     </div>
+    <div class="filter-row" id="row-monthly-controls" hidden>
+      <div>
+        <label>Month</label>
+        <input type="month" id="f-month">
+      </div>
+      <div>
+        <label>Search</label>
+        <input type="text" id="search-items-m" placeholder="Name or code...">
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="filter-category-m"><option value="">All categories</option></select>
+      </div>
+      <button class="btn-ghost no-print" id="btn-print-m" type="button">Print / Export</button>
+    </div>
+    <div class="hint" id="monthly-access-hint" hidden>Monthly view is restricted — only Directors and people explicitly granted "Inventory Balance Sheet — Monthly" can see it.</div>
   </div>
 
   <div class="value-summary">
@@ -163,8 +188,9 @@ const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
 const PAGE_KEY = "inventory_balance_sheet";
+const MONTHLY_PAGE_KEY = "inventory_balance_sheet_monthly";
 
-let state = { userId: null, userName: null, managerId: null, userRole: null, products: [], purchases: [], issues: [], snapshots: [] };
+let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [] };
 
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -230,8 +256,8 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    
-          afterLogin(row.app_user_id, match.name, match.id, row.role);
+
+          await afterLogin(row.app_user_id, match.name, match.id, row.role);
     nameInput.value = "";
     pinInput.value = "";
     FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
@@ -245,19 +271,36 @@ async function doLogin(e) {
 }
 document.getElementById("login-form").addEventListener("submit", doLogin);
 
-function afterLogin(userId, name, managerId, role) {
+async function afterLogin(userId, name, managerId, role) {
   state.userId = userId;
   state.userName = name;
   state.managerId = managerId;
   state.userRole = role;
+
+  // Monthly view is restricted: Directors always see it; anyone else only if
+  // explicitly granted the "inventory_balance_sheet_monthly" page_key in
+  // Manage Access (independent of daily access to this same screen).
+  if (role === "director") {
+    state.canMonthly = true;
+  } else {
+    try {
+      state.pages = await sbRpc("list_pages_for_manager", { p_manager_id: managerId }) || [];
+    } catch (e) { state.pages = []; }
+    state.canMonthly = state.pages.includes(MONTHLY_PAGE_KEY);
+  }
+  document.getElementById("view-switch-row").hidden = !state.canMonthly;
+  document.getElementById("monthly-access-hint").hidden = !state.canMonthly;
+
   document.getElementById("step-name").hidden = true;
   document.getElementById("panel-main").hidden = false;
   document.getElementById("f-date").value = todayStr();
+  const now = new Date();
+  document.getElementById("f-month").value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   loadAll();
 }
 
 function backToNames() {
-  state = { userId: null, userName: null, managerId: null, userRole: null, products: [], purchases: [], issues: [], snapshots: [] };
+  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [] };
   FNKSession.clear();
   document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
   document.getElementById("panel-main").hidden = true;
@@ -265,9 +308,21 @@ function backToNames() {
 }
 document.getElementById("btn-back").addEventListener("click", backToNames);
 document.getElementById("btn-print").addEventListener("click", () => window.print());
+document.getElementById("btn-print-m").addEventListener("click", () => window.print());
 document.getElementById("f-date").addEventListener("change", () => { renderRows(); });
 document.getElementById("search-items").addEventListener("input", renderRows);
 document.getElementById("filter-category").addEventListener("change", renderRows);
+document.getElementById("f-month").addEventListener("change", () => { renderRows(); });
+document.getElementById("search-items-m").addEventListener("input", renderRows);
+document.getElementById("filter-category-m").addEventListener("change", renderRows);
+document.getElementById("f-view").addEventListener("change", (e) => {
+  // Belt-and-suspenders: even if someone forces the hidden select open, the
+  // monthly branch only activates when the server-granted flag is true.
+  state.view = (e.target.value === "monthly" && state.canMonthly) ? "monthly" : "daily";
+  document.getElementById("row-daily-controls").hidden = state.view === "monthly";
+  document.getElementById("row-monthly-controls").hidden = state.view !== "monthly";
+  renderRows();
+});
 
 async function loadAll() {
   try {
@@ -284,8 +339,9 @@ async function loadAll() {
   } catch (e) { state.snapshots = []; }
 
   const cats = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort();
-  const sel = document.getElementById("filter-category");
-  sel.innerHTML = '<option value="">All categories</option>' + cats.map((c) => `<option value="${c}">${c}</option>`).join("");
+  const catOptions = '<option value="">All categories</option>' + cats.map((c) => `<option value="${c}">${c}</option>`).join("");
+  document.getElementById("filter-category").innerHTML = catOptions;
+  document.getElementById("filter-category-m").innerHTML = catOptions;
 
   const lastOverall = state.snapshots.length ? state.snapshots[0].snapshot_date : null;
   document.getElementById("last-count-info").textContent = lastOverall
@@ -312,6 +368,34 @@ function baseFor(productId, date) {
   return { opening, addQty, subQty, ending, physical };
 }
 
+// Monthly view (restricted — see MONTHLY_PAGE_KEY): Beg/Add/Sub/End for the WHOLE
+// calendar month, regardless of any physical count logged mid-month. Beg is the
+// true opening for day 1 of the month (via baseFor on the last day of the prior
+// month, so it still benefits from the most recent snapshot before the month
+// started); Add/Sub are summed across every day in the month, not reset by an
+// interim snapshot. End = Beg + Add − Sub. Physical is only shown if a snapshot
+// happens to land exactly on the last day of the month.
+function monthFor(productId, monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const monthStart = `${monthStr}-01`;
+  const lastDay = new Date(y, m, 0).getDate(); // day 0 of next month = last day of this month
+  const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
+  const prevDay = new Date(y, m - 1, 0); // day 0 of this month = last day of prior month
+  const prevDayStr = `${prevDay.getFullYear()}-${String(prevDay.getMonth() + 1).padStart(2, "0")}-${String(prevDay.getDate()).padStart(2, "0")}`;
+
+  const opening = baseFor(productId, prevDayStr).ending;
+  const addQty = state.purchases
+    .filter((p) => p.product_id === productId && p.purchase_date >= monthStart && p.purchase_date <= monthEnd)
+    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  const subQty = state.issues
+    .filter((i) => i.product_id === productId && i.issue_date >= monthStart && i.issue_date <= monthEnd)
+    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  const ending = opening + addQty - subQty;
+  const snapAtMonthEnd = state.snapshots.find((s) => s.product_id === productId && s.snapshot_date === monthEnd);
+  const physical = snapAtMonthEnd ? Number(snapAtMonthEnd.closing_qty) : null;
+  return { opening, addQty, subQty, ending, physical, monthStart, monthEnd };
+}
+
 // This item's lifetime paid-vs-credit mix as of `date`, used only to split its current
 // stock value into an estimated Paid/Payable amount (see the hint text on the page) —
 // there's no per-unit cost-lot tracking in this system, so this is a weighted-average
@@ -331,9 +415,13 @@ function paidRatioFor(productId, date) {
 }
 
 function renderRows() {
-  const date = document.getElementById("f-date").value || todayStr();
-  const search = document.getElementById("search-items").value.trim().toUpperCase();
-  const cat = document.getElementById("filter-category").value;
+  const isMonthly = state.view === "monthly" && state.canMonthly;
+  const search = (isMonthly
+    ? document.getElementById("search-items-m").value
+    : document.getElementById("search-items").value).trim().toUpperCase();
+  const cat = isMonthly
+    ? document.getElementById("filter-category-m").value
+    : document.getElementById("filter-category").value;
   const body = document.getElementById("rows-body");
   body.innerHTML = "";
 
@@ -343,9 +431,19 @@ function renderRows() {
     return true;
   });
 
-  document.getElementById("row-count").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"} as of ${date}`;
+  let effectiveDate;
+  if (isMonthly) {
+    const monthStr = document.getElementById("f-month").value || todayStr().slice(0, 7);
+    effectiveDate = `${monthStr}-01`.slice(0, 7) + "-last"; // placeholder, replaced below
+    document.getElementById("row-count").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"} for ${monthStr}`;
+  } else {
+    const date = document.getElementById("f-date").value || todayStr();
+    effectiveDate = date;
+    document.getElementById("row-count").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"} as of ${date}`;
+  }
 
   let lastCat = null;
+  let monthEndForSummary = null;
   rows.forEach((p) => {
     const c = p.category || "Uncategorized";
     if (c !== lastCat) {
@@ -355,7 +453,10 @@ function renderRows() {
       body.appendChild(tr);
       lastCat = c;
     }
-    const b = baseFor(p.id, date);
+    const b = isMonthly
+      ? monthFor(p.id, document.getElementById("f-month").value || todayStr().slice(0, 7))
+      : baseFor(p.id, effectiveDate);
+    if (isMonthly) monthEndForSummary = b.monthEnd;
     const varianceVal = b.physical !== null ? b.physical - b.ending : null;
     const varianceCell = varianceVal === null
       ? "—"
@@ -383,7 +484,7 @@ function renderRows() {
     body.appendChild(tr);
   });
 
-  renderValueSummary(date);
+  renderValueSummary(isMonthly ? (monthEndForSummary || todayStr()) : effectiveDate);
 }
 
 // Total stock value (and its estimated Paid/Payable split) always covers every active
@@ -413,8 +514,9 @@ function renderValueSummary(date) {
 // Already logged in via home.html this visit? Skip straight to the sheet.
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
-  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role).then(() => {
+    FNKSession.applyAccessLock(existing, PAGE_KEY);
+  });
 }
 </script>
 </body>
