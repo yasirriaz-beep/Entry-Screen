@@ -49,10 +49,17 @@
   .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
   .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
-  .balance-row { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--field-bg); display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; }
+  .balance-row { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--field-bg); display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
   .balance-row:hover { border-color: var(--accent); }
+  .balance-row .v-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .balance-row .v-name { font-weight: 600; font-size: 0.9rem; }
   .balance-row .v-amt { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--warn); }
+  .v-breakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .v-breakdown .v-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .v-breakdown .v-col-label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v-breakdown .v-col-val { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.82rem; }
+  .v-breakdown .v-col-closing .v-col-val { color: var(--warn); font-weight: 700; }
+  @media (max-width: 420px) { .v-breakdown { grid-template-columns: repeat(2, 1fr); gap: 8px 10px; } }
   .balance-total { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 0 0; margin-top: 4px; border-top: 2px solid var(--border); font-family: 'Zilla Slab', Georgia, serif; }
   .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
   .selected-balance { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 13px; font-size: 0.88rem; margin-top: -4px; margin-bottom: 14px; font-weight: 600; }
@@ -301,22 +308,29 @@ document.getElementById("btn-back").addEventListener("click", backToNames);
 async function loadBalances() {
   const list = document.getElementById("balance-list");
   let vendors = [], purchases = [], payments = [];
-  try { vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance&order=name`); } catch (e) {}
-  try { purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&select=vendor_id,amount`); } catch (e) {}
-  try { payments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&select=vendor_id,amount`); } catch (e) {}
-
-  const owed = {}, paid = {};
-  purchases.forEach(p => { if (p.vendor_id) owed[p.vendor_id] = (owed[p.vendor_id] || 0) + (Number(p.amount) || 0); });
-  payments.forEach(p => { if (p.vendor_id) paid[p.vendor_id] = (paid[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+  try { vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance,opening_balance_as_of&order=name`); } catch (e) {}
+  try { purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&select=vendor_id,amount,purchase_date`); } catch (e) {}
+  try { payments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&select=vendor_id,amount,payment_date`); } catch (e) {}
 
   state.vendors = vendors;
   state.balances = {};
+  state.breakdown = {};
   let total = 0;
   vendors.forEach(v => {
-    // Includes any pre-system opening balance owed to this vendor (e.g. dues from
-    // before this app was used), on top of purchases logged here minus payments made.
-    const bal = (Number(v.opening_payable_balance) || 0) + (owed[v.id] || 0) - (paid[v.id] || 0);
+    const asOf = v.opening_balance_as_of || null;
+    // Presentation mirrors the vendor's own credit-payment sheet: Opening Balance
+    // (the baseline as of opening_balance_as_of, already netted against whatever
+    // purchases/payments existed up to that date so nothing is double-counted),
+    // then only the Purchases/Paid activity dated AFTER that baseline date.
+    // A vendor with no opening_balance_as_of set has no baseline yet, so every
+    // purchase/payment on file counts as "activity" — same as before this change.
+    let periodOwed = 0, periodPaid = 0;
+    purchases.forEach(p => { if (p.vendor_id === v.id && (!asOf || p.purchase_date > asOf)) periodOwed += (Number(p.amount) || 0); });
+    payments.forEach(p => { if (p.vendor_id === v.id && (!asOf || p.payment_date > asOf)) periodPaid += (Number(p.amount) || 0); });
+    const opening = Number(v.opening_payable_balance) || 0;
+    const bal = opening + periodOwed - periodPaid;
     state.balances[v.id] = bal;
+    state.breakdown[v.id] = { opening, periodOwed, periodPaid, asOf };
     if (bal > 0.01) total += bal;
   });
 
@@ -326,17 +340,25 @@ async function loadBalances() {
     list.innerHTML = '<div class="empty-note">No outstanding balances against any vendor right now.</div>';
     document.getElementById("balance-total-wrap").hidden = true;
   } else {
-    list.innerHTML = (owing.length ? owing : vendors).map(v => `
+    list.innerHTML = (owing.length ? owing : vendors).map(v => { const b = state.breakdown[v.id]; return `
       <div class="balance-row" data-vendor="${v.id}">
-        <span class="v-name">${v.name}</span>
-        <span class="v-amt">${fmtMoney(state.balances[v.id])}</span>
+        <div class="v-top">
+          <span class="v-name">${v.name}</span>
+          <span class="v-amt">${fmtMoney(state.balances[v.id])}</span>
+        </div>
+        <div class="v-breakdown">
+          <div class="v-col"><span class="v-col-label">Opening${b.asOf ? " (" + b.asOf + ")" : ""}</span><span class="v-col-val">${fmtMoney(b.opening)}</span></div>
+          <div class="v-col"><span class="v-col-label">Purchases</span><span class="v-col-val">${fmtMoney(b.periodOwed)}</span></div>
+          <div class="v-col"><span class="v-col-label">Paid</span><span class="v-col-val">${fmtMoney(b.periodPaid)}</span></div>
+          <div class="v-col v-col-closing"><span class="v-col-label">Balance</span><span class="v-col-val">${fmtMoney(state.balances[v.id])}</span></div>
+        </div>
       </div>
       ${isDirector ? `
       <div class="hint" style="margin:-4px 0 8px; display:flex; align-items:center; gap:6px;">
         Opening balance (pre-system dues):
         <input type="number" step="any" value="${v.opening_payable_balance || 0}" data-opening-for="${v.id}" style="width:120px; padding:4px 6px; font-size:0.82rem;">
         <button type="button" data-save-opening="${v.id}" style="padding:4px 8px; font-size:0.8rem; border-radius:6px; width:auto;">Save</button>
-      </div>` : ""}`).join("");
+      </div>` : ""}`; }).join("");
     document.querySelectorAll(".balance-row").forEach(row => {
       row.addEventListener("click", () => {
         document.getElementById("f-vendor").value = row.dataset.vendor;
@@ -367,11 +389,19 @@ async function loadBalances() {
     receivableList.innerHTML = '<div class="empty-note">No vendor is currently prepaid ahead of delivery.</div>';
     document.getElementById("receivable-total-wrap").hidden = true;
   } else {
-    receivableList.innerHTML = owedToUs.map(v => `
+    receivableList.innerHTML = owedToUs.map(v => { const b = state.breakdown[v.id]; return `
       <div class="balance-row" data-vendor="${v.id}">
-        <span class="v-name">${v.name}</span>
-        <span class="v-amt v-amt-receivable">${fmtMoney(-state.balances[v.id])}</span>
-      </div>`).join("");
+        <div class="v-top">
+          <span class="v-name">${v.name}</span>
+          <span class="v-amt v-amt-receivable">${fmtMoney(-state.balances[v.id])}</span>
+        </div>
+        <div class="v-breakdown">
+          <div class="v-col"><span class="v-col-label">Opening${b.asOf ? " (" + b.asOf + ")" : ""}</span><span class="v-col-val">${fmtMoney(b.opening)}</span></div>
+          <div class="v-col"><span class="v-col-label">Purchases</span><span class="v-col-val">${fmtMoney(b.periodOwed)}</span></div>
+          <div class="v-col"><span class="v-col-label">Paid</span><span class="v-col-val">${fmtMoney(b.periodPaid)}</span></div>
+          <div class="v-col v-col-closing"><span class="v-col-label">Balance</span><span class="v-col-val v-amt-receivable">${fmtMoney(-state.balances[v.id])}</span></div>
+        </div>
+      </div>`; }).join("");
     receivableList.querySelectorAll(".balance-row").forEach(row => {
       row.addEventListener("click", () => {
         document.getElementById("f-vendor").value = row.dataset.vendor;
