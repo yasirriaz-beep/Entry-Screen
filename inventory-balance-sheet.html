@@ -368,32 +368,22 @@ function baseFor(productId, date) {
   return { opening, addQty, subQty, ending, physical };
 }
 
-// Monthly view (restricted — see MONTHLY_PAGE_KEY): Beg/Add/Sub/End for the WHOLE
-// calendar month, regardless of any physical count logged mid-month. Beg is the
-// true opening for day 1 of the month (via baseFor on the last day of the prior
-// month, so it still benefits from the most recent snapshot before the month
-// started); Add/Sub are summed across every day in the month, not reset by an
-// interim snapshot. End = Beg + Add − Sub. Physical is only shown if a snapshot
-// happens to land exactly on the last day of the month.
+// Monthly view (restricted — see MONTHLY_PAGE_KEY). Simplified 2026-10-16 at
+// Yasir's request: don't try to reconstruct the month from day 1 — the most
+// recent physical count (today's, once one's been logged) IS the Beginning
+// Balance, full stop. Anything before that count is tracked in Excel, not here.
+// So this is just baseFor() run through the end of the selected month (or
+// today, if the month's still in progress) — same "since the last count" logic
+// as the Daily view, just picked at a month-sized checkpoint instead of a daily
+// one. Add/Sub only ever cover activity AFTER that count, never before it.
 function monthFor(productId, monthStr) {
   const [y, m] = monthStr.split("-").map(Number);
   const monthStart = `${monthStr}-01`;
   const lastDay = new Date(y, m, 0).getDate(); // day 0 of next month = last day of this month
   const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
-  const prevDay = new Date(y, m - 1, 0); // day 0 of this month = last day of prior month
-  const prevDayStr = `${prevDay.getFullYear()}-${String(prevDay.getMonth() + 1).padStart(2, "0")}-${String(prevDay.getDate()).padStart(2, "0")}`;
-
-  const opening = baseFor(productId, prevDayStr).ending;
-  const addQty = state.purchases
-    .filter((p) => p.product_id === productId && p.purchase_date >= monthStart && p.purchase_date <= monthEnd)
-    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
-  const subQty = state.issues
-    .filter((i) => i.product_id === productId && i.issue_date >= monthStart && i.issue_date <= monthEnd)
-    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
-  const ending = opening + addQty - subQty;
-  const snapAtMonthEnd = state.snapshots.find((s) => s.product_id === productId && s.snapshot_date === monthEnd);
-  const physical = snapAtMonthEnd ? Number(snapAtMonthEnd.closing_qty) : null;
-  return { opening, addQty, subQty, ending, physical, monthStart, monthEnd };
+  const effectiveEnd = monthEnd < todayStr() ? monthEnd : todayStr(); // never project into the future
+  const b = baseFor(productId, effectiveEnd);
+  return { opening: b.opening, addQty: b.addQty, subQty: b.subQty, ending: b.ending, physical: b.physical, monthStart, monthEnd: effectiveEnd };
 }
 
 // This item's lifetime paid-vs-credit mix as of `date`, used only to split its current
