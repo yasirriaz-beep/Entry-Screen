@@ -1184,6 +1184,14 @@ Retired tag, instead of mixed into their old department. The days-worked pay mat
 (`monthly_salary / 26 × days present`) already handled a partial month correctly — the employee
 just needed to be visible at all for it to apply.
 
+**Follow-up (same day):** split the single "Employees" tile into "Current Employees" /
+"Retired (this period)" / a new "New Hires (this period)" tile, fixed "Net Payroll" (it summed
+only saved `payroll_entries` rows, so it read PKR 0 until every row had been individually saved
+— now sums the live per-row calculation, saved or not, via a shared `computeEmployeeFigures()`),
+and renamed "Paid So Far" to "Advances Paid" / repointed it at this period's actual advance
+expenses rather than `paid_amount` (the final month-end settlement, which is almost always still
+0 mid-month and was making the tile look broken).
+
 ---
 
 ## 7. Open items / things still being built out
