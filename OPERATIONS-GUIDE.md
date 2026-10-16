@@ -1077,6 +1077,47 @@ by Supabase's own advisory, not asked for — it needs a decision on which polic
 enabling RLS (enabling it with no policies would block the Expense Entry/Edit dropdowns
 entirely), so it was deliberately left alone pending the owner's decision.
 
+### Monthly Cash Priority Waterfall (added Oct 16, 2026)
+
+The owner described a real payment priority order for how the month's sales cash actually gets
+spent: salaries first (paid on the 7th of the following month, from the first week's cash),
+then building rent and electricity, then dairy & protein vendors -- cheese and chicken --
+sized to 10-14 days of average sales, with clearing cheese payments the priority within that
+tier, then whatever inventory needs to stay at roughly its starting level, with the true
+leftover being profit.
+
+New table `cash_allocation_priorities` (one row per priority tier, ranked) holds this as data
+rather than code, so the owner can change a target figure without asking for a code change:
+
+| rank | name | calc_type | target |
+|---|---|---|---|
+| 1 | Staff Salaries | fixed_monthly | PKR 1,800,000 |
+| 2 | Fuel & Delivery (KM) | actual_category | tracked, no fixed target -- varies |
+| 3 | Building Rent | fixed_monthly | PKR 800,000 (Utilities > Building Rent subcategory) |
+| 4 | Electricity | fixed_monthly | PKR 900,000 (midpoint of the stated PKR 7-11 lac range) |
+| 5 | Dairy & Protein Vendors | vendor_category_days | 12 days of average daily sales (midpoint of 10-14) |
+| 6 | Inventory Maintenance Reserve | inventory_baseline | informational only, no baseline snapshot yet |
+
+The Owner Dashboard's new "Monthly Cash Priority Waterfall" card (`loadCashWaterfall()`) reads
+this table plus the calendar month-to-date numbers (sales, Payroll/Fuel & Gas/Utilities
+expenses, dairy+protein vendor payments) and walks the tiers in rank order: each tier claims
+its target out of the month's cash-in so far, and whatever's left after all tiers is shown as
+"left over (profit, before inventory check)" -- or a shortfall, in red, if the fixed tiers alone
+already exceed what's come in. **This is advisory/dashboard-only, by the owner's choice** --
+nothing here blocks or warns against an actual payment; it is purely visibility into whether
+this month's priorities are on track.
+
+Two things worth knowing:
+- The Oct 10 rent entry was saved with no subcategory (just "Building rent" typed into the
+  detail field), even though a "Building Rent" subcategory already exists under Utilities. The
+  waterfall falls back to matching `detail ILIKE '%rent%'` so it still picks it up, but going
+  forward rent should be entered with the Building Rent subcategory selected, so it's reliably
+  tagged without relying on text matching.
+- The inventory tier is informational only for now -- there's no stored start-of-month baseline
+  to compare against yet (`inventory_snapshots` is empty). Once a snapshot exists, this tier can
+  compare current inventory value to it and flag whether cash was actually freed by running
+  inventory down rather than genuine profit.
+
 ---
 
 ## 7. Open items / things still being built out
