@@ -1155,3 +1155,10 @@ listed here until it's resolved — treat this as the punch list, not just a cha
   review (searchable in Item Master by typing "OTHER" or "Test Category").
 - `daily_sales` has a bad row dated 2099-01-03 — needs correcting (doesn't affect bounded
   date-range reports, but will corrupt any future "all-time" query).
+- Stock Count has never actually been used (`inventory_snapshots` is empty) — the owner's
+  focus has been on removing quirks on the sales/expense side first; Stock Count is next, "in
+  the next couple of days" as of Oct 16, 2026. Once real counts start flowing in, two things
+  are waiting on it: the Reorder Alerts card on the Owner Dashboard (currently shows everything
+  as "uncounted"), and a Restock Forecast tier for the Cash Priority Waterfall/Cash Priority &
+  Payments page (reorder_qty × current_rate for anything below min_stock_level, plus a real
+  beginning-vs-ending inventory value check instead of today's placeholder row).
