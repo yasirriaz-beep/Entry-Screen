@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gulberg Cash Priority &amp; Payments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  h2 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.1rem; margin: 0 0 12px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  input { width: 100%; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; line-height: 1.4; }
+  .banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .big-number { font-family: 'Zilla Slab', Georgia, serif; font-size: 2.1rem; font-weight: 600; line-height: 1.1; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; gap: 10px; }
+  .row:last-child { border-bottom: none; }
+  .row .amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .pill-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill-warn { background: var(--warn-bg); color: var(--warn); }
+  .pill-err { background: var(--err-bg); color: var(--err); }
+  .pill-ok { background: var(--ok-bg); color: var(--ok); }
+  .pill-accent { background: rgba(156,59,46,0.12); color: var(--accent); }
+  .total-row { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 0; border-top: 2px solid var(--border); margin-top: 6px; font-family: 'Zilla Slab', Georgia, serif; font-size: 1.05rem; }
+  .suggest-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .suggest-card .s-title { font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .suggest-card .s-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
+  .suggest-card a.go { display: inline-block; margin-top: 8px; font-size: 0.85rem; color: var(--accent); font-weight: 600; text-decoration: none; border: 1px solid var(--accent); border-radius: 999px; padding: 5px 14px; }
+  .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
+  .spinner-note { font-size: 0.85rem; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit; width:auto;">← Entry Screen</a>
+
+<h1>Cash Priority &amp; Payments</h1>
+<div class="sub">Forks N Knives — Gulberg — how much cash is available right now, what it owes this month, and where to put it next</div>
+
+<div id="step-name" class="card">
+  <div class="hint" style="margin-bottom:10px;">Who's checking in?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="step-main" hidden>
+
+  <div class="card">
+    <h2>Cash Available Right Now</h2>
+    <div id="available-cash" class="big-number">—</div>
+    <div class="hint" id="available-cash-sub">Loading…</div>
+  </div>
+
+  <div class="card">
+    <h2>This Month's Priorities</h2>
+    <div id="waterfall-list"><div class="spinner-note">Loading…</div></div>
+    <div class="hint" style="margin-top:8px;">Calendar month-to-date. Advisory only — this doesn't block any payment, it just shows which obligations this month's cash has covered so far, in order.</div>
+  </div>
+
+  <div class="card">
+    <h2>Suggested Payments Today</h2>
+    <div id="suggestions-list"><div class="spinner-note">Loading…</div></div>
+    <div class="hint" style="margin-top:8px;">Starts from cash available right now, reserves whatever's still owed on an unfunded priority above (salaries/rent/electricity), then spends what's left on outstanding vendor bills — dairy (cheese) and protein (chicken) first, largest balance first within each. These are suggestions, not instructions — use judgment, and every payment still has to be entered and reviewed on Vendor Payment yourself.</div>
+  </div>
+
+  <div class="card">
+    <h2>Outstanding Vendor Balances</h2>
+    <div id="payables-list"><div class="spinner-note">Loading…</div></div>
+    <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="vendor-payment.html">Go to Vendor Payment</a>
+  </div>
+
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const PAGE_KEY = "cash_priority";
+
+let state = { userId: null, userName: null, managerId: null, role: null };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+  });
+  if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`${res.status} ${text}`); }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) { const text = await res.text().catch(() => ""); let msg = text; try { msg = JSON.parse(text).message || text; } catch (e) {} throw new Error(msg); }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function fmtMoney(n) {
+  const v = Number(n) || 0;
+  return "PKR " + v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+function todayStr() {
+  // Gulberg's business day cuts over at 9am PKT, same convention as the other entry pages.
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
+    nameInput.value = ""; pinInput.value = "";
+    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false; pinInput.value = ""; pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId; state.userName = name; state.managerId = managerId; state.role = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("step-main").hidden = false;
+  loadAll();
+}
+
+async function loadAll() {
+  await Promise.all([loadAvailableCash(), loadWaterfallAndSuggestions()]);
+}
+
+// Same carry-forward logic as Owner Dashboard's Cash Position / cash-reconciliation.html:
+// the custodian's last actual physical count if one exists, else the expected figure.
+async function loadAvailableCash() {
+  const el = document.getElementById("available-cash");
+  const sub = document.getElementById("available-cash-sub");
+  try {
+    const rows = await sb(`cash_safe_ledger?order=ledger_date.desc&limit=1&select=ledger_date,counted_cash,opening_cash,cash_in,cash_out,status`);
+    const r = rows && rows[0];
+    if (!r) { el.textContent = fmtMoney(0); sub.textContent = "No Safe 2 record found yet."; return; }
+    const expected = (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
+    const value = (r.counted_cash !== null && r.counted_cash !== undefined) ? Number(r.counted_cash) : expected;
+    el.textContent = fmtMoney(value);
+    sub.textContent = (r.counted_cash !== null && r.counted_cash !== undefined)
+      ? `Zeeshan's last physical count, as of ${r.ledger_date} (${r.status}).`
+      : `System-expected figure for ${r.ledger_date} (${r.status}) — not yet physically counted.`;
+    state.availableCash = value;
+  } catch (e) { el.textContent = "—"; sub.textContent = "Couldn't load Safe 2."; state.availableCash = 0; }
+}
+
+async function loadWaterfallAndSuggestions() {
+  const wrap = document.getElementById("waterfall-list");
+  const sugWrap = document.getElementById("suggestions-list");
+
+  const monthStart = todayStr().slice(0, 8) + "01";
+  const today = todayStr();
+  const daysElapsed = Math.max(1, Math.round((new Date(today) - new Date(monthStart)) / 86400000) + 1);
+
+  let tiers = [], sales = [], payroll = [], fuel = [], utilities = [], vendors = [], vpays = [], purchases = [], payments = [];
+  try { tiers = await sb(`cash_allocation_priorities?location_id=eq.${LOCATION_ID}&active=eq.true&select=*&order=rank`); } catch (e) {}
+  try { sales = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${monthStart}&sale_date=lte.${today}&select=total_sale`); } catch (e) {}
+  try { payroll = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${monthStart}&expense_date=lte.${today}&category=eq.Payroll&select=amount`); } catch (e) {}
+  try { fuel = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${monthStart}&expense_date=lte.${today}&category=eq.Fuel%20%26%20Gas&select=amount`); } catch (e) {}
+  try { utilities = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${monthStart}&expense_date=lte.${today}&category=eq.Utilities&select=amount,subcategory,detail`); } catch (e) {}
+  try { vendors = await sb(`vendors?select=id,name,category`); } catch (e) {}
+  try { vpays = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=gte.${monthStart}&payment_date=lte.${today}&select=amount,vendor_id`); } catch (e) {}
+  try { purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&select=vendor_id,amount`); } catch (e) {}
+  try { payments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&select=vendor_id,amount`); } catch (e) {}
+
+  if (!tiers.length) { wrap.innerHTML = '<div class="empty-note">No priority tiers configured.</div>'; sugWrap.innerHTML = ""; return; }
+
+  const totalSalesMTD = sales.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
+  const avgDailySales = totalSalesMTD / daysElapsed;
+  const cashInMTD = totalSalesMTD;
+
+  const vendorById = {};
+  vendors.forEach(v => { vendorById[v.id] = v; });
+
+  const rentMatch = (e) => (e.subcategory === "Building Rent") || /rent/i.test(e.detail || "");
+  const rentMTD = utilities.filter(rentMatch).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const electricityMTD = utilities.filter(e => e.subcategory === "Electricity").reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const payrollMTD = payroll.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const fuelMTD = fuel.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+  let remaining = cashInMTD;
+  let shortfallReserve = 0; // sum of this-month shortfalls still owed on tiers 1-4, to hold back from today's suggestions
+  const rows = tiers.map(t => {
+    let target = 0, actual = 0;
+    if (t.calc_type === "fixed_monthly") {
+      target = Number(t.fixed_amount) || 0;
+      actual = t.name === "Staff Salaries" ? payrollMTD : (t.expense_subcategory === "Building Rent" ? rentMTD : (t.expense_subcategory === "Electricity" ? electricityMTD : 0));
+    } else if (t.calc_type === "actual_category") {
+      target = fuelMTD; actual = fuelMTD;
+    } else if (t.calc_type === "vendor_category_days") {
+      target = avgDailySales * (Number(t.days_of_sales) || 0);
+      actual = vpays.filter(p => (t.vendor_categories || []).includes((vendorById[p.vendor_id] || {}).category)).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    } else if (t.calc_type === "inventory_baseline") {
+      return { tier: t, isInventory: true };
+    }
+    const fundedFromCash = Math.max(0, Math.min(remaining, target));
+    remaining -= target;
+    const status = t.calc_type === "actual_category" ? null : (fundedFromCash >= target - 1 ? "ok" : (fundedFromCash > 0 ? "warn" : "err"));
+    // A tier still short on what it SHOULD have by now (target minus what's actually been spent/paid against it)
+    // is cash this month's waterfall hasn't truly covered yet -- hold that back from vendor suggestions below,
+    // but only for the fixed obligations (salaries/rent/electricity), not the vendor-days tier itself.
+    if (status !== "ok" && t.calc_type !== "vendor_category_days" && t.calc_type !== "actual_category") {
+      shortfallReserve += Math.max(0, target - actual);
+    }
+    return { tier: t, target, actual, status };
+  });
+
+  const pill = (status) => status === "ok" ? '<span class="pill-badge pill-ok">Funded</span>' :
+    status === "warn" ? '<span class="pill-badge pill-warn">Partial</span>' :
+    status === "err" ? '<span class="pill-badge pill-err">Short</span>' : "";
+
+  let html = `<div class="row" style="font-weight:600;"><span>Cash in this month (${daysElapsed} day${daysElapsed === 1 ? "" : "s"})</span><span class="amt">${fmtMoney(cashInMTD)}</span></div>`;
+  rows.forEach(r => {
+    if (r.isInventory) { html += `<div class="row"><span>${r.tier.name}</span><span class="hint" style="font-style:italic;">informational</span></div>`; return; }
+    const sub = r.tier.calc_type === "actual_category"
+      ? `actual PKR ${Math.round(r.actual).toLocaleString()} (no fixed target)`
+      : `target PKR ${Math.round(r.target).toLocaleString()} · actual PKR ${Math.round(r.actual).toLocaleString()}`;
+    html += `<div class="row" style="align-items:center;"><span>${r.tier.name}<br><span class="hint">${sub}</span></span>${pill(r.status)}</div>`;
+  });
+  const leftover = remaining;
+  html += `<div class="total-row" style="color:${leftover >= 0 ? "var(--ok)" : "var(--err)"}"><span>${leftover >= 0 ? "Left over so far (before vendor payments)" : "Shortfall against fixed priorities"}</span><span>${fmtMoney(Math.abs(leftover))}</span></div>`;
+  wrap.innerHTML = html;
+
+  // --- Outstanding vendor payables ---
+  const owed = {}, paid = {};
+  purchases.forEach(p => { if (p.vendor_id) owed[p.vendor_id] = (owed[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+  payments.forEach(p => { if (p.vendor_id) paid[p.vendor_id] = (paid[p.vendor_id] || 0) + (Number(p.amount) || 0); });
+  const priorityRank = (cat) => cat === "DAIRY" ? 0 : (cat === "PROTEIN" ? 1 : 2);
+  const balances = Object.keys(owed)
+    .map(id => ({ id, name: (vendorById[id] || {}).name || "Unknown vendor", category: (vendorById[id] || {}).category || null, balance: (owed[id] || 0) - (paid[id] || 0) }))
+    .filter(v => v.balance > 0.01)
+    .sort((a, b) => priorityRank(a.category) - priorityRank(b.category) || b.balance - a.balance);
+
+  const payablesWrap = document.getElementById("payables-list");
+  if (!balances.length) { payablesWrap.innerHTML = '<div class="empty-note">No outstanding balance against any vendor.</div>'; }
+  else {
+    const total = balances.reduce((s, v) => s + v.balance, 0);
+    payablesWrap.innerHTML = balances.map(v => {
+      const tag = v.category === "DAIRY" ? '<span class="pill-badge pill-accent">Cheese/Dairy</span>' : v.category === "PROTEIN" ? '<span class="pill-badge pill-accent">Chicken/Protein</span>' : "";
+      return `<div class="row"><span>${v.name} ${tag}</span><span class="amt">${fmtMoney(v.balance)}</span></div>`;
+    }).join("") + `<div class="total-row"><span>Total owed</span><span>${fmtMoney(total)}</span></div>`;
+  }
+
+  // --- Suggested payments today ---
+  const cashNow = state.availableCash || 0;
+  let discretionary = Math.max(0, cashNow - shortfallReserve);
+  let suggestHtml = "";
+  if (shortfallReserve > 0.5) {
+    suggestHtml += `<div class="banner banner-warn">PKR ${Math.round(shortfallReserve).toLocaleString()} of today's cash is being held back first — salaries, rent, or electricity for this month aren't fully covered yet.</div>`;
+  }
+  if (!balances.length) {
+    suggestHtml += '<div class="empty-note">No outstanding vendor balances to suggest paying.</div>';
+  } else if (discretionary <= 0.5) {
+    suggestHtml += '<div class="empty-note">Nothing discretionary left to suggest right now — today\'s cash is needed for the priorities above first.</div>';
+  } else {
+    let left = discretionary;
+    const suggestions = [];
+    for (const v of balances) {
+      if (left <= 0.5) break;
+      const pay = Math.min(left, v.balance);
+      suggestions.push({ ...v, pay });
+      left -= pay;
+    }
+    suggestions.forEach(s => {
+      const tag = s.category === "DAIRY" ? "Cheese/Dairy — top priority" : s.category === "PROTEIN" ? "Chicken/Protein" : "Other vendor";
+      const full = s.pay >= s.balance - 0.5;
+      suggestHtml += `<div class="suggest-card">
+        <div class="s-title"><span>${s.name}</span><span class="amt">${fmtMoney(s.pay)}</span></div>
+        <div class="s-sub">${tag} · ${full ? "clears the full balance" : `partial — PKR ${Math.round(s.balance - s.pay).toLocaleString()} would remain`}</div>
+        <a class="go" href="vendor-payment.html?vendor=${s.id}&amount=${Math.round(s.pay)}">Open in Vendor Payment →</a>
+      </div>`;
+    });
+    if (left > 0.5) {
+      suggestHtml += `<div class="banner banner-ok">After clearing every outstanding vendor balance, about ${fmtMoney(left)} would still be left over today.</div>`;
+    }
+  }
+  sugWrap.innerHTML = suggestHtml;
+}
+
+const existing = FNKSession.get();
+if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  FNKSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+</body>
+</html>

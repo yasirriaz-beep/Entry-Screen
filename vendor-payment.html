@@ -385,6 +385,23 @@ async function loadBalances() {
   document.getElementById("receivables-value").textContent = fmtMoney(receivableTotal);
 
   populateVendorSelect();
+  applyPrefillFromUrl();
+}
+
+// Lets another page (e.g. Cash Priority & Payments) deep-link a suggested payment in here
+// pre-filled, so a manager still has to review and hit Save themselves -- nothing is ever
+// submitted automatically from a link. Added 2026-10-16.
+function applyPrefillFromUrl() {
+  if (state.prefillApplied) return;
+  const params = new URLSearchParams(window.location.search);
+  const vendorId = params.get("vendor");
+  const amount = params.get("amount");
+  if (vendorId && state.vendors.some(v => v.id === vendorId)) {
+    document.getElementById("f-vendor").value = vendorId;
+    updateSelectedBalance();
+  }
+  if (amount) document.getElementById("f-amount").value = amount;
+  if (vendorId || amount) state.prefillApplied = true;
 }
 
 async function saveOpeningBalance(vendorId) {
