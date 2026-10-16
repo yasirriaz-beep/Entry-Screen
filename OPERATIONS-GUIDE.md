@@ -1165,6 +1165,25 @@ giving them the rest of the Owner Dashboard. It shows:
 
 Purely advisory, same as the dashboard card — no payment is blocked or auto-submitted.
 
+### Retired employees missing from Payroll (fixed Oct 16, 2026)
+
+Payroll Entry fetched employees with `active=eq.true` only, so the moment someone was marked
+retired in Employee Master, their pay for whatever days they'd actually worked that period
+vanished from Payroll entirely — not blocked, just never fetched. Found 5 real, uncompensated
+cases: Hamza Saeed, Hassan, Waqar, Bashrat, and M.Faizan each worked one day (Oct 9, 2026)
+before being retired the next day, and none of that day's pay had ever shown up anywhere on
+Payroll.
+
+Now `loadEmployees()` pulls every employee regardless of `active`, and once the selected
+period's attendance/existing payroll entries are known, a retired employee is included only if
+they have activity in that specific period (attendance marked, or an existing payroll_entries
+row) — so their final settlement appears for the month they left and then drops off on its own
+afterward, rather than needing manual hiding or lingering forever. They render in a separate
+"Retired — final settlement for this period only" group at the bottom of the sheet with a
+Retired tag, instead of mixed into their old department. The days-worked pay math itself
+(`monthly_salary / 26 × days present`) already handled a partial month correctly — the employee
+just needed to be visible at all for it to apply.
+
 ---
 
 ## 7. Open items / things still being built out
