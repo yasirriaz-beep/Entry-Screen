@@ -236,6 +236,12 @@
   </div>
 
   <div class="card">
+    <h2>Monthly Cash Priority Waterfall</h2>
+    <div id="waterfall-list"><div class="spinner-note">Loading…</div></div>
+    <div class="hint" style="margin-top:8px;">Calendar month-to-date, not the Today/Week/Month filter above. Advisory only — nothing here blocks a payment, it just shows which obligations this month's cash has covered so far, in priority order, and what's left over. Edit targets in the <code>cash_allocation_priorities</code> table.</div>
+  </div>
+
+  <div class="card">
     <h2>Vendor Payables (All-Time)</h2>
     <div id="payables-list"><div class="spinner-note">Loading…</div></div>
     <a class="btn-ghost" style="display:block; text-align:center; text-decoration:none; margin-top:10px;" href="vendor-payment.html">Record a Vendor Payment</a>
@@ -477,7 +483,7 @@ document.querySelectorAll("#range-seg button").forEach(btn => {
 });
 
 async function refreshAll() {
-  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyCashCheck(), loadChargeToRestaurant(), loadDailyChecklist(), loadFlaggedKm()]);
+  await Promise.all([loadKpis(), loadDemandQueue(), loadAttention(), loadAlerts(), loadPayables(), loadPayrollPayable(), loadReorderAlerts(), loadVarianceSummary(), loadCashReconHistory(), loadDailyCashCheck(), loadChargeToRestaurant(), loadDailyChecklist(), loadFlaggedKm(), loadCashWaterfall()]);
 }
 
 async function loadFlaggedKm() {
@@ -843,6 +849,85 @@ async function loadPayrollPayable() {
   wrap.innerHTML = balances.map(b => `
     <div class="channel-row"><span>${b.name}</span><span class="amt">${fmtMoney(b.balance)}</span></div>`).join("") +
     `<div class="drawer-total" style="margin-top:6px;"><span>Total owed</span><span>${fmtMoney(total)}</span></div>`;
+}
+
+// Monthly Cash Priority Waterfall (added 2026-10-16): walks this calendar month's cash
+// in through the owner's stated payment priority order -- salaries first (paid 7th of the
+// following month from the first week's cash), then rent and electricity, then dairy/protein
+// vendors (cheese/chicken prioritized, sized to 10-14 days of average sales), then whatever's
+// left is the inventory-maintenance reserve and profit. Advisory/dashboard only -- reads
+// targets from cash_allocation_priorities so Yasir can edit figures without a code change.
+async function loadCashWaterfall() {
+  const wrap = document.getElementById("waterfall-list");
+  if (!state.locationId) { wrap.innerHTML = '<div class="empty-note">No location.</div>'; return; }
+
+  const monthStart = todayStr().slice(0, 8) + "01";
+  const today = todayStr();
+  const daysElapsed = Math.max(1, Math.round((new Date(today) - new Date(monthStart)) / 86400000) + 1);
+
+  let tiers = [], sales = [], payroll = [], fuel = [], utilities = [], vendors = [], vpays = [], purchases = [];
+  try { tiers = await sb(`cash_allocation_priorities?location_id=eq.${state.locationId}&active=eq.true&select=*&order=rank`); } catch (e) {}
+  try { sales = await sb(`daily_sales?location_id=eq.${state.locationId}&sale_date=gte.${monthStart}&sale_date=lte.${today}&select=total_sale`); } catch (e) {}
+  try { payroll = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${monthStart}&expense_date=lte.${today}&category=eq.Payroll&select=amount`); } catch (e) {}
+  try { fuel = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${monthStart}&expense_date=lte.${today}&category=eq.Fuel%20%26%20Gas&select=amount`); } catch (e) {}
+  try { utilities = await sb(`expenses?location_id=eq.${state.locationId}&expense_date=gte.${monthStart}&expense_date=lte.${today}&category=eq.Utilities&select=amount,subcategory,detail`); } catch (e) {}
+  try { vendors = await sb(`vendors?select=id,category`); } catch (e) {}
+  try { vpays = await sb(`vendor_payments?location_id=eq.${state.locationId}&payment_date=gte.${monthStart}&payment_date=lte.${today}&select=amount,vendor_id`); } catch (e) {}
+
+  if (!tiers.length) { wrap.innerHTML = '<div class="empty-note">No priority tiers configured for this location.</div>'; return; }
+
+  const totalSalesMTD = sales.reduce((s, r) => s + (Number(r.total_sale) || 0), 0);
+  const avgDailySales = totalSalesMTD / daysElapsed;
+  const cashInMTD = totalSalesMTD; // cash generated this month, available to the waterfall
+
+  const vendorCatById = {};
+  vendors.forEach(v => { vendorCatById[v.id] = v.category; });
+
+  const rentMatch = (e) => (e.subcategory === "Building Rent") || /rent/i.test(e.detail || "");
+  const rentMTD = utilities.filter(rentMatch).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const electricityMTD = utilities.filter(e => e.subcategory === "Electricity").reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const payrollMTD = payroll.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const fuelMTD = fuel.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+  let remaining = cashInMTD;
+  const rows = tiers.map(t => {
+    let target = 0, actual = 0;
+    if (t.calc_type === "fixed_monthly") {
+      target = Number(t.fixed_amount) || 0;
+      actual = t.expense_subcategory === "Building Rent" ? rentMTD : (t.expense_subcategory === "Electricity" ? electricityMTD : (t.expense_category === "Payroll" ? payrollMTD : 0));
+      if (t.name === "Staff Salaries") actual = payrollMTD;
+    } else if (t.calc_type === "actual_category") {
+      target = fuelMTD; actual = fuelMTD; // no fixed target -- tracked, not funded/short
+    } else if (t.calc_type === "vendor_category_days") {
+      target = avgDailySales * (Number(t.days_of_sales) || 0);
+      actual = vpays.filter(p => (t.vendor_categories || []).includes(vendorCatById[p.vendor_id])).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    } else if (t.calc_type === "inventory_baseline") {
+      return { tier: t, isInventory: true };
+    }
+    const fundedFromCash = Math.max(0, Math.min(remaining, target));
+    remaining -= target;
+    const status = t.calc_type === "actual_category" ? null : (fundedFromCash >= target - 1 ? "ok" : (fundedFromCash > 0 ? "warn" : "err"));
+    return { tier: t, target, actual, status };
+  });
+
+  const pill = (status) => status === "ok" ? '<span class="pill-badge pill-ok">Funded</span>' :
+    status === "warn" ? '<span class="pill-badge pill-warn">Partial</span>' :
+    status === "err" ? '<span class="pill-badge pill-err">Short</span>' : "";
+
+  let html = `<div class="channel-row" style="font-weight:600;"><span>Cash in this month (${daysElapsed} day${daysElapsed === 1 ? "" : "s"})</span><span class="amt">${fmtMoney(cashInMTD)}</span></div>`;
+  rows.forEach(r => {
+    if (r.isInventory) {
+      html += `<div class="channel-row"><span>${r.tier.name}</span><span class="hint" style="font-style:italic;">informational — see note below</span></div>`;
+      return;
+    }
+    const sub = r.tier.calc_type === "actual_category"
+      ? `actual PKR ${Math.round(r.actual).toLocaleString()} (no fixed target)`
+      : `target PKR ${Math.round(r.target).toLocaleString()}${r.tier.calc_type === "vendor_category_days" ? ` (${r.tier.days_of_sales}d × avg sales)` : ""} · actual PKR ${Math.round(r.actual).toLocaleString()}`;
+    html += `<div class="channel-row" style="align-items:center;"><span>${r.tier.name}<br><span class="hint">${sub}</span></span>${pill(r.status)}</div>`;
+  });
+  const remainingLabel = remaining >= 0 ? "Left over (profit, before inventory check)" : "Shortfall against this month's priorities";
+  html += `<div class="drawer-total" style="color:${remaining >= 0 ? "var(--ok)" : "var(--err)"}"><span>${remainingLabel}</span><span>${fmtMoney(Math.abs(remaining))}</span></div>`;
+  wrap.innerHTML = html;
 }
 
 async function loadPayables() {
