@@ -75,8 +75,10 @@
   table.sheet thead th:first-child { z-index: 2; }
   table.sheet tbody tr:hover td { background: var(--field-bg); }
   table.sheet .dept-row td { background: var(--border); color: var(--ink); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.03em; text-align: left; position: static; }
-  table.sheet .dept-subtotal-row td { background: var(--field-bg); color: var(--ink-soft); font-weight: 700; font-size: 0.78rem; text-align: right; position: static; border-bottom: 2px solid var(--border); }
+  table.sheet .dept-subtotal-row td { background: var(--field-bg); color: var(--ink-soft); font-weight: 700; font-size: 0.78rem; text-align: right; position: static; border-bottom: 2px solid var(--border); white-space: nowrap; }
   table.sheet .dept-subtotal-row td:first-child { text-align: left; position: static; }
+  table.sheet .grand-total-row td { background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 0.82rem; text-align: right; position: static; white-space: nowrap; }
+  table.sheet .grand-total-row td:first-child { text-align: left; position: static; }
   table.sheet .auto-days { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
   .save-all-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--field-bg); border: 1px solid var(--border); }
   .save-all-bar.has-changes { background: var(--warn-bg); border-color: var(--warn); }
@@ -133,7 +135,7 @@
       <div class="summary-tile"><div class="lbl">New Hires (this period)</div><div class="val" id="sum-count-new">0</div></div>
       <div class="summary-tile"><div class="lbl">Net Payroll</div><div class="val" id="sum-net">PKR 0</div></div>
       <div class="summary-tile"><div class="lbl">Advances Paid</div><div class="val" id="sum-paid">PKR 0</div></div>
-      <div class="summary-tile"><div class="lbl">Outstanding</div><div class="val" id="sum-outstanding">PKR 0</div></div>
+      <div class="summary-tile" title="Salary accrued this period, minus advances already paid and loan deductions, minus anything already finally settled. This is what's still payable at month-end settlement."><div class="lbl">Outstanding</div><div class="val" id="sum-outstanding">PKR 0</div></div>
     </div>
   </div>
 
@@ -418,7 +420,11 @@ function computeEmployeeFigures(e) {
   const advanceDeduction = existing && existing.advance_deduction != null ? Number(existing.advance_deduction) : advance.total;
   const paidAmount = existing && existing.paid_amount != null ? Number(existing.paid_amount) : 0;
   const net = salaryEarned + kmAmount + bonus + phoneLoad - advanceDeduction - loanDeduction;
-  return { net, paidAmount };
+  return {
+    net, paidAmount,
+    baseSalary: Number(e.monthly_salary) || 0,
+    salaryEarned, advanceDeduction, kmAmount, bonus, phoneLoad, loanDeduction
+  };
 }
 
 function renderSummary() {
@@ -429,17 +435,30 @@ function renderSummary() {
   document.getElementById("sum-count-retired").textContent = retiredCount;
   document.getElementById("sum-count-new").textContent = newHireCount;
 
-  let totalNet = 0, totalFinalPaid = 0, totalAdvancesPaid = 0;
+  // Outstanding (fixed 2026-10-16): it used to be Net Payroll minus Final Settlement Paid --
+  // but Net Payroll already has this period's advances subtracted out of it internally, so
+  // Outstanding just echoed Net Payroll every month until settlement happens (next month, per
+  // Yasir), which read as broken since it never visibly reacted to the Advances Paid tile
+  // sitting right next to it. Per Yasir: Outstanding = Salary Accrued (gross: salary + KM +
+  // bonus + phone, before any deduction) minus Advances Paid minus Loan Deductions minus
+  // anything already finally settled -- i.e. "what's still payable." This also uses the live
+  // Advances Paid total (state.advances, pulled straight from this period's expense entries)
+  // rather than whatever advance_deduction was stored on a payroll_entries row the last time
+  // it was saved, which could be stale if more advances went out since.
+  let totalNet = 0, totalGrossAccrued = 0, totalLoanDeduction = 0, totalFinalPaid = 0, totalAdvancesPaid = 0;
   state.employees.forEach(e => {
-    const { net, paidAmount } = computeEmployeeFigures(e);
-    totalNet += net;
-    totalFinalPaid += paidAmount;
+    const f = computeEmployeeFigures(e);
+    totalNet += f.net; // matches the per-row Final Payable total and the Grand Total row below
+    totalGrossAccrued += f.salaryEarned + f.kmAmount + f.bonus + f.phoneLoad;
+    totalLoanDeduction += f.loanDeduction;
+    totalFinalPaid += f.paidAmount;
   });
   Object.values(state.advances).forEach(a => { totalAdvancesPaid += a.total; });
+  const totalOutstanding = totalGrossAccrued - totalAdvancesPaid - totalLoanDeduction - totalFinalPaid;
 
   document.getElementById("sum-net").textContent = fmtMoney(totalNet);
   document.getElementById("sum-paid").textContent = fmtMoney(totalAdvancesPaid);
-  document.getElementById("sum-outstanding").textContent = fmtMoney(totalNet - totalFinalPaid);
+  document.getElementById("sum-outstanding").textContent = fmtMoney(totalOutstanding);
 }
 
 function renderEmpList() {
@@ -489,15 +508,61 @@ function renderEmpList() {
     retiredRows.forEach(e => body.appendChild(buildSheetRow(e)));
     body.appendChild(buildSubtotalRow(retiredRows));
   }
+
+  body.appendChild(buildGrandTotalRow(allRows));
   updateSaveAllBar();
 }
 
+// Sums every numeric column across a set of rows (a department's rows, the retired group, or
+// the whole sheet for the grand total). Returns the same field names computeEmployeeFigures
+// uses per-employee, so one function builds both the per-department subtotal row and the
+// grand-total row below. Added 2026-10-16.
+function sumColumns(rows) {
+  const totals = { baseSalary: 0, salaryEarned: 0, advanceDeduction: 0, kmAmount: 0, bonus: 0, phoneLoad: 0, loanDeduction: 0, net: 0 };
+  rows.forEach(e => {
+    const f = computeEmployeeFigures(e);
+    totals.baseSalary += f.baseSalary;
+    totals.salaryEarned += f.salaryEarned;
+    totals.advanceDeduction += f.advanceDeduction;
+    totals.kmAmount += f.kmAmount;
+    totals.bonus += f.bonus;
+    totals.phoneLoad += f.phoneLoad;
+    totals.loanDeduction += f.loanDeduction;
+    totals.net += f.net;
+  });
+  return totals;
+}
+
+function totalsRowHtml(label, rows, extraClass) {
+  const t = sumColumns(rows);
+  return `
+    <td>${label}</td>
+    <td>${fmtMoney(t.baseSalary)}</td>
+    <td>—</td>
+    <td>—</td>
+    <td>${fmtMoney(t.salaryEarned)}</td>
+    <td class="col-minus">${fmtMoney(t.advanceDeduction)}</td>
+    <td class="col-plus">${fmtMoney(t.kmAmount)}</td>
+    <td class="col-plus">${fmtMoney(t.bonus)}</td>
+    <td class="col-plus">${fmtMoney(t.phoneLoad)}</td>
+    <td class="col-minus">${fmtMoney(t.loanDeduction)}</td>
+    <td class="col-final">${fmtMoney(t.net)}</td>
+    <td></td>
+    <td></td>
+  `;
+}
+
 function buildSubtotalRow(rows) {
-  let totalNet = 0;
-  rows.forEach(e => { totalNet += computeEmployeeFigures(e).net; });
   const tr = document.createElement("tr");
   tr.className = "dept-subtotal-row";
-  tr.innerHTML = `<td colspan="10">${rows.length} employee${rows.length === 1 ? "" : "s"} — subtotal</td><td colspan="3">${fmtMoney(totalNet)}</td>`;
+  tr.innerHTML = totalsRowHtml(`${rows.length} employee${rows.length === 1 ? "" : "s"} — subtotal`, rows);
+  return tr;
+}
+
+function buildGrandTotalRow(rows) {
+  const tr = document.createElement("tr");
+  tr.className = "grand-total-row";
+  tr.innerHTML = totalsRowHtml(`Grand Total — ${rows.length} employee${rows.length === 1 ? "" : "s"}`, rows);
   return tr;
 }
 
