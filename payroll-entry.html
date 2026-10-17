@@ -50,6 +50,8 @@
   .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
   .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .readout { background: var(--field-bg); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
   .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .summary-tile { background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
@@ -121,6 +123,11 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh screen mahana salary (payroll) darj karne ke liye hai. Upar Pay Period (month) select karen, phir neeche table mein har employee ki row milegi — Override Days, Bonus, Phone, Loan waghera ke box mein number likhen, Advance aur KM pehle se khud bhar jate hain (attendance aur expense se). Jo row edit ho jaye wo amber (halka orange) ho jayegi — usay save karne ke liye row ka apna "Save" button dabayen, ya sab edited rows ek sath save karne ke liye neeche "Save All Changes" dabayen. Jab asal mein paisay employee ko de den, to us ki row kholen (naam par click karen) aur "Paid" amount aur date darj kar ke "Save Settlement" dabayen.
+  </div>
 
   <div class="card">
     <div class="step-label">Pay Period</div>
