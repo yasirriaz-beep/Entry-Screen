@@ -46,8 +46,8 @@
   .filter-row > * { flex: 1; min-width: 140px; }
   .progress-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; margin-right: 6px; }
   .table-scroll { overflow-x: auto; }
-  .base-grid { min-width: 820px; }
-  .item-row { display: grid; grid-template-columns: 1fr 56px 56px 56px 66px 84px 84px 84px 84px; gap: 6px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
+  .base-grid { min-width: 620px; }
+  .item-row { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px; gap: 6px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
   .item-row:last-child { border-bottom: none; }
   .item-name { font-size: 0.88rem; min-width: 0; }
   .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
@@ -55,7 +55,7 @@
   .item-row input.dirty { border-color: var(--accent); background: var(--warn-bg); }
   .expected-val, .num-val { font-size: 0.8rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
   .num-val.end-val { color: var(--ink); font-weight: 600; }
-  .col-header { display: grid; grid-template-columns: 1fr 56px 56px 56px 66px 84px 84px 84px 84px; gap: 6px; font-size: 0.65rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .col-header { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px; gap: 6px; font-size: 0.65rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
   .col-header > div { text-align: right; }
   .col-header > div:first-child { text-align: left; }
   .dept-header { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; border-radius: 6px; margin: 10px 0 4px; }
@@ -136,9 +136,6 @@
       <div class="base-grid">
         <div class="col-header">
           <div>Item</div>
-          <div>Beg</div>
-          <div>Add</div>
-          <div>Sub</div>
           <div>Ending Balance</div>
           <div>Kitchen Issue</div>
           <div>BOH Issue</div>
@@ -395,7 +392,10 @@ function renderItemList() {
       lastCat = c;
     }
 
-    const { opening, purchasesQty, issuesQty, expected } = expectedQty(p.id, date);
+    // opening/purchasesQty/issuesQty are still computed (expectedQty returns them
+    // together with expected) but no longer displayed — Yasir asked to show only
+    // the Ending Balance here, since Beg/Add/Sub aren't relevant to the store man.
+    const { expected } = expectedQty(p.id, date);
     const dirtyRow = state.dirty[p.id] || {};
 
     const row = document.createElement("div");
@@ -406,9 +406,6 @@ function renderItemList() {
     }).join("");
     row.innerHTML = `
       <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
-      <div class="num-val">${fmtQty(opening)}</div>
-      <div class="num-val">+${fmtQty(purchasesQty)}</div>
-      <div class="num-val">-${fmtQty(issuesQty)}</div>
       <div class="num-val end-val">${fmtQty(expected)}</div>
       ${destCells}
     `;
