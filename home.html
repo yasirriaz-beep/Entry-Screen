@@ -60,6 +60,8 @@
   .page-link .arrow { color: var(--ink-soft); }
   .view-only-badge { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--warn, #a3650a); background: var(--warn-bg, #fdf1dd); border-radius: 999px; padding: 2px 7px; margin-left: 6px; }
   .empty-hint { color: var(--ink-soft); font-size: 0.88rem; padding: 10px 2px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -86,6 +88,10 @@
     <button class="btn-switch" id="btn-switch" type="button">Switch person</button>
   </div>
 
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh aap ki apni pages ki list hai — jo kaam aap ko diya gaya hai (Manage Access mein), wahi yahan tabs mein dikhega. Upar tabs par click karein (jaise "Daily Operations" ya "Stock Control") phir neeche jo page chahiye us par tap karein taake wo khul jaye. Agar kisi page ke saath "view only" likha hai to aap usay sirf dekh sakte hain, us mein tabdeeli save nahi ho gi. Agar koi page bilkul nazar nahi aa raha to Director se Manage Access mein apni access set karne ko kahein. "Switch person" button se aap doosre banda/bandi ke liye login kar saktay hain.
+  </div>
   <div id="tab-row" class="tab-row"></div>
   <div id="page-grid" class="page-grid"></div>
   <div class="hint" id="director-hint" hidden>As a Director you can open every page. Everyone else only sees what's been granted to them in Manage Access.</div>
