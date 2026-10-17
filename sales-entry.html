@@ -77,6 +77,8 @@ button.ghost:disabled{opacity:.5;cursor:default}
 .status-badge.draft{background:var(--surface-2);color:var(--fg-muted)}
 .status-badge.closed{background:var(--success-bg);color:var(--success)}
 .recon-box{margin-top:12px;background:var(--surface-2);border-radius:10px;padding:12px}
+.urdu-box { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+.urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 .shift-grid{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
 @media (min-width:980px){
   .shift-grid{grid-template-columns:1fr 1fr 320px}
@@ -122,6 +124,10 @@ button.ghost:disabled{opacity:.5;cursor:default}
   <div class="muted" id="dateLockNote" hidden>Only a director can change this — you're always on today's entry.</div>
 </div>
 
+<div class="urdu-box" id="urduBox" hidden>
+  <b>Tareeqa (Instructions in Roman Urdu)</b>
+  Ye page Morning aur Evening shift ki sales aur till cash likhne ke liye hai. Har channel (Dine-in, Takeaway, Delivery, Food Panda, Third Party, Bakery) ki Covers aur Amount daalein, aur jo hissa Card ya JazzCash se aaya ho wo alag se us box mein likh dein — ye total nahi badalta, sirf batata hai kitna cash nahi hai. Till Cash Reconciliation mein sirf wahi likhein jo aap ne khud ginKar count kiya ho — Closing Float aur Custodian ko Diya hui amount. Beech beech mein "Save" dabate rahein taake kaam na khoye; shift khatam karne par "Close Shift" dabayein, lekin sirf tab jab till ka cash poora mil raha ho — kam nikla to pehle neeche wali box mein wajah batayein. Band ho chuki shift sirf Director wapas khol sakta hai.
+</div>
 <div id="shiftsContainer" class="shift-grid" hidden>
   <div class="card" id="panel_morning"></div>
   <div class="card" id="panel_evening"></div>
@@ -1130,6 +1136,7 @@ function afterLogin(userId, name, managerId, role) {
   resolvedManagerId = managerId;
   resolvedRole = role;
   document.getElementById("whoCard").hidden = true;
+  document.getElementById("urduBox").hidden = false;
   document.getElementById("shiftsContainer").hidden = false;
 
   // Only a director can move off today's date — anyone else logging in (shift manager, cash
