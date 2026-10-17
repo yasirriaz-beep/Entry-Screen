@@ -94,6 +94,8 @@
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
   .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
   .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -111,6 +113,11 @@
     <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
     <button type="submit" class="btn-login" id="login-submit">Log in</button>
   </form>
+</div>
+
+<div class="urdu-box" id="urdu-box" hidden>
+  <b>Tareeqa (Instructions in Roman Urdu)</b>
+  Yeh page tab istemal karen jab vendor say koi saman (stock) delivery ho kar aa jaye. Pehle batayen k yeh kisi Purchase Order (PO) per manga gaya tha ya nahi — agar PO per tha to list say wohi PO chunen, warna "No" wala option chunen aur item khud select karen. Qty Received aur Rate daalen, system khud Total nikal dega. Invoice/bill ki photo kheench kar upload kar sakte hain — kuch fields khud bhar jayen gi, magar check zaroor karen k sahi hain. Vendor, tareekh, aur Payment Status (On Credit / Paid Now / Advance) theek se bharen, phir "Save Receipt" per click karen. Agar koi entry ghalat ho jaye to "Received Today" list mein us entry k saamne "Void / correct this entry" per click kar k wajah likhen — entry ko mitaya nahi jata, sirf void (cancel) kiya jata hai taake record mehfooz rahe.
 </div>
 
 <div id="step-mode" class="card" hidden>
@@ -344,6 +351,7 @@ function afterLogin(userId, name, managerId, role) {
   state.userName = name;
   state.managerId = managerId;
   document.getElementById("step-name").hidden = true;
+  document.getElementById("urdu-box").hidden = false;
   document.getElementById("step-mode").hidden = false;
   document.getElementById("f-date").value = todayStr();
 }
