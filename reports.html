@@ -118,6 +118,8 @@
   .daily-date-clickable:hover { text-decoration-style: solid; }
   .daily-row-empty td { color: var(--ink-soft); opacity: 0.55; font-style: italic; }
   .daily-memo-note { font-size: 0.76rem; color: var(--ink-soft); margin: 6px 0 0; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -139,6 +141,11 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page sirf dekhne (view) k liye hai — yahan koi entry nahi hoti, sirf pehle say maujood data ki report nikalti hai. Upar tabs mein say jo report dekhni hai woh chunen (Sales, Expenses, Goods Receipt, waghera). Phir "From" aur "To" tareekh daalen ya "This Month" / "Last Month" / "This Year" wala button dabayen, aur "Run Report" per click karen. Kuch reports mein kisi din per click karen to us din ki tafseeli entries aur receipt ki photo bhi dekh sakte hain. "Download Excel" say report Excel file mein save ho jati hai. Yaad rahe: receipt ki photos sirf 40 din tak system mein rehti hain, uske baad khud hi remove ho jati hain — lekin figures (numbers) hamesha k liye mehfooz rehte hain.
+  </div>
 
   <div class="tab-row" id="tab-row">
     <button class="tab-btn active" data-tab="sales">Sales</button>
