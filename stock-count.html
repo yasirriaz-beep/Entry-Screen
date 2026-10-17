@@ -68,7 +68,9 @@
   .col-header { display: grid; grid-template-columns: 1fr 62px 62px 62px 66px 92px; gap: 6px; font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
   .col-header > div { text-align: right; }
   .col-header > div:first-child { text-align: left; }
-  .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .dept-header { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; border-radius: 6px; margin: 10px 0 4px; }
+  .dept-header:first-child { margin-top: 0; }
+  .dept-count { font-weight: 500; text-transform: none; letter-spacing: normal; opacity: 0.75; }
   .cadence-banner { border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-bottom: 14px; }
   .cadence-ok { background: var(--ok-bg); color: var(--ok); }
   .cadence-warn { background: var(--warn-bg); color: var(--warn); }
@@ -411,13 +413,16 @@ function renderItemList() {
   if (!rows.length) { emptyHint.hidden = false; return; }
   emptyHint.hidden = true;
 
+  const catCounts = {};
+  rows.forEach(p => { const c = p.category || "Uncategorized"; catCounts[c] = (catCounts[c] || 0) + 1; });
+
   let lastCat = null;
   rows.forEach(p => {
     const c = p.category || "Uncategorized";
     if (c !== lastCat) {
       const header = document.createElement("div");
       header.className = "dept-header";
-      header.textContent = c;
+      header.innerHTML = `${c} <span class="dept-count">(${catCounts[c]})</span>`;
       list.appendChild(header);
       lastCat = c;
     }
