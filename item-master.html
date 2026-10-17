@@ -51,6 +51,8 @@
   .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
   .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .item-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
   .item-row .item-top { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; }
   .item-row .item-title { font-weight: 600; }
@@ -95,6 +97,10 @@
 </div>
 
 <div id="panel-main" hidden>
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh screen sirf Director ke liye hai — yahan se woh items (stock/inventory ki cheezen) add, edit ya retire ki jati hain jo baqi tamam entry screens (Expense Entry, Goods Receipt, Stock Count waghera) mein istemal hoti hain. Naya item add karne ke liye Code, Name, Category, Unit aur Rate bhar ke "Add Item" dabayen. Kisi maujooda item ko badalne ke liye neeche list mein us par click karen, tabdeeli karen aur "Save Changes" dabayen. Agar koi item ab istemal nahi hota to usay "Retire Item" se band kar den — purana data mehfooz rehta hai, bas naye entries mein nahi aayega.
+  </div>
   <div class="card">
     <div class="step-label">Add New Item</div>
     <div class="row2 field">
