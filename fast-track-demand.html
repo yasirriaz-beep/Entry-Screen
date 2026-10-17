@@ -77,6 +77,16 @@
   .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
   .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
 
+  .summary-box { background: var(--field-bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .summary-vendor { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.3rem; font-weight: 600; color: var(--accent); }
+  .summary-meta { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; margin-bottom: 14px; }
+  .summary-items { display: flex; flex-direction: column; gap: 7px; }
+  .summary-row { display: flex; justify-content: space-between; gap: 10px; font-size: 1rem; padding-bottom: 7px; border-bottom: 1px dashed var(--border); }
+  .summary-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .summary-row .si-name { font-weight: 600; }
+  .summary-row .si-qty { white-space: nowrap; font-weight: 700; }
+  .summary-notes { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 0.85rem; font-style: italic; color: var(--ink-soft); }
+
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .login-field + .login-field { margin-top: 10px; }
@@ -127,6 +137,17 @@
   </div>
 </div>
 <div class="hint" id="items-empty-hint" hidden>No items are tagged to this vendor yet — ask the owner to tag them in product setup.</div>
+
+<div class="card" id="summary-card" hidden>
+  <div class="step-label">Order Summary — screenshot this and send to the vendor on WhatsApp/phone</div>
+  <div class="summary-box" id="summary-box">
+    <div class="summary-vendor" id="summary-vendor"></div>
+    <div class="summary-meta" id="summary-meta"></div>
+    <div class="summary-items" id="summary-items"></div>
+    <div class="summary-notes" id="summary-notes" hidden></div>
+  </div>
+  <button class="btn-ghost" id="btn-copy-summary" type="button" style="margin-top:10px;">Copy as Text</button>
+</div>
 
 <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 
@@ -287,6 +308,7 @@ async function loadVendors() {
 async function selectVendor(vendorId) {
   state.vendorId = vendorId;
   state.qty = {};
+  document.getElementById("summary-card").hidden = true;
   document.querySelectorAll("#vendor-tabs .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.vendor === vendorId));
   const itemsCard = document.getElementById("items-card");
   const emptyHint = document.getElementById("items-empty-hint");
@@ -349,6 +371,7 @@ function renderItems() {
           amountCell.textContent = "—";
         }
         updateTotals();
+        updateSummary();
       });
     });
     const groupTotalRow = document.createElement("tr");
@@ -384,6 +407,80 @@ function updateTotals() {
   document.getElementById("dirty-count").textContent = count;
   document.getElementById("btn-submit").disabled = count === 0;
 }
+
+// A plain, large-type summary of just the lines with a quantity — built so the shift manager
+// can screenshot it on his phone and send it straight to the bakery/grill manager over
+// WhatsApp, since neither vendor has a login/screen of their own yet. Deliberately leaves
+// out rate and amount (none of the vendor's business) and updates live as qty is typed.
+function updateSummary() {
+  const card = document.getElementById("summary-card");
+  const ids = Object.keys(state.qty);
+  if (!ids.length) { card.hidden = true; return; }
+  card.hidden = false;
+
+  const vendor = state.vendors.find(v => v.id === state.vendorId);
+  document.getElementById("summary-vendor").textContent = vendor ? vendor.name : "Order";
+
+  const now = new Date();
+  const dateLabel = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+  const timeLabel = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  document.getElementById("summary-meta").textContent =
+    `${dateLabel}, ${timeLabel} — ordered by ${state.userName || ""} (C-5)`;
+
+  const itemsBox = document.getElementById("summary-items");
+  itemsBox.innerHTML = ids.map(id => {
+    const it = state.items.find(x => x.id === id);
+    const name = it ? it.name : "(item)";
+    const unit = it && it.unit ? it.unit : "";
+    return `<div class="summary-row"><span class="si-name">${name}</span><span class="si-qty">${fmtQty(state.qty[id])} ${unit}</span></div>`;
+  }).join("");
+
+  const notesEl = document.getElementById("summary-notes");
+  const notesVal = document.getElementById("f-notes").value.trim();
+  if (notesVal) { notesEl.hidden = false; notesEl.textContent = notesVal; }
+  else { notesEl.hidden = true; notesEl.textContent = ""; }
+}
+
+function fmtQty(n) {
+  const v = Number(n) || 0;
+  return (Math.round(v * 100) / 100).toLocaleString();
+}
+
+document.getElementById("f-notes").addEventListener("input", updateSummary);
+
+document.getElementById("btn-copy-summary").addEventListener("click", async () => {
+  const vendor = state.vendors.find(v => v.id === state.vendorId);
+  const ids = Object.keys(state.qty);
+  const lines = [
+    vendor ? vendor.name : "Order",
+    document.getElementById("summary-meta").textContent,
+    "",
+    ...ids.map(id => {
+      const it = state.items.find(x => x.id === id);
+      const name = it ? it.name : "(item)";
+      const unit = it && it.unit ? it.unit : "";
+      return `${name} — ${fmtQty(state.qty[id])} ${unit}`.trim();
+    })
+  ];
+  const notesVal = document.getElementById("f-notes").value.trim();
+  if (notesVal) { lines.push(""); lines.push(notesVal); }
+  const text = lines.join("\n");
+  const btn = document.getElementById("btn-copy-summary");
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = "Copied!";
+  } catch (e) {
+    // Clipboard API can be refused (older desktop apps, some app webviews) — fall back
+    // to selecting the summary box so the person can copy manually.
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("summary-box"));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    btn.textContent = "Selected — copy manually";
+  }
+  setTimeout(() => { btn.textContent = "Copy as Text"; }, 1800);
+});
 
 async function loadTodayList() {
   const list = document.getElementById("today-list");
@@ -471,6 +568,7 @@ document.getElementById("btn-success-ok").addEventListener("click", () => {
   document.getElementById("step-success").hidden = true;
   document.getElementById("main-panel").hidden = false;
   document.getElementById("f-notes").value = "";
+  document.getElementById("summary-card").hidden = true;
   if (state.vendorId) selectVendor(state.vendorId);
   loadTodayList();
 });
