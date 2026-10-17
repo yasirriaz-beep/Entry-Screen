@@ -29,7 +29,15 @@
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 110px; max-width: 760px; margin: 0 auto; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 110px; max-width: 1040px; margin: 0 auto; }
+  .layout { display: flex; flex-direction: column; gap: 16px; }
+  .left-col { min-width: 0; }
+  .right-col { min-width: 0; }
+  @media (min-width: 760px) {
+    .layout { flex-direction: row; align-items: flex-start; }
+    .left-col { flex: 1 1 60%; min-width: 0; }
+    .right-col { flex: 0 0 300px; position: sticky; top: 16px; }
+  }
   h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
   .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
@@ -77,15 +85,15 @@
   .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
   .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
 
-  .summary-box { background: var(--field-bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
-  .summary-vendor { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.3rem; font-weight: 600; color: var(--accent); }
-  .summary-meta { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; margin-bottom: 14px; }
-  .summary-items { display: flex; flex-direction: column; gap: 7px; }
-  .summary-row { display: flex; justify-content: space-between; gap: 10px; font-size: 1rem; padding-bottom: 7px; border-bottom: 1px dashed var(--border); }
+  .summary-box { background: var(--field-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .summary-vendor { font-family: 'Zilla Slab', Georgia, serif; font-size: 1rem; font-weight: 600; color: var(--accent); }
+  .summary-meta { font-size: 0.66rem; color: var(--ink-soft); margin-top: 2px; margin-bottom: 10px; }
+  .summary-items { display: flex; flex-direction: column; gap: 4px; }
+  .summary-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.78rem; padding-bottom: 4px; border-bottom: 1px dashed var(--border); }
   .summary-row:last-child { border-bottom: none; padding-bottom: 0; }
   .summary-row .si-name { font-weight: 600; }
   .summary-row .si-qty { white-space: nowrap; font-weight: 700; }
-  .summary-notes { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 0.85rem; font-style: italic; color: var(--ink-soft); }
+  .summary-notes { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.68rem; font-style: italic; color: var(--ink-soft); }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -122,6 +130,9 @@
   This skips the director Authorize step — only because the owner has pre-flagged this vendor as fast-track (overnight perishable, no time for prior sign-off). It's still fully logged: who ordered it, when, and why. Use it only for genuinely time-boxed overnight items, not as a shortcut for ordinary purchases.
 </div>
 
+<div class="layout">
+<div class="left-col">
+
 <div class="tabs" id="vendor-tabs"></div>
 <div class="hint" id="vendor-empty-hint" hidden>No vendors are flagged fast-track yet — ask the owner to flag one in vendor setup.</div>
 
@@ -138,6 +149,9 @@
 </div>
 <div class="hint" id="items-empty-hint" hidden>No items are tagged to this vendor yet — ask the owner to tag them in product setup.</div>
 
+</div>
+
+<div class="right-col">
 <div class="card" id="summary-card" hidden>
   <div class="step-label">Order Summary — screenshot this and send to the vendor on WhatsApp/phone</div>
   <div class="summary-box" id="summary-box">
@@ -147,6 +161,9 @@
     <div class="summary-notes" id="summary-notes" hidden></div>
   </div>
   <button class="btn-ghost" id="btn-copy-summary" type="button" style="margin-top:10px;">Copy as Text</button>
+</div>
+</div>
+
 </div>
 
 <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
@@ -489,7 +506,7 @@ async function loadTodayList() {
     const rows = await sb(
       `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${todayStr()}T00:00:00&select=id,qty_requested,unit,status,ordered_at,received_qty,products(name,code),vendors(name,fast_track)&order=ordered_at.desc`
     );
-    const filtered = rows.filter(r => r.vendors && r.vendors.fast_track);
+    const filtered = rows.filter(r => r.vendors && r.vendors.fast_track && r.status !== "Cancelled");
     list.innerHTML = "";
     if (!filtered.length) { emptyHint.hidden = false; return; }
     emptyHint.hidden = true;
@@ -522,34 +539,67 @@ async function submitOrder() {
   if (freeNotes) noteParts.push(freeNotes);
   const notes = noteParts.join(" ");
   const orderedAt = new Date().toISOString();
-
-  const payload = ids.map(id => {
-    const it = state.items.find(x => x.id === id);
-    return {
-      location_id: LOCATION_ID,
-      product_id: id,
-      vendor_id: state.vendorId,
-      qty_requested: state.qty[id],
-      unit: it ? it.unit : null,
-      requested_by: state.userId,
-      ordered_by: state.userId,
-      ordered_at: orderedAt,
-      entered_by_manager_id: state.managerId,
-      status: "Ordered",
-      notes
-    };
-  });
+  const timeLabel = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   const btn = document.getElementById("btn-submit");
   btn.disabled = true;
   try {
-    // One request, one order per line item — RLS policy anon_fast_track_order_po
-    // applies row-by-row so a single array insert covers the whole demand sheet.
-    await sb("purchase_orders", {
-      method: "POST",
-      headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify(payload)
+    // If the same item, for the same vendor, is already sitting today as an open
+    // ("Ordered", not yet received) fast-track line, a second round of demand the same
+    // night adds to that line's quantity instead of creating a duplicate the bakery/grill
+    // would see as two separate orders.
+    const existingRows = await sb(
+      `purchase_orders?location_id=eq.${LOCATION_ID}&vendor_id=eq.${state.vendorId}&status=eq.Ordered&ordered_at=gte.${todayStr()}T00:00:00&product_id=in.(${ids.join(",")})&select=id,product_id,qty_requested,notes`
+    );
+    const existingByProduct = {};
+    (existingRows || []).forEach(r => { existingByProduct[r.product_id] = r; });
+
+    const toInsert = [];
+    const toUpdate = [];
+    ids.forEach(id => {
+      const it = state.items.find(x => x.id === id);
+      const addQty = state.qty[id];
+      const existing = existingByProduct[id];
+      if (existing) {
+        toUpdate.push({
+          id: existing.id,
+          qty_requested: (Number(existing.qty_requested) || 0) + addQty,
+          notes: (existing.notes || notes) + ` Added ${fmtQty(addQty)} ${it ? it.unit || "" : ""} more at ${timeLabel}.${freeNotes ? " " + freeNotes : ""}`
+        });
+      } else {
+        toInsert.push({
+          location_id: LOCATION_ID,
+          product_id: id,
+          vendor_id: state.vendorId,
+          qty_requested: addQty,
+          unit: it ? it.unit : null,
+          requested_by: state.userId,
+          ordered_by: state.userId,
+          ordered_at: orderedAt,
+          entered_by_manager_id: state.managerId,
+          status: "Ordered",
+          notes
+        });
+      }
     });
+
+    // One request for every brand-new line — RLS policy anon_fast_track_order_po applies
+    // row-by-row so a single array insert covers them all. Accumulated lines go through
+    // separately, one PATCH each, under the matching anon_fast_track_accumulate_po policy.
+    if (toInsert.length) {
+      await sb("purchase_orders", {
+        method: "POST",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(toInsert)
+      });
+    }
+    for (const u of toUpdate) {
+      await sb(`purchase_orders?id=eq.${u.id}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ qty_requested: u.qty_requested, notes: u.notes, ordered_at: orderedAt })
+      });
+    }
     document.getElementById("main-panel").hidden = true;
     document.getElementById("sticky-save").hidden = true;
     document.getElementById("step-success").hidden = false;
