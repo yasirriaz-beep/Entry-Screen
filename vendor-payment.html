@@ -140,7 +140,12 @@
   <div class="card">
     <div class="step-label">Outstanding Balances <span class="hint">(we owe them)</span></div>
     <div id="balance-list"><div class="hint">Loading…</div></div>
-    <div id="balance-total-wrap" hidden><div class="balance-total"><span>Total owed</span><span id="balance-total"></span></div></div>
+    <div id="balance-total-wrap" hidden>
+      <div class="balance-total"><span>Total owed</span><span id="balance-total"></span></div>
+      <div class="balance-total" style="font-size:0.82rem; font-weight:500; color:var(--fg-muted, #666); margin-top:2px;">
+        <span>Net payable <span class="hint" style="font-weight:400;">(after what vendors owe us)</span></span><span id="balance-net-total"></span>
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -393,7 +398,7 @@ async function loadBalances() {
   state.overrideMap = overrideMap;
   state.balances = {};
   state.breakdown = {};
-  let total = 0;
+  let total = 0, netTotal = 0;
   vendors.forEach(v => {
     const ov = overrideMap[v.id];
     const asOf = (ov ? ov.opening_balance_as_of : v.opening_balance_as_of) || null;
@@ -411,6 +416,7 @@ async function loadBalances() {
     state.balances[v.id] = bal;
     state.breakdown[v.id] = { opening, periodOwed, periodPaid, asOf };
     if (bal > 0.01) total += bal;
+    netTotal += bal;
   });
 
   const isDirector = state.role === "director";
@@ -453,6 +459,7 @@ async function loadBalances() {
       });
     });
     document.getElementById("balance-total").textContent = fmtMoney(total);
+    document.getElementById("balance-net-total").textContent = fmtMoney(netTotal);
     document.getElementById("balance-total-wrap").hidden = false;
   }
   document.getElementById("payables-value").textContent = fmtMoney(total);
