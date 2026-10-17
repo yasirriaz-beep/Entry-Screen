@@ -410,7 +410,11 @@ function renderItemList() {
     const exist = state.existing[p.id];
     const dirtyVal = state.dirty[p.id];
     const { opening, purchasesQty, issuesQty, expected } = expectedQty(p.id, date);
-    const countedVal = dirtyVal != null ? dirtyVal : (exist ? exist.closing_qty : "");
+    // Count starts blank even when a snapshot already exists for this date (e.g. the
+    // system's own hard-coded baseline) — the auditor types their own physical count
+    // rather than seeing, and risking rubber-stamping, a pre-filled system number.
+    // Only what the auditor actually typed this session (dirty) carries over.
+    const countedVal = dirtyVal != null ? dirtyVal : "";
 
     let varianceTag = "";
     if (countedVal !== "" && countedVal != null) {
