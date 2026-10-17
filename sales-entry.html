@@ -315,7 +315,7 @@ function panelInnerHTML(shift, label){
         <label for="jazzcashCollected_${s}">+ JazzCash Collected from Morning (PKR)</label>
         <p class="ur">Morning ka JazzCash agar aaj wasool/cash mein mila hai to yahan likhein &mdash; agar same shift mein nikalwa liya hai to zero rehne dein</p>
         <input type="number" id="jazzcashCollected_${s}" min="0" inputmode="decimal" placeholder="0">
-        <p class="muted" id="jazzcashCollectedHint_${s}" style="margin:4px 0 0;font-size:.76rem">Morning's JazzCash is usually cashed out around 10pm and handed into this till — enter what was actually received here so it's counted once, not never and not twice.</p>
+        <p class="muted" id="jazzcashCollectedHint_${s}" style="margin:4px 0 0;font-size:.76rem"></p>
       </div>` : ``}
 
       <div class="field" style="margin-top:10px">
@@ -964,7 +964,7 @@ async function loadShiftEntry(shift){
           if (hint) {
             hint.textContent = morningJazzcash
               ? `Morning flagged PKR ${Math.round(morningJazzcash).toLocaleString()} in JazzCash — pre-filled here. Adjust if what was actually handed over tonight differs.`
-              : "Morning's JazzCash is usually cashed out around 10pm and handed into this till — enter what was actually received here so it's counted once, not never and not twice.";
+              : "";
           }
         }
         if (morningRow && morningRow.closing_cash_till != null) {
