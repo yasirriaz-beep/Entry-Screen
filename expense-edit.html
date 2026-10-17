@@ -435,9 +435,40 @@ function afterLogin(userId, name, managerId, role) {
   state.managerId = managerId;
   state.role = role;
   document.getElementById("step-name").hidden = true;
+
+  // Deep link from Expense Entry's "Today's Entries" list (?id=...) — jump straight
+  // into editing that one entry instead of making them find it in the list again.
+  // Added 2026-10-16 so a shift person can fix their own mistake (e.g. a receipt
+  // photo that failed to attach) right away, without calling the owner.
+  const openId = new URLSearchParams(window.location.search).get("id");
+  if (openId) {
+    openEntryById(openId);
+    return;
+  }
+
   showList();
   document.getElementById("f-list-date").value = todayStr();
   loadEntryList();
+}
+
+async function openEntryById(id) {
+  showList(); // shows step-list briefly as a safe fallback if the fetch below fails
+  try {
+    const rows = await sb(`expenses?id=eq.${id}&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,paid_from_safe,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at`);
+    const row = rows && rows[0];
+    if (!row) {
+      document.getElementById("list-empty").hidden = false;
+      document.getElementById("list-empty").textContent = "That entry couldn't be found — it may have been deleted.";
+      document.getElementById("f-list-date").value = todayStr();
+      loadEntryList();
+      return;
+    }
+    document.getElementById("f-list-date").value = row.expense_date;
+    openEntry(row);
+  } catch (e) {
+    document.getElementById("f-list-date").value = todayStr();
+    loadEntryList();
+  }
 }
 
 function showList() {

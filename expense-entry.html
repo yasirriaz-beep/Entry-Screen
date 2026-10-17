@@ -90,6 +90,10 @@
   }
   .today-total-line .ttl-label { font-size: 0.8rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.02em; }
   .today-total-line .ttl-value { font-size: 1.15rem; font-weight: 600; }
+  .shift-group-head { font-family: 'Zilla Slab', Georgia, serif; font-size: 0.92rem; font-weight: 600; margin: 14px 0 6px; }
+  .shift-group-head:first-child { margin-top: 0; }
+  .shift-subtotal-line { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--ink-soft); padding: 6px 2px 0; border-top: 1px solid var(--border); margin-top: 6px; }
+  .po-card-edit { margin-top: 6px; display: inline-block; font-size: 0.78rem; font-weight: 600; color: var(--accent); text-decoration: none; }
   h1 {
     font-family: 'Zilla Slab', Georgia, serif;
     font-size: 1.5rem;
@@ -348,7 +352,7 @@
     <div id="today-list"></div>
     <div class="hint" id="today-empty" hidden>Nothing logged for today yet.</div>
     <div class="today-total-line" id="today-total-line" hidden>
-      <span class="ttl-label">Total — both shifts</span>
+      <span class="ttl-label">Grand Total</span>
       <span class="ttl-value" id="today-total-value">PKR 0</span>
     </div>
   </div>
@@ -584,6 +588,31 @@ function afterLogin(userId, name, managerId, role) {
   loadTodayList();
 }
 
+// Grouped Morning / Evening / No Shift, each with its own subtotal, so a director
+// glancing at this can match it against each shift's till recon instead of having to
+// add it up by eye. Added 2026-10-16, per the owner.
+const SHIFT_GROUPS = [
+  { key: "morning", label: "Morning" },
+  { key: "evening", label: "Evening" },
+  { key: null, label: "No Shift (Safe 2)" }
+];
+
+function buildTodayEntryCard(r) {
+  const row = document.createElement("div");
+  row.className = "po-card";
+  const safe2Tag = r.paid_from_safe === "safe2" ? ` · <span style="color:var(--accent);font-weight:600;">Paid from Safe 2</span>` : "";
+  const photoTag = r.receipt_photo_path ? ` · <span data-photo-trigger style="color:var(--accent);text-decoration:underline;cursor:pointer;">📷 View photo</span>` : "";
+  row.innerHTML = `
+    <div class="po-title">${r.category || "Expense"}</div>
+    <div class="po-sub">PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${safe2Tag}${r.detail ? " · " + r.detail : ""}${photoTag}</div>
+    <a class="po-card-edit" href="expense-edit.html?id=${r.id}">✎ Fix this entry</a>`;
+  const photoTrigger = row.querySelector("[data-photo-trigger]");
+  if (photoTrigger) {
+    photoTrigger.addEventListener("click", (e) => { e.stopPropagation(); viewReceiptPhoto(r.receipt_photo_path); });
+  }
+  return row;
+}
+
 async function loadTodayList() {
   const list = document.getElementById("today-list");
   const emptyHint = document.getElementById("today-empty");
@@ -594,24 +623,26 @@ async function loadTodayList() {
     list.innerHTML = "";
     if (!rows.length) { emptyHint.hidden = false; totalLine.hidden = true; return; }
     emptyHint.hidden = true;
-    let total = 0;
-    rows.forEach(r => {
-      const row = document.createElement("div");
-      row.className = "po-card";
-      const shiftTag = r.shift ? ` · ${r.shift === "morning" ? "Morning" : "Evening"}` : "";
-      const safe2Tag = r.paid_from_safe === "safe2" ? ` · <span style="color:var(--accent);font-weight:600;">Paid from Safe 2</span>` : "";
-      const photoTag = r.receipt_photo_path ? ` · <span style="color:var(--accent);text-decoration:underline;">📷 View photo</span>` : "";
-      row.innerHTML = `
-        <div class="po-title">${r.category || "Expense"}</div>
-        <div class="po-sub">PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${safe2Tag}${r.detail ? " · " + r.detail : ""}${photoTag}</div>`;
-      if (r.receipt_photo_path) {
-        row.style.cursor = "pointer";
-        row.addEventListener("click", () => viewReceiptPhoto(r.receipt_photo_path));
-      }
-      list.appendChild(row);
-      total += Number(r.amount) || 0;
+    let grandTotal = 0;
+    SHIFT_GROUPS.forEach(group => {
+      const groupRows = rows.filter(r => (r.shift || null) === group.key);
+      if (!groupRows.length) return;
+      const head = document.createElement("div");
+      head.className = "shift-group-head";
+      head.textContent = group.label;
+      list.appendChild(head);
+      let subtotal = 0;
+      groupRows.forEach(r => {
+        list.appendChild(buildTodayEntryCard(r));
+        subtotal += Number(r.amount) || 0;
+      });
+      grandTotal += subtotal;
+      const subtotalLine = document.createElement("div");
+      subtotalLine.className = "shift-subtotal-line";
+      subtotalLine.innerHTML = `<span>${group.label} subtotal</span><span>PKR ${Math.round(subtotal).toLocaleString()}</span>`;
+      list.appendChild(subtotalLine);
     });
-    document.getElementById("today-total-value").textContent = "PKR " + Math.round(total).toLocaleString();
+    document.getElementById("today-total-value").textContent = "PKR " + Math.round(grandTotal).toLocaleString();
     totalLine.hidden = false;
   } catch (e) { emptyHint.hidden = false; totalLine.hidden = true; }
 }
