@@ -65,6 +65,8 @@
   .diff-new { color: var(--ok); font-weight: 600; }
   .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
   .retention-note { font-size: 0.76rem; color: var(--ink-soft); margin: -6px 0 14px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -86,6 +88,10 @@
 </div>
 
 <div id="panel-main" hidden>
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page sirf dekhne ke liye hai — yahan kuch save nahi hota. From/To date, Screen, Person aur Action (Created/Changed/Deleted) select karein, phir "Run" dabayein taake us doran hui tabdeeliyan neeche list mein nazar aa jayen. Har entry mein pata chalta hai kis ne kya tabdeeli ki aur kab. Agar list bohot lambi ho to date range chota kar lein.
+  </div>
   <div class="card">
     <div class="row2 field">
       <div><label>From</label><input type="date" id="f-from"></div>
