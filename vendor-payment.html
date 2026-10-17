@@ -49,6 +49,8 @@
   .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
   .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .balance-row { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; background: var(--field-bg); display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
   .balance-row:hover { border-color: var(--accent); }
   .balance-row .v-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
@@ -118,6 +120,11 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page vendor ko diye gaye cash ya bank payments likhne ke liye hai. Neeche "Outstanding Balances" mein dekh len kis vendor ko kitna paisa dena hai — row par tap karne se woh vendor "Record a Payment" mein khud select ho jata hai. Amount, date aur method (Cash/Bank/Cheque/Other) likh kar "Save Payment" dabayen. Agar bank transfer ke liye Zeeshan ne safe se cash nikal kar jama kiya ho to woh checkbox zaroor tick karen. Bank transfer ki slip ya screenshot photo mein lagana na bhoolen.
+  </div>
 
   <div class="big-box-row">
     <div class="big-box">
