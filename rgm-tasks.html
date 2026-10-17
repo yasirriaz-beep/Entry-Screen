@@ -94,6 +94,8 @@
   .add-todo-row input { flex: 1; }
   .add-todo-row button { width: auto; flex: 0 0 auto; }
   .show-done-toggle { font-size: 0.78rem; color: var(--accent); background: none; border: none; padding: 8px 0 0; cursor: pointer; text-decoration: underline; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -114,6 +116,10 @@
 </div>
 
 <div id="panel-main" hidden>
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Ye page tasks aur to-do lists check karne ke liye hai, koi nayi entry nahi karni. Agar "Charge to Restaurant" ki approval dikh rahi hai to Approve ya Reject bata kar note likh sakte hain. "To-Do Lists" mein apne role ka tab chunein, naya item "Add" se likh sakte hain, aur kaam mukammal hone par checkbox tick kar dein — ye khud ba khud save ho jata hai. "Daily Review" mein har purane din ke Attendance/Expenses/Charge to Restaurant dekh kar "Confirm reviewed" dabayein jab check kar liya ho.
+  </div>
   <div class="card" id="intro-card">
     <div id="who-label" class="hint" style="margin-bottom:4px"></div>
     <div class="hint">Everything on this page is a review/sign-off layer — confirming or approving something here never changes the underlying record, it just tracks that it was looked at.</div>
