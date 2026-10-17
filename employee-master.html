@@ -75,6 +75,8 @@
   .modal-card .hint { margin-bottom: 14px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
   .modal-actions button { flex: 1; margin-top: 0; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -95,6 +97,10 @@
 </div>
 
 <div id="panel-main" hidden>
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yahan naye employee ka record banayein ya purane employee ki detail tabdeel karein. "Add New Employee" mein Naam, FT/PT, Department, Designation, aur Monthly Salary likhein (Salary zaroori hai), phir "Add Employee" par tap karein — turant save ho jayega. CNIC number aur photo dalna optional hai. Kisi mojooda employee ka naam neeche list mein tap karein to us ki detail khul jayegi, wahan tabdeeli kar ke "Save Changes" zaroor dabayein warna tabdeeli save nahi ho gi. Jo employee kaam chhor de, usay "Retire" karein — us ka purana record mehfooz rehta hai.
+  </div>
   <div class="card">
     <div class="step-label">Add New Employee</div>
     <div class="row2 field">
