@@ -140,7 +140,13 @@ button.ghost:disabled{opacity:.5;cursor:default}
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_NAME_HINT = "C-5";
+// Fixed ID, matching every other page (issue-entry.html, floor-inventory.html, etc.) --
+// this used to be looked up by matching locations.name against a hint string, which broke
+// 2026-10-17 when the location was renamed from "Gulberg" to "C-5" in the de-branding pass
+// (the name-lookup silently stopped matching, so Opening Float, Shift Sales and every other
+// figure on this page stayed at their blank placeholders instead of loading). A hardcoded ID
+// can't be broken by a future rename the way a name-lookup can.
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005";
 
 const headers = {
   "apikey": ANON_KEY,
@@ -160,7 +166,7 @@ const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
 const SHIFT_TIME = { morning: "9:00 AM &ndash; 6:00 PM", evening: "6:00 PM &ndash; 3:00 AM" };
 const FIELD_BASES = ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount","jazzcashAmount"];
 
-let locationId = null;
+let locationId = LOCATION_ID;
 let resolvedUserId = null;   // the real app_users.id, set only after the chosen manager's PIN verifies
 let resolvedManagerId = null;
 let resolvedRole = null;
@@ -845,22 +851,14 @@ async function init(){
   const dateInput = document.getElementById("dateInput");
   dateInput.value = todayStr();
 
+  // locationId is the fixed LOCATION_ID constant now, not looked up by name, so there is
+  // nothing left here that can fail before the form is usable.
+  document.getElementById("continueBtn").disabled = false;
   try {
-    const locRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/locations?name=ilike.*${LOCATION_NAME_HINT}*&select=id,name&limit=1`,
-      { headers }
-    );
-    if (!locRes.ok) throw new Error("locations " + locRes.status);
-    const locs = await locRes.json();
-    if (!locs.length) throw new Error("No location matching '" + LOCATION_NAME_HINT + "' found");
-    locationId = locs[0].id;
-
-    document.getElementById("continueBtn").disabled = false;
     loadTaskBanner();
     loadEmployees();
   } catch (err) {
-    showBanner("Could not load the location (" + err.message + "). You can still continue and save, but check Supabase RLS on 'locations' allows anon SELECT if this persists.", "danger");
-    document.getElementById("continueBtn").disabled = false;
+    showBanner("Could not fully load the page (" + err.message + "). You can still continue and save.", "danger");
   }
 }
 
