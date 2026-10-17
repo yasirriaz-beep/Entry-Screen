@@ -63,6 +63,8 @@
   .pill-err { background: var(--err-bg); color: var(--err); }
   .pill-ok { background: var(--ok-bg); color: var(--ok); }
   .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -90,6 +92,11 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page Food Panda, Careem, card processor aur bank deposits ko match karne ke liye hai. Jab bhi koi statement aaye, "Record a New Statement" mein brand, period dates, aur statement ke gross/commission/fees/tax/refund numbers daal kar "Save Statement" dabayen. Yeh "Awaiting Bank Deposit" list mein chala jata hai — jab paisa bank mein aa jaye to usi card ko khol kar asal (actual) deposit amount aur date likh kar "Record Deposit" dabayen. Bank ka CSV statement upload kar kay system khud bhi match karne ki koshish karta hai — match milay to "Confirm This Deposit" dabayen. Koi bhi number tabhi save hota hai jab us waalay button par click karein.
+  </div>
 
   <div class="card">
     <div class="step-label">Record a New Statement</div>
