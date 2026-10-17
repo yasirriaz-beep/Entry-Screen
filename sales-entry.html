@@ -295,17 +295,15 @@ function panelInnerHTML(shift, label){
     <div class="recon-box">
       <h3 style="margin:0 0 4px;font-size:.95rem">Till Cash Reconciliation</h3>
       <p class="muted" style="margin:0 0 12px">Standard float is PKR 20,000, start and end. Almost everything below fills in on its own &mdash; you just count the till and enter what's physically there.</p>
-      <div class="row2">
-        <div class="field">
-          <label for="openingCashDisplay_${s}">Opening Float (Hard Cash)</label>
-          <p class="ur">Apne kitne float se start kiya</p>
-          <input type="text" id="openingCashDisplay_${s}" value="&mdash;" disabled>
-        </div>
-        <div class="field">
-          <label for="cashSalesDisplay_${s}">+ Shift Sales (Cash)</label>
-          <p class="ur">Apki shift ki total cash sales (Card/JazzCash nikaal kar)</p>
-          <input type="text" id="cashSalesDisplay_${s}" value="PKR 0" disabled>
-        </div>
+      <div class="field">
+        <label for="openingCashDisplay_${s}">Opening Float (Hard Cash)</label>
+        <p class="ur">Apne kitne float se start kiya</p>
+        <input type="text" id="openingCashDisplay_${s}" value="&mdash;" disabled>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label for="cashSalesDisplay_${s}">+ Shift Sales (Cash)</label>
+        <p class="ur">Apki shift ki total cash sales (Card/JazzCash nikaal kar)</p>
+        <input type="text" id="cashSalesDisplay_${s}" value="PKR 0" disabled>
       </div>
       <div class="field" style="margin-top:10px">
         <label for="tillExpensesDisplay_${s}">&minus; Cash Expenses (from Daily Expense)</label>
@@ -321,18 +319,16 @@ function panelInnerHTML(shift, label){
       </div>` : ``}
 
       <div class="field" style="margin-top:12px;background:var(--surface);border-radius:9px;padding:12px">
-        <div class="row2">
-          <div>
-            <label style="margin-bottom:2px">Custodian ko Dena Hai</label>
-            <p class="ur">Apne custodian ko kitna dena hai (khud ban jaata hai)</p>
-            <div class="num" id="autoHandoverDisplay_${s}" style="font-size:1.1rem">PKR 0</div>
-            <p class="muted" id="autoHandoverFormula_${s}" style="margin:4px 0 0;font-size:.76rem">Auto: Cash Sales &minus; Cash Expenses</p>
-          </div>
-          <div class="field" style="margin:0">
-            <label for="custodianAmount_${s}">&minus; Custodian ko Diya (<b>Hard Cash</b>)</label>
-            <p class="ur">Ye amount apne bundle bana kar custodian ke hawale karna hai</p>
-            <input type="number" id="custodianAmount_${s}" inputmode="decimal" placeholder="0">
-          </div>
+        <div>
+          <label style="margin-bottom:2px">Custodian ko Dena Hai</label>
+          <p class="ur">Apne custodian ko kitna dena hai (khud ban jaata hai)</p>
+          <div class="num" id="autoHandoverDisplay_${s}" style="font-size:1.1rem">PKR 0</div>
+          <p class="muted" id="autoHandoverFormula_${s}" style="margin:4px 0 0;font-size:.76rem">Auto: Cash Sales &minus; Cash Expenses</p>
+        </div>
+        <div class="field" style="margin:10px 0 0">
+          <label for="custodianAmount_${s}">&minus; Custodian ko Diya (<b>Hard Cash</b>)</label>
+          <p class="ur">Ye amount apne bundle bana kar custodian ke hawale ker diya hai</p>
+          <input type="number" id="custodianAmount_${s}" inputmode="decimal" placeholder="0">
         </div>
         <p class="muted" id="handoverVarianceNote_${s}" style="margin:8px 0 0;font-size:.76rem"></p>
       </div>
