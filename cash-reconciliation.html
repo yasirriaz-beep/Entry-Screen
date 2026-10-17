@@ -57,6 +57,11 @@
   .total-line { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--border); }
   .total-line .lbl { font-size: 0.82rem; color: var(--ink-soft); }
   .total-line .num { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.2rem; font-weight: 600; }
+  .denom-grid { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .denom-row { display: grid; grid-template-columns: 76px 1fr 90px; gap: 8px; align-items: center; }
+  .denom-row input { padding: 8px 10px; font-size: 0.92rem; }
+  .denom-label { font-size: 0.82rem; color: var(--ink-soft); }
+  .denom-sub { font-size: 0.82rem; color: var(--ink-soft); text-align: right; font-variant-numeric: tabular-nums; }
   .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
   .badge-draft { background: var(--warn-bg); color: var(--warn); }
   .badge-submitted { background: var(--ok-bg); color: var(--ok); }
@@ -289,6 +294,14 @@
       <textarea id="f-adjustment-reason" rows="2" placeholder="Why doesn't the physical count match?"></textarea>
     </div>
 
+    <div class="field" id="denom-block" style="border-top:1px solid var(--border);padding-top:14px">
+      <label>Note Breakdown of the Count (required to submit)</label>
+      <div class="hint" style="margin:-2px 0 6px">Count the notes in the safe one denomination at a time and enter how many of each.</div>
+      <div class="denom-grid" id="denom-grid"></div>
+      <div class="hint" style="margin-top:8px">Breakdown total: <strong id="denom-total">PKR 0</strong></div>
+      <div class="hint" id="denom-variance-note"></div>
+    </div>
+
     <div class="field">
       <label>Photo of the counted cash (required to submit)</label>
       <input type="file" id="f-safe-photo" accept="image/*" capture="environment">
@@ -339,6 +352,11 @@ const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const GULBERG_ID = "10000000-0000-0000-0000-000000000005";
 const PAGE_KEY = "cash_reconciliation";
+
+// Currently-circulating PKR note denominations, largest first — same list used for the
+// Sales Entry custodian handover breakdown. "Coins / Other" below is a catch-all amount
+// (not a note count) for loose change and odd amounts the notes don't cover.
+const DENOMINATIONS = [5000, 1000, 500, 100, 50, 20, 10];
 
 let state = { userId: null, userName: null, managerId: null, role: null, currentRow: null, safePhoto: null };
 
@@ -510,10 +528,84 @@ function recalc() {
   } else {
     varianceAlert.hidden = true;
   }
+  recalcDenomination();
   return { opening, cashIn, cashOut, expected, counted, variance, closing };
 }
 document.getElementById("f-opening").addEventListener("input", recalc);
 document.getElementById("f-counted").addEventListener("input", recalc);
+
+// Same note-breakdown audit practice as the Sales Entry custodian handover (2026-10-17):
+// Zeeshan counts the safe note-by-note, and that breakdown has to add up to what he typed
+// in "Counted Cash in Safe" before the day can be submitted.
+function buildDenomGrid() {
+  const grid = document.getElementById("denom-grid");
+  grid.innerHTML = DENOMINATIONS.map(d => `
+    <div class="denom-row">
+      <span class="denom-label">PKR ${d.toLocaleString()}</span>
+      <input type="number" min="0" step="1" inputmode="numeric" id="denom-qty-${d}" placeholder="0 notes">
+      <span class="denom-sub" id="denom-sub-${d}">PKR 0</span>
+    </div>`).join("") + `
+    <div class="denom-row">
+      <span class="denom-label">Coins / Other</span>
+      <input type="number" min="0" step="1" inputmode="decimal" id="denom-coins" placeholder="PKR">
+      <span class="denom-sub"></span>
+    </div>`;
+  DENOMINATIONS.forEach(d => {
+    document.getElementById(`denom-qty-${d}`).addEventListener("input", recalcDenomination);
+  });
+  document.getElementById("denom-coins").addEventListener("input", recalcDenomination);
+}
+buildDenomGrid();
+
+function recalcDenomination() {
+  let total = 0;
+  DENOMINATIONS.forEach(d => {
+    const qty = Math.max(0, Math.round(parseFloat(document.getElementById(`denom-qty-${d}`).value) || 0));
+    const sub = qty * d;
+    total += sub;
+    document.getElementById(`denom-sub-${d}`).textContent = "PKR " + sub.toLocaleString();
+  });
+  const coins = Math.max(0, parseFloat(document.getElementById("denom-coins").value) || 0);
+  total += coins;
+  document.getElementById("denom-total").textContent = "PKR " + Math.round(total).toLocaleString();
+
+  const note = document.getElementById("denom-variance-note");
+  const countedRaw = document.getElementById("f-counted").value;
+  if (countedRaw === "") {
+    note.textContent = "";
+    note.style.color = "";
+    return total;
+  }
+  const counted = parseFloat(countedRaw) || 0;
+  const diff = Math.round(total - counted);
+  if (diff === 0) {
+    note.style.color = "var(--ok)";
+    note.textContent = "Matches the counted cash entered above.";
+  } else {
+    note.style.color = "var(--err)";
+    note.textContent = `Breakdown total is off by PKR ${Math.abs(diff).toLocaleString()} vs. Counted Cash (PKR ${Math.round(counted).toLocaleString()}) — count the notes again before submitting.`;
+  }
+  return total;
+}
+
+function denominationDetailPayload() {
+  const detail = {};
+  DENOMINATIONS.forEach(d => {
+    detail[String(d)] = Math.max(0, Math.round(parseFloat(document.getElementById(`denom-qty-${d}`).value) || 0));
+  });
+  detail.coins_other = Math.max(0, parseFloat(document.getElementById("denom-coins").value) || 0);
+  return detail;
+}
+
+function setDenominationFields(detail) {
+  const d = detail || {};
+  DENOMINATIONS.forEach(den => {
+    const v = d[String(den)];
+    document.getElementById(`denom-qty-${den}`).value = v ? v : "";
+  });
+  document.getElementById("denom-coins").value = d.coins_other ? d.coins_other : "";
+  recalcDenomination();
+}
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -931,6 +1023,8 @@ function applyLockState(row) {
   document.getElementById("f-counted").disabled = isLocked;
   document.getElementById("f-adjustment-reason").disabled = isLocked;
   document.getElementById("f-safe-photo").disabled = isLocked;
+  DENOMINATIONS.forEach(d => { document.getElementById(`denom-qty-${d}`).disabled = isLocked; });
+  document.getElementById("denom-coins").disabled = isLocked;
   document.getElementById("btn-save-draft").disabled = isLocked;
   document.getElementById("btn-submit").disabled = isLocked;
   const banner = document.getElementById("status-banner");
@@ -996,6 +1090,7 @@ async function loadDay(dateStr) {
     const countedStale = useLive && r.counted_cash !== null && r.counted_cash !== undefined &&
       (Math.abs((Number(r.cash_in) || 0) - cashIn.total) > 0.5 || Math.abs((Number(r.cash_out) || 0) - cashOut.total) > 0.5);
     document.getElementById("f-counted").value = countedStale ? "" : (r.counted_cash ?? "");
+    setDenominationFields(countedStale ? null : r.counted_denomination_detail);
     document.getElementById("f-adjustment-reason").value = r.adjustment_reason || "";
     document.getElementById("opening-hint").textContent = "Loaded from today's saved entry.";
     const staleWarning = document.getElementById("counted-stale-warning");
@@ -1030,6 +1125,7 @@ async function loadDay(dateStr) {
     const prevClosing = await fetchPreviousClosing(dateStr);
     document.getElementById("f-opening").value = prevClosing;
     document.getElementById("f-counted").value = "";
+    setDenominationFields(null);
     document.getElementById("f-adjustment-reason").value = "";
     document.getElementById("opening-hint").textContent = prevClosing
       ? "Carried automatically from the previous day's closing cash."
@@ -1160,6 +1256,13 @@ async function saveDay(status) {
   if (calc.variance !== 0 && !reason) {
     return alert("Explain the variance before saving — that's the one thing we need from you if the count doesn't match the expected amount.");
   }
+  // Same note-breakdown requirement as the Sales Entry custodian handover — required on
+  // Submit (not Draft), same as the photo and the variance explanation above.
+  const denomTotal = recalcDenomination();
+  if (status === "submitted" && Math.abs(Math.round(denomTotal - (calc.counted || 0))) > 1) {
+    document.getElementById("denom-block").scrollIntoView({ behavior: "smooth", block: "center" });
+    return alert("The note breakdown (PKR " + Math.round(denomTotal).toLocaleString() + ") doesn't match Counted Cash (PKR " + Math.round(calc.counted || 0).toLocaleString() + "). Count the notes again before submitting.");
+  }
 
   const payload = {
     ledger_date: dateStr,
@@ -1167,6 +1270,7 @@ async function saveDay(status) {
     cash_in: calc.cashIn,
     cash_out: calc.cashOut,
     counted_cash: calc.counted,
+    counted_denomination_detail: calc.counted !== null ? denominationDetailPayload() : null,
     adjustment_reason: reason,
     status: status,
     updated_by_user_id: state.userId
