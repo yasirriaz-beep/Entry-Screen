@@ -277,7 +277,7 @@ function setFloor(floor) {
 
 async function loadProductsOnce() {
   if (state.allProducts.length) return;
-  state.allProducts = await sb(`products?select=id,name,unit&order=name`);
+  state.allProducts = await sb(`products?select=id,name,unit,is_bar_item&order=name`);
   const sel = document.getElementById("recipe-new-product");
   sel.innerHTML = `<option value="">Add ingredient…</option>` + state.allProducts.map(p => `<option value="${p.id}">${p.name} (${p.unit})</option>`).join("");
 }
@@ -313,9 +313,21 @@ async function loadFloor() {
     const rows = await sb(`floor_stock_periods?floor=eq.${floor}&location_id=eq.${LOCATION_ID}&period_end_at=is.null&select=product_id`);
     trackedIds = rows.map(r => r.product_id);
   } catch (e) { trackedIds = []; }
-  const ids = [...new Set([...issuedIds, ...trackedIds])];
+  // Bar has little to no issuance history yet, so without this it would stay
+  // permanently empty until Store issues something there — items tagged on
+  // the Bar Items page (bar-items.html) show up here too, ready to count,
+  // even before any issuance exists.
+  const barTaggedIds = floor === "BAR" ? state.allProducts.filter(p => p.is_bar_item).map(p => p.id) : [];
+  const ids = [...new Set([...issuedIds, ...trackedIds, ...barTaggedIds])];
 
-  if (!ids.length) { list.innerHTML = ""; emptyHint.hidden = false; return; }
+  if (!ids.length) {
+    list.innerHTML = "";
+    emptyHint.textContent = floor === "BAR"
+      ? "No Bar items yet — tag items on the Bar Items page, or once Store issues something here via Issue Entry, it will appear."
+      : "No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear.";
+    emptyHint.hidden = false;
+    return;
+  }
   emptyHint.hidden = true;
 
   const prodMap = {};

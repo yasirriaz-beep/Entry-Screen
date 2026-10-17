@@ -128,6 +128,8 @@ share the same underlying `shift_manager` app_user row).
 | `reports` | reports.html | Directors only (2026-10-12) |
 | `activity_log` | activity-log.html | Directors only (2026-10-12) |
 | `rgm_tasks` | rgm-tasks.html ("Tasks") | Ahsan, Hammad, Store Person, Hamza, Aqib, Anjum, + Directors (2026-10-15 — broadened from Ahsan-only when the page grew Charge to Restaurant approvals and per-role to-do lists, see OPERATIONS-GUIDE.md) |
+| `bar_items` | bar-items.html | Store Person, + Directors (2026-10-17 — new page, tags which products count as Bar stock; `products.is_bar_item` feeds Floor Inventory's Bar tab so it has something to track before any issuance exists) |
+| `floor_inventory` | floor-inventory.html | Store Person, Ahsan, Anjum, Aqib, Hamza, Imran, + Directors (was missing from this table pre-2026-10-17 — not a new grant, just undocumented) |
 
 This matrix was built to exactly match each screen's pre-migration role-based access — no
 one gained or lost screen access in the migration itself, they just now prove identity with

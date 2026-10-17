@@ -251,7 +251,7 @@ function renderItemList() {
   emptyHint.hidden = true;
 
   let lastCat = null;
-  rows.slice(0, 300).forEach(p => {
+  rows.forEach(p => {
     const c = p.category || "Uncategorized";
     if (c !== lastCat) {
       const header = document.createElement("div");
