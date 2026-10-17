@@ -29,7 +29,7 @@
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 110px; max-width: 760px; margin: 0 auto; }
   h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
   .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
@@ -37,9 +37,6 @@
   .field { margin-bottom: 14px; }
   select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
   select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  select[readonly], input[readonly] { opacity: 0.7; }
-  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
-  .row2 > div { flex: 1; min-width: 140px; }
   button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
   .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
   .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -61,6 +58,24 @@
   .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
   .badge-ordered { background: var(--warn-bg); color: var(--warn); }
   .badge-received { background: var(--ok-bg); color: var(--ok); }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .tab-btn { flex: 1 1 40%; background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; font-weight: 600; cursor: pointer; color: var(--ink); font-size: 0.9rem; }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  table.order-tbl { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  table.order-tbl th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); padding: 4px 4px 8px; border-bottom: 1px solid var(--border); }
+  table.order-tbl th.num, table.order-tbl td.num { text-align: right; }
+  table.order-tbl td { padding: 6px 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.order-tbl tr.group-row td { padding-top: 14px; padding-bottom: 4px; border-bottom: none; font-family: 'Zilla Slab', Georgia, serif; font-size: 1rem; font-weight: 600; color: var(--accent); }
+  table.order-tbl tr.total-row td { font-weight: 700; border-top: 1px solid var(--border); border-bottom: none; padding-top: 8px; }
+  table.order-tbl tr.grand-total-row td { font-weight: 700; font-size: 1.02rem; border-top: 2px solid var(--accent); color: var(--accent); padding-top: 10px; }
+  .qty-input { width: 72px; padding: 7px 6px; font-size: 0.9rem; text-align: right; }
+  .qty-input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .item-name { font-weight: 500; }
+  .item-unit { font-size: 0.72rem; color: var(--ink-soft); }
+  .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
+  .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -90,46 +105,29 @@
 
 <div class="urdu-box">
   <b>Tareeqa (Instructions in Roman Urdu)</b>
-  Yeh page sirf un items ke liye hai jo raat ko count hone ke baad seedha bakery/grill ko phone per order kiye jate hain aur subah store khulne se pehle delivery ho jate hain (jaise cakes, malai boti) — iss waqt store person aur Zeeshan duty per nahi hote, isliye normal Authorize step yahan skip ho jata hai, sirf un vendors ke liye jo owner ne "fast-track" mark kiye hain. Vendor aur item select karein, raat ko jo ending balance gin'na hai wo likhein (optional), phir jitni demand bakery/grill ko phone per batai hai wahi quantity likh kar "Send Pre-Authorized Order" dabayen. Yeh order seedha "Ordered" ban jata hai — subah jo bhi store khole, Goods Receipt page per isay receive kar sakta hai, aur Zeeshan apni normal duty per aa kar is vendor ka payment credit/running account se clear karega.
+  Yeh page sirf un items ke liye hai jo raat ko count hone ke baad seedha bakery/grill ko phone per order kiye jate hain aur subah store khulne se pehle delivery ho jate hain — iss waqt store person aur Zeeshan duty per nahi hote, isliye normal Authorize step yahan skip ho jata hai, sirf un vendors ke liye jo owner ne "fast-track" mark kiye hain. Oopar vendor chunein (Bakery ya Grill), neeche har item ke saamne jitni quantity bakery/grill ko phone per batai hai wahi likh dein — baqi items khali chor dein. Jab sab likh lein to neeche "Send Pre-Authorized Order" button dabayen, sab items ek saath order ban jayenge. Subah jo bhi store khole, Goods Receipt page per inhe receive kar sakta hai, aur Zeeshan apni normal duty per aa kar vendor ka payment credit/running account se clear karega.
 </div>
 
 <div class="banner banner-warn">
   This skips the director Authorize step — only because the owner has pre-flagged this vendor as fast-track (overnight perishable, no time for prior sign-off). It's still fully logged: who ordered it, when, and why. Use it only for genuinely time-boxed overnight items, not as a shortcut for ordinary purchases.
 </div>
 
-<div class="card">
-  <div class="step-label">New Fast-Track Order</div>
-  <div class="field">
-    <label>Vendor</label>
-    <select id="f-vendor"><option value="">— pick a vendor —</option></select>
-    <div class="hint" id="vendor-empty-hint" hidden>No vendors are flagged fast-track yet — ask the owner to flag one in Manage Access / vendor setup.</div>
-  </div>
-  <div class="field">
-    <label>Item</label>
-    <input type="text" id="f-item-search" placeholder="Start typing an item name...">
-    <select id="f-item-select" style="margin-top:6px;"></select>
-  </div>
-  <div class="row2 field">
-    <div>
-      <label>Qty to Order</label>
-      <input type="number" id="f-qty" step="any" placeholder="0">
-    </div>
-    <div>
-      <label>Unit</label>
-      <input type="text" id="f-unit" readonly>
-    </div>
-  </div>
-  <div class="hint" id="f-suggest-hint"></div>
-  <div class="field">
-    <label>Ending Balance Counted Tonight (optional)</label>
-    <input type="number" id="f-counted" step="any" placeholder="What you physically counted, if relevant">
-  </div>
-  <div class="field">
-    <label>Notes</label>
-    <textarea id="f-notes" rows="2" placeholder="e.g. phoned to bakery manager at 11:40pm"></textarea>
+<div class="tabs" id="vendor-tabs"></div>
+<div class="hint" id="vendor-empty-hint" hidden>No vendors are flagged fast-track yet — ask the owner to flag one in vendor setup.</div>
+
+<div class="card" id="items-card" hidden>
+  <div class="step-label">Fill in quantities for whatever's being ordered tonight — leave the rest blank</div>
+  <table class="order-tbl">
+    <thead><tr><th>Item</th><th class="num">Rate</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead>
+    <tbody id="items-body"></tbody>
+  </table>
+  <div class="field" style="margin-top:16px;">
+    <label>Notes (optional)</label>
+    <textarea id="f-notes" rows="2" placeholder="e.g. phoned to bakery manager at 11:40pm, or tonight's counted ending balance"></textarea>
   </div>
 </div>
-<button class="btn-primary" id="btn-submit" type="button">Send Pre-Authorized Order</button>
+<div class="hint" id="items-empty-hint" hidden>No items are tagged to this vendor yet — ask the owner to tag them in product setup.</div>
+
 <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 
 <div class="card" style="margin-top:16px;">
@@ -147,6 +145,10 @@
   <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">OK</button>
 </div>
 
+<div class="sticky-save" id="sticky-save" hidden>
+  <button class="btn-primary" id="btn-submit" type="button" disabled>Send Pre-Authorized Order (<span id="dirty-count">0</span>)</button>
+</div>
+
 <script src="session.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
@@ -154,7 +156,12 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "fast_track_demand";
 
-let state = { userId: null, userRole: null, userName: null, managerId: null, products: [], vendors: [] };
+let state = {
+  userId: null, userRole: null, userName: null, managerId: null,
+  vendors: [], vendorId: null,
+  items: [],   // {id, name, unit, current_rate, fast_track_group, fast_track_sort}
+  qty: {}      // product_id -> qty typed (only dirty/non-empty ones)
+};
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -187,6 +194,25 @@ async function sbRpc(fn, body) {
   }
   const ct = res.headers.get("content-type") || "";
   return ct.includes("application/json") ? res.json() : null;
+}
+
+function fmtMoney(n) {
+  const v = Number(n) || 0;
+  return Math.round(v).toLocaleString();
+}
+
+function todayStr() {
+  // C-5's business day: before 9:00am PKT still counts as the previous calendar day,
+  // same convention as every other page (sales-entry, expense-entry, etc).
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
 }
 
 async function doLogin(e) {
@@ -233,7 +259,7 @@ function afterLogin(userId, name, managerId, role) {
   document.getElementById("step-name").hidden = true;
   document.getElementById("step-success").hidden = true;
   document.getElementById("main-panel").hidden = false;
-  resetForm();
+  loadVendors().then(() => { if (state.vendors.length) selectVendor(state.vendors[0].id); });
   loadTodayList();
 }
 
@@ -241,15 +267,10 @@ function backToNames() {
   state.userId = null; state.userRole = null; state.userName = null;
   document.getElementById("main-panel").hidden = true;
   document.getElementById("step-success").hidden = true;
+  document.getElementById("sticky-save").hidden = true;
   document.getElementById("step-name").hidden = false;
 }
 document.getElementById("btn-back").addEventListener("click", backToNames);
-
-async function loadProducts() {
-  try {
-    state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
-  } catch (e) { state.products = []; }
-}
 
 async function loadVendors() {
   try {
@@ -257,72 +278,121 @@ async function loadVendors() {
     // can never be used to pre-authorize an order for an ordinary vendor.
     state.vendors = await sb(`vendors?active=eq.true&fast_track=eq.true&select=id,name&order=name`);
   } catch (e) { state.vendors = []; }
-  const sel = document.getElementById("f-vendor");
-  sel.innerHTML = '<option value="">— pick a vendor —</option>' +
-    state.vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join("");
+  const tabs = document.getElementById("vendor-tabs");
+  tabs.innerHTML = state.vendors.map(v => `<button type="button" class="tab-btn" data-vendor="${v.id}">${v.name}</button>`).join("");
+  tabs.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => selectVendor(btn.dataset.vendor)));
   document.getElementById("vendor-empty-hint").hidden = state.vendors.length > 0;
 }
 
-function populateItemSelect(filterText) {
-  const sel = document.getElementById("f-item-select");
-  const ft = (filterText || "").trim().toUpperCase();
-  const matches = ft
-    ? state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft))
-    : state.products.slice(0, 40);
-  sel.innerHTML = '<option value="">— pick an item —</option>' +
-    matches.slice(0, 60).map(p => `<option value="${p.id}">${p.code || "?"} — ${p.name}</option>`).join("");
-}
-
-async function onItemSelected() {
-  const sel = document.getElementById("f-item-select");
-  const p = state.products.find(x => x.id === sel.value);
-  const hintEl = document.getElementById("f-suggest-hint");
-  document.getElementById("f-unit").value = p ? (p.unit || "") : "";
-  if (!p) { hintEl.textContent = ""; return; }
-  hintEl.textContent = "Checking recent usage…";
+async function selectVendor(vendorId) {
+  state.vendorId = vendorId;
+  state.qty = {};
+  document.querySelectorAll("#vendor-tabs .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.vendor === vendorId));
+  const itemsCard = document.getElementById("items-card");
+  const emptyHint = document.getElementById("items-empty-hint");
+  const sticky = document.getElementById("sticky-save");
+  document.getElementById("items-body").innerHTML = `<tr><td colspan="4" class="hint">Loading…</td></tr>`;
+  itemsCard.hidden = false;
+  sticky.hidden = false;
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/suggest_reorder_qty`, {
-      method: "POST",
-      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_location_id: LOCATION_ID, p_product_id: p.id })
-    });
-    const suggested = await res.json();
-    if (suggested != null) {
-      document.getElementById("f-qty").value = suggested;
-      hintEl.textContent = `Suggested ${suggested} ${p.unit || ""} based on recent usage — change to match tonight's actual demand.`;
-    } else {
-      hintEl.textContent = "No usage pattern on file yet — enter the quantity you're phoning in manually.";
-    }
-  } catch (e) {
-    hintEl.textContent = "Couldn't calculate a suggestion — enter the quantity manually.";
+    state.items = await sb(`products?fast_track_vendor_id=eq.${vendorId}&active=eq.true&select=id,name,unit,current_rate,fast_track_group,fast_track_sort&order=fast_track_group.asc,fast_track_sort.asc`);
+  } catch (e) { state.items = []; }
+  if (!state.items.length) {
+    itemsCard.hidden = true;
+    sticky.hidden = true;
+    emptyHint.hidden = false;
+    return;
   }
+  emptyHint.hidden = true;
+  renderItems();
 }
 
-function resetForm() {
-  document.getElementById("f-vendor").value = "";
-  document.getElementById("f-item-search").value = "";
-  document.getElementById("f-qty").value = "";
-  document.getElementById("f-unit").value = "";
-  document.getElementById("f-counted").value = "";
-  document.getElementById("f-notes").value = "";
-  document.getElementById("f-suggest-hint").textContent = "";
-  populateItemSelect("");
+function renderItems() {
+  const body = document.getElementById("items-body");
+  body.innerHTML = "";
+  let groups = [];
+  state.items.forEach(it => {
+    let g = groups.find(x => x.name === (it.fast_track_group || ""));
+    if (!g) { g = { name: it.fast_track_group || "", items: [] }; groups.push(g); }
+    g.items.push(it);
+  });
+  let grandTotal = 0;
+  groups.forEach(g => {
+    if (g.name) {
+      const row = document.createElement("tr");
+      row.className = "group-row";
+      row.innerHTML = `<td colspan="4">${g.name}</td>`;
+      body.appendChild(row);
+    }
+    let groupTotal = 0;
+    g.items.forEach(it => {
+      const rate = Number(it.current_rate) || 0;
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><div class="item-name">${it.name}</div><div class="item-unit">${it.unit || ""}</div></td>
+        <td class="num">${rate ? fmtMoney(rate) : "—"}</td>
+        <td class="num"><input type="number" class="qty-input" step="any" min="0" placeholder="0" data-id="${it.id}"></td>
+        <td class="num amount-cell" data-amount-for="${it.id}">—</td>
+      `;
+      body.appendChild(row);
+      const input = row.querySelector(".qty-input");
+      const amountCell = row.querySelector(".amount-cell");
+      input.addEventListener("input", () => {
+        const v = parseFloat(input.value);
+        if (!isNaN(v) && v > 0) {
+          state.qty[it.id] = v;
+          input.classList.add("dirty");
+          amountCell.textContent = rate ? fmtMoney(v * rate) : "—";
+        } else {
+          delete state.qty[it.id];
+          input.classList.remove("dirty");
+          amountCell.textContent = "—";
+        }
+        updateTotals();
+      });
+    });
+    const groupTotalRow = document.createElement("tr");
+    groupTotalRow.className = "total-row";
+    groupTotalRow.dataset.groupTotal = g.name;
+    groupTotalRow.innerHTML = `<td colspan="3">Total ${g.name || ""}</td><td class="num">—</td>`;
+    body.appendChild(groupTotalRow);
+  });
+  const grandRow = document.createElement("tr");
+  grandRow.className = "grand-total-row";
+  grandRow.innerHTML = `<td colspan="3">Grand Total</td><td class="num" id="grand-total-cell">—</td>`;
+  body.appendChild(grandRow);
+  updateTotals();
 }
 
-document.getElementById("f-item-search").addEventListener("input", (e) => populateItemSelect(e.target.value));
-document.getElementById("f-item-select").addEventListener("change", onItemSelected);
+function updateTotals() {
+  const groups = {};
+  state.items.forEach(it => {
+    const g = it.fast_track_group || "";
+    const rate = Number(it.current_rate) || 0;
+    const qty = state.qty[it.id] || 0;
+    groups[g] = (groups[g] || 0) + qty * rate;
+  });
+  document.querySelectorAll("#items-body tr.total-row").forEach(row => {
+    const g = row.dataset.groupTotal;
+    row.querySelector("td.num").textContent = fmtMoney(groups[g] || 0);
+  });
+  const grand = Object.values(groups).reduce((s, v) => s + v, 0);
+  const grandCell = document.getElementById("grand-total-cell");
+  if (grandCell) grandCell.textContent = fmtMoney(grand);
+
+  const count = Object.keys(state.qty).length;
+  document.getElementById("dirty-count").textContent = count;
+  document.getElementById("btn-submit").disabled = count === 0;
+}
 
 async function loadTodayList() {
   const list = document.getElementById("today-list");
   const emptyHint = document.getElementById("today-empty");
   try {
     const rows = await sb(
-      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${todayStr()}T00:00:00&select=id,qty_requested,unit,status,ordered_at,received_qty,products(name,code),vendors(name)&order=ordered_at.desc`
+      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${todayStr()}T00:00:00&select=id,qty_requested,unit,status,ordered_at,received_qty,products(name,code),vendors(name,fast_track)&order=ordered_at.desc`
     );
-    // Keep only fast-track rows (this page's own orders) — a plain status/vendor filter
-    // server-side would need a join condition REST doesn't express simply, so filter here.
-    const fastTrackIds = new Set(state.vendors.map(v => v.id));
-    const filtered = rows.filter(r => r.vendors); // has a vendor at all (fast-track orders always do)
+    const filtered = rows.filter(r => r.vendors && r.vendors.fast_track);
     list.innerHTML = "";
     if (!filtered.length) { emptyHint.hidden = false; return; }
     emptyHint.hidden = true;
@@ -343,65 +413,52 @@ async function loadTodayList() {
   }
 }
 
-function todayStr() {
-  // C-5's business day: before 9:00am PKT still counts as the previous calendar day,
-  // same convention as every other page (sales-entry, expense-entry, etc).
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
-  }).formatToParts(new Date());
-  const get = (t) => parts.find((p) => p.type === t).value;
-  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
-  if (hr === 24) hr = 0;
-  const dt = new Date(Date.UTC(y, mo - 1, d));
-  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
-  return dt.toISOString().slice(0, 10);
-}
-
 async function submitOrder() {
-  const vendorSel = document.getElementById("f-vendor");
-  const itemSel = document.getElementById("f-item-select");
-  const qty = parseFloat(document.getElementById("f-qty").value) || 0;
-  const counted = document.getElementById("f-counted").value.trim();
+  const ids = Object.keys(state.qty);
+  if (!ids.length) return;
+  const vendor = state.vendors.find(v => v.id === state.vendorId);
   const freeNotes = document.getElementById("f-notes").value.trim();
-
-  if (!vendorSel.value) return alert("Pick a vendor.");
-  if (!itemSel.value) return alert("Pick an item.");
-  if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
-
-  const vendor = state.vendors.find(v => v.id === vendorSel.value);
-  const p = state.products.find(x => x.id === itemSel.value);
 
   const noteParts = [
     `Fast-track perishable order — pre-authorized per standing policy (vendor flagged fast-track; overnight delivery window leaves no time for the normal director Authorize step).`
   ];
-  if (counted) noteParts.push(`Ending balance counted tonight: ${counted}.`);
   if (freeNotes) noteParts.push(freeNotes);
+  const notes = noteParts.join(" ");
+  const orderedAt = new Date().toISOString();
+
+  const payload = ids.map(id => {
+    const it = state.items.find(x => x.id === id);
+    return {
+      location_id: LOCATION_ID,
+      product_id: id,
+      vendor_id: state.vendorId,
+      qty_requested: state.qty[id],
+      unit: it ? it.unit : null,
+      requested_by: state.userId,
+      ordered_by: state.userId,
+      ordered_at: orderedAt,
+      entered_by_manager_id: state.managerId,
+      status: "Ordered",
+      notes
+    };
+  });
 
   const btn = document.getElementById("btn-submit");
   btn.disabled = true;
   try {
+    // One request, one order per line item — RLS policy anon_fast_track_order_po
+    // applies row-by-row so a single array insert covers the whole demand sheet.
     await sb("purchase_orders", {
       method: "POST",
       headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify({
-        location_id: LOCATION_ID,
-        product_id: itemSel.value,
-        vendor_id: vendorSel.value,
-        qty_requested: qty,
-        unit: p ? p.unit : null,
-        requested_by: state.userId,
-        ordered_by: state.userId,
-        ordered_at: new Date().toISOString(),
-        entered_by_manager_id: state.managerId,
-        status: "Ordered",
-        notes: noteParts.join(" ")
-      })
+      body: JSON.stringify(payload)
     });
     document.getElementById("main-panel").hidden = true;
+    document.getElementById("sticky-save").hidden = true;
     document.getElementById("step-success").hidden = false;
     document.getElementById("success-title").textContent = "Order sent";
     document.getElementById("success-sub").textContent =
-      `${p ? p.name : "Item"} — ${qty} ${p ? p.unit || "" : ""} from ${vendor ? vendor.name : "vendor"}. It'll show up on Goods Receipt for whoever opens tomorrow morning.`;
+      `${ids.length} item${ids.length > 1 ? "s" : ""} sent to ${vendor ? vendor.name : "vendor"}. It'll show up on Goods Receipt for whoever opens tomorrow morning.`;
   } catch (e) {
     alert("Couldn't send: " + e.message);
   } finally {
@@ -413,7 +470,8 @@ document.getElementById("btn-submit").addEventListener("click", submitOrder);
 document.getElementById("btn-success-ok").addEventListener("click", () => {
   document.getElementById("step-success").hidden = true;
   document.getElementById("main-panel").hidden = false;
-  resetForm();
+  document.getElementById("f-notes").value = "";
+  if (state.vendorId) selectVendor(state.vendorId);
   loadTodayList();
 });
 
@@ -422,8 +480,6 @@ if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
   AppSession.applyAccessLock(existing, PAGE_KEY);
 }
-loadProducts();
-loadVendors();
 </script>
 </body>
 </html>
