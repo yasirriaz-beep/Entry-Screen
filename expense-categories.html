@@ -67,6 +67,8 @@
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
   .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
   .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -87,6 +89,10 @@
 </div>
 
 <div id="panel-main" hidden>
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Ye page sirf Director ke liye hai — yahan Expense Entry par nazar aane wale category ke naam banate/badalte hain. Nayi category banane ke liye naam likh kar "Add Category" dabayein. Kisi purani category ko kholne ke liye uske naam par click karein — wahan naam badal sakte hain, sort order set kar sakte hain, aur "Save Changes" dabayein. Naam badalne se purani saari entries bhi naye naam par chali jati hain, is liye soch kar karein. Jo category ab use nahi karni usay delete nahi karna — "Retire" dabayein, purana record mehfooz rehta hai.
+  </div>
   <div class="card">
     <div class="step-label">Add New Category</div>
     <div class="field">
