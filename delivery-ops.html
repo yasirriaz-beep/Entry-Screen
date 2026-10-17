@@ -70,6 +70,8 @@
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
   .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
   .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -90,6 +92,11 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Ye page delivery riders ka din ka record rakhne ke liye hai. "Log a Delivery" mein rider chunein, time out/in, area, aur order value likh kar "Add Delivery" dabayein — har order alag se darj karna hai. Koi masla ho (bike kharab, order late, ya customer complaint) to "Report an Issue" mein likh dein, baad mein hal hone par "Mark Resolved" dabayein. Neeche "Bike-Use Reconciliation" sirf dikhane ke liye hai ke kisi rider ka KM record delivery ke hisaab se match nahi ho raha — is par kuch type nahi karna. Guzra hua din band ho jata hai, sirf Director usay khol kar edit kar sakta hai.
+  </div>
 
   <div id="lock-banner" class="banner banner-err" style="display:none;"></div>
 
