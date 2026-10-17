@@ -77,6 +77,11 @@ button.ghost:disabled{opacity:.5;cursor:default}
 .status-badge.draft{background:var(--surface-2);color:var(--fg-muted)}
 .status-badge.closed{background:var(--success-bg);color:var(--success)}
 .recon-box{margin-top:12px;background:var(--surface-2);border-radius:10px;padding:12px}
+.denom-grid{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.denom-row{display:grid;grid-template-columns:76px 1fr 90px;gap:8px;align-items:center}
+.denom-row input{padding:8px 10px;font-size:.92rem}
+.denom-label{font-size:.82rem;color:var(--fg-muted)}
+.denom-sub{font-size:.82rem;color:var(--fg-muted);text-align:right;font-variant-numeric:tabular-nums}
 .urdu-box { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
 .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 .shift-grid{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
@@ -166,6 +171,10 @@ const SHIFT_LABELS = { morning: "Morning", evening: "Evening" };
 const SHIFT_TIME = { morning: "9:00 AM &ndash; 6:00 PM", evening: "6:00 PM &ndash; 3:00 AM" };
 const FIELD_BASES = ["diCovers","diAmount","taCovers","taAmount","dlCovers","dlAmount","tpCovers","tpAmount","fpCovers","fpAmount","bakeryAmount","cardAmount","jazzcashAmount"];
 
+// Currently-circulating PKR note denominations, largest first. "Coins / Other" below is a
+// catch-all amount (not a note count) for loose change and odd amounts the notes don't cover.
+const DENOMINATIONS = [5000, 1000, 500, 100, 50, 20, 10];
+
 let locationId = LOCATION_ID;
 let resolvedUserId = null;   // the real app_users.id, set only after the chosen manager's PIN verifies
 let resolvedManagerId = null;
@@ -175,8 +184,8 @@ let resolvedRole = null;
 // own opening float, its own real cash-expense total, its own "has the custodian field been
 // hand-edited" flag, and its own lock status. Added 2026-10-13 for the side-by-side redesign.
 const state = {
-  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null },
-  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null },
+  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null, handoverPhotoPath: null },
+  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null, handoverPhotoPath: null },
 };
 
 // Full active employee roster at this location — the "charge to a person" picker is
@@ -350,6 +359,33 @@ function panelInnerHTML(shift, label){
           <input type="number" id="custodianAmount_${s}" inputmode="decimal" placeholder="0">
         </div>
         <p class="muted" id="handoverVarianceNote_${s}" style="margin:8px 0 0;font-size:.76rem"></p>
+
+        <div class="field" style="margin:14px 0 0;border-top:1px solid var(--border);padding-top:12px">
+          <label style="margin-bottom:2px">Note Breakdown of the Packet</label>
+          <p class="ur">Jo bundle custodian ko diya hai uske notes ginKar yahan tadaad likhen &mdash; required jab bhi custodian ko kuch diya ja raha ho</p>
+          <div class="denom-grid" id="denomGrid_${s}">
+            ${DENOMINATIONS.map(d => `
+            <div class="denom-row">
+              <span class="denom-label">PKR ${d.toLocaleString()}</span>
+              <input type="number" min="0" step="1" inputmode="numeric" id="denomQty_${d}_${s}" placeholder="0 notes">
+              <span class="denom-sub" id="denomSub_${d}_${s}">PKR 0</span>
+            </div>`).join("")}
+            <div class="denom-row">
+              <span class="denom-label">Coins / Other</span>
+              <input type="number" min="0" step="1" inputmode="decimal" id="denomCoins_${s}" placeholder="PKR">
+              <span class="denom-sub"></span>
+            </div>
+          </div>
+          <p class="muted" style="margin:8px 0 0;font-size:.8rem">Breakdown total: <strong id="denomTotal_${s}">PKR 0</strong></p>
+          <p class="muted" id="denomVarianceNote_${s}" style="margin:4px 0 0;font-size:.76rem"></p>
+        </div>
+
+        <div class="field" style="margin:14px 0 0;border-top:1px solid var(--border);padding-top:12px">
+          <label for="handoverPhoto_${s}">Photo of the Packet</label>
+          <p class="ur">Save karne se pehle bundle ki photo khenchein &mdash; required jab bhi custodian ko kuch diya ja raha ho</p>
+          <input type="file" id="handoverPhoto_${s}" accept="image/*" capture="environment">
+          <div class="muted" id="handoverPhotoStatus_${s}" style="font-size:.78rem;margin-top:4px"></div>
+        </div>
       </div>
 
       <div class="field" id="shortOverBlock_${s}" style="margin-top:12px;background:var(--surface);border-radius:9px;padding:12px" hidden>
@@ -450,8 +486,18 @@ function wireShift(shift){
     state[shift].custodianTouched = true;
     recalcCashRecon(shift);
     recalcTotals();
+    recalcDenomination(shift);
   });
   document.getElementById(fid("varianceReason", shift)).addEventListener("input", () => recalcTotals());
+
+  // Denomination breakdown — every note-qty box and the Coins/Other box recompute the
+  // breakdown total and check it against "Custodian ko Diya" live.
+  DENOMINATIONS.forEach(d => {
+    document.getElementById(`denomQty_${d}_${shift}`).addEventListener("input", () => recalcDenomination(shift));
+  });
+  document.getElementById(`denomCoins_${shift}`).addEventListener("input", () => recalcDenomination(shift));
+
+  document.getElementById(`handoverPhoto_${shift}`).addEventListener("change", (e) => handleHandoverPhotoChange(e, shift));
   document.getElementById("saveBtn_" + shift).addEventListener("click", () => saveShift(shift, false));
   document.getElementById("closeBtn_" + shift).addEventListener("click", () => saveShift(shift, true));
   document.getElementById("unlockBtn_" + shift).addEventListener("click", () => unlockShift(shift));
@@ -600,6 +646,107 @@ function recalcCashRecon(shift){
     closingNote.textContent = `Expected PKR ${Math.round(expectedClosing).toLocaleString()} left in the till once the handover above is taken out.`;
     st.shortOver = 0;
     shortOverBlock.hidden = true;
+  }
+  recalcDenomination(shift);
+}
+
+// Note-by-note breakdown of the packet handed to the custodian. Recomputes the breakdown
+// total from the note-qty + Coins/Other boxes and checks it against "Custodian ko Diya" —
+// mirrors the pattern used for the till count above (denomVarianceNote next to
+// handoverVarianceNote). This is an audit layer on top of that single total, not a
+// replacement for it: the manager still types the final handover amount, and this proves
+// it was actually counted out note-by-note rather than guessed. Added 2026-10-17, per the
+// owner, along with a required photo of the packet (see uploadHandoverPhoto below).
+function recalcDenomination(shift){
+  let total = 0;
+  DENOMINATIONS.forEach(d => {
+    const qty = Math.max(0, Math.round(parseFloat(document.getElementById(`denomQty_${d}_${shift}`).value) || 0));
+    const sub = qty * d;
+    total += sub;
+    document.getElementById(`denomSub_${d}_${shift}`).textContent = "PKR " + sub.toLocaleString();
+  });
+  const coins = Math.max(0, parseFloat(document.getElementById(`denomCoins_${shift}`).value) || 0);
+  total += coins;
+  document.getElementById(`denomTotal_${shift}`).textContent = "PKR " + Math.round(total).toLocaleString();
+
+  const note = document.getElementById(`denomVarianceNote_${shift}`);
+  const custodianEntered = document.getElementById(fid("custodianAmount", shift)).value !== "";
+  const custodianAmount = nS("custodianAmount", shift);
+  if (!custodianEntered || custodianAmount <= 0) {
+    note.style.color = "";
+    note.textContent = "";
+    return total;
+  }
+  const diff = Math.round(total - custodianAmount);
+  if (diff === 0) {
+    note.style.color = "var(--success)";
+    note.textContent = "Matches the amount handed to custodian.";
+  } else {
+    note.style.color = "var(--danger)";
+    note.textContent = `Breakdown total is off by PKR ${Math.abs(diff).toLocaleString()} vs. "Custodian ko Diya" (PKR ${Math.round(custodianAmount).toLocaleString()}) — fix the note counts before saving.`;
+  }
+  return total;
+}
+
+function denominationDetailPayload(shift){
+  const detail = {};
+  DENOMINATIONS.forEach(d => {
+    detail[String(d)] = Math.max(0, Math.round(parseFloat(document.getElementById(`denomQty_${d}_${shift}`).value) || 0));
+  });
+  detail.coins_other = Math.max(0, parseFloat(document.getElementById(`denomCoins_${shift}`).value) || 0);
+  return detail;
+}
+
+function setDenominationFields(shift, detail){
+  const d = detail || {};
+  DENOMINATIONS.forEach(den => {
+    const v = d[String(den)];
+    document.getElementById(`denomQty_${den}_${shift}`).value = v ? v : "";
+  });
+  document.getElementById(`denomCoins_${shift}`).value = d.coins_other ? d.coins_other : "";
+  recalcDenomination(shift);
+}
+
+async function uploadHandoverPhoto(file, shift){
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${locationId}/${shift}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/cash-handover-photos/${path}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": file.type || "image/jpeg" },
+    body: file
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${t}`);
+  }
+  return path;
+}
+
+async function handleHandoverPhotoChange(e, shift){
+  const file = e.target.files[0];
+  const statusEl = document.getElementById(`handoverPhotoStatus_${shift}`);
+  if (!file) return; // leave whatever's already attached (e.g. from a previous save) alone
+  statusEl.textContent = "Uploading…";
+  try {
+    state[shift].handoverPhotoPath = await uploadHandoverPhoto(file, shift);
+    statusEl.textContent = "Photo attached.";
+  } catch (err) {
+    statusEl.textContent = "Couldn't upload (" + err.message + ") — try again before saving.";
+  }
+}
+
+async function viewHandoverPhoto(path){
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/cash-handover-photos/${path}`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 300 })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+  } catch (e) {
+    alert("Couldn't open the photo: " + e.message);
   }
 }
 
@@ -799,6 +946,9 @@ function applyLockUI(shift){
   lockFields.forEach(base => { document.getElementById(fid(base, shift)).disabled = closed; });
   const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
   if (collectedEl) collectedEl.disabled = closed;
+  DENOMINATIONS.forEach(d => { document.getElementById(`denomQty_${d}_${shift}`).disabled = closed; });
+  document.getElementById(`denomCoins_${shift}`).disabled = closed;
+  document.getElementById(`handoverPhoto_${shift}`).disabled = closed;
   document.getElementById("saveBtn_" + shift).hidden = closed;
   document.getElementById("closeBtn_" + shift).hidden = closed;
   document.getElementById("unlockBtn_" + shift).hidden = !shiftClosed || pastDateLocked;
@@ -893,7 +1043,7 @@ async function loadShiftEntry(shift){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.${shift}` +
-      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,jazzcash_amount,jazzcash_collected_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,status,closed_at,variance_reason`,
+      `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,jazzcash_amount,jazzcash_collected_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,status,closed_at,variance_reason,custodian_denomination_detail,custodian_handover_photo_path`,
       { headers }
     );
     if (res.ok) {
@@ -931,6 +1081,13 @@ async function loadShiftEntry(shift){
     setVal("closingCash", shift, existing.closing_cash_till != null ? existing.closing_cash_till : "");
     setVal("varianceReason", shift, existing.variance_reason || "");
     st.custodianTouched = true; // this shift already has a real saved handover — don't clobber it with a fresh suggestion
+    setDenominationFields(shift, existing.custodian_denomination_detail);
+    st.handoverPhotoPath = existing.custodian_handover_photo_path || null;
+    document.getElementById(`handoverPhotoStatus_${shift}`).innerHTML = st.handoverPhotoPath
+      ? `<span data-handover-photo style="color:var(--accent);text-decoration:underline;cursor:pointer;">📷 Photo on file — view</span> (choose a new file above to replace it)`
+      : "";
+    const photoTrigger = document.querySelector(`#handoverPhotoStatus_${shift} [data-handover-photo]`);
+    if (photoTrigger) photoTrigger.addEventListener("click", () => viewHandoverPhoto(st.handoverPhotoPath));
   } else {
     st.existingEntryId = null;
     st.openingCashTill = STANDARD_TILL_FLOAT;
@@ -944,6 +1101,9 @@ async function loadShiftEntry(shift){
       st.jazzcashCollectedTouched = false;
     }
     st.custodianTouched = false; // fresh shift — let the auto-suggestion fill the custodian handover
+    setDenominationFields(shift, null);
+    st.handoverPhotoPath = null;
+    document.getElementById(`handoverPhotoStatus_${shift}`).textContent = "";
   }
 
   // Evening only, and only when nothing was saved/typed for it yet: suggest Morning's
@@ -1009,6 +1169,24 @@ async function saveShift(shift, close){
     alert("Enter the actual physical cash present in the till before closing this shift.");
     return;
   }
+  // Whenever cash is actually being handed to the custodian this shift, the note breakdown
+  // and a photo of the packet are both required — on Save as well as Close, since the
+  // handover itself usually happens mid-shift, not only at close time. Added 2026-10-17,
+  // per the owner, as an extra audit layer on top of the single "Custodian ko Diya" total.
+  const custodianAmountForCheck = nS("custodianAmount", shift);
+  if (custodianAmountForCheck > 0) {
+    const denomTotal = recalcDenomination(shift);
+    if (Math.abs(Math.round(denomTotal - custodianAmountForCheck)) > 1) {
+      alert("The note breakdown (PKR " + Math.round(denomTotal).toLocaleString() + ") doesn't match \"Custodian ko Diya\" (PKR " + Math.round(custodianAmountForCheck).toLocaleString() + "). Count the notes again before saving.");
+      document.getElementById("denomGrid_" + shift).scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (!state[shift].handoverPhotoPath) {
+      alert("Attach a photo of the cash packet handed to the custodian before saving.");
+      document.getElementById("handoverPhoto_" + shift).scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+  }
   // A shortage needs a human decision (charge it to a cashier or the owner) so closing is
   // still blocked until that's resolved. An overage doesn't need a decision — it just goes
   // into the custodian handover along with everything else — so it's folded in silently
@@ -1069,6 +1247,10 @@ async function saveShift(shift, close){
     // opening_cash_till is NOT sent — the DB trigger (daily_sales_compute_opening_cash) always
     // sets it to the standard PKR 20,000 float on insert, and locks it on update.
     custodian_cash_amount: custodianSigned,
+    // Only recorded when cash is actually being handed over — null rather than an all-zero
+    // breakdown/empty photo path for a shift where nothing went to the custodian.
+    custodian_denomination_detail: nS("custodianAmount", shift) > 0 ? denominationDetailPayload(shift) : null,
+    custodian_handover_photo_path: nS("custodianAmount", shift) > 0 ? (state[shift].handoverPhotoPath || null) : null,
     closing_cash_till: closingEntered ? nS("closingCash", shift) : null,
     // Logged at save time, not just shown live — so there's a permanent record of how often
     // (and why) this shift ran short or over, beyond whatever's on screen right now.
