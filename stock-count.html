@@ -351,7 +351,7 @@ function computeExistingForDate() {
 // Theoretical expected qty as of `date`: last count's closing_qty (or 0 if never counted)
 // plus purchases since that count, minus issues since that count.
 function expectedQty(productId, date) {
-  const priorSnaps = state.snapshots.filter(s => s.product_id === productId && s.snapshot_date < date);
+  const priorSnaps = state.snapshots.filter(s => s.product_id === productId && s.snapshot_date <= date);
   const last = priorSnaps[0]; // already sorted desc
   const windowStart = last ? last.snapshot_date : null;
   const opening = last ? Number(last.closing_qty) || 0 : 0;
