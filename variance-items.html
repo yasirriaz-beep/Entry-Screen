@@ -68,6 +68,8 @@
   .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
   .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
   .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -97,6 +99,10 @@
 </div>
 
 <div id="panel-main" hidden>
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page sirf Drinks aur Bakery ki items ki list banane ke liye hai — yahan rozana ki sales ya usage entry nahi hoti, wo "Daily Usage Entry" page par hoti hai. Nayi item add karne ke liye upar "Drinks" ya "Bakery" tab chunein, Item Name aur Unit likhein (Price optional hai), phir "Add Item" dabayein — turant save ho jayega. Mojooda item ka naam tap karke us ki detail edit kar sakte hain, tabdeeli ke baad "Save Changes" zaroor dabayein. Jo item ab istemal nahi hoti usay "Retire" kar dein, purana data mehfooz rehta hai.
+  </div>
   <div class="card">
     <div class="step-label">Add New Item</div>
     <div class="tabs">
