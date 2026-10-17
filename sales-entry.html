@@ -363,6 +363,7 @@ function panelInnerHTML(shift, label){
         <div class="field" style="margin:14px 0 0;border-top:1px solid var(--border);padding-top:12px">
           <label style="margin-bottom:2px">Note Breakdown of the Packet</label>
           <p class="ur">Jo bundle custodian ko diya hai uske notes ginKar yahan tadaad likhen &mdash; required jab bhi custodian ko kuch diya ja raha ho</p>
+          <p class="muted" style="margin:2px 0 0;font-size:.76rem">Doesn't need to include any JazzCash amount &mdash; only the physical cash notes.</p>
           <div class="denom-grid" id="denomGrid_${s}">
             ${DENOMINATIONS.map(d => `
             <div class="denom-row">
@@ -657,6 +658,18 @@ function recalcCashRecon(shift){
 // replacement for it: the manager still types the final handover amount, and this proves
 // it was actually counted out note-by-note rather than guessed. Added 2026-10-17, per the
 // owner, along with a required photo of the packet (see uploadHandoverPhoto below).
+// "Custodian ko Diya" minus whatever portion of it isn't physical cash in the first place —
+// the JazzCash/wallet slice of today's own sales (jazzcashAmount) and, for Evening, JazzCash
+// Collected from Morning. Neither has to show up as counted notes, so the breakdown only
+// has to add up to what's left after both are taken out. Added 2026-10-17, per the owner.
+function denomRequiredTotal(shift){
+  const custodianAmount = nS("custodianAmount", shift);
+  const jazzcashPortion = nS("jazzcashAmount", shift);
+  const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
+  const jazzcashCollected = collectedEl ? (parseFloat(collectedEl.value) || 0) : 0;
+  return custodianAmount - jazzcashPortion - jazzcashCollected;
+}
+
 function recalcDenomination(shift){
   let total = 0;
   DENOMINATIONS.forEach(d => {
@@ -677,13 +690,14 @@ function recalcDenomination(shift){
     note.textContent = "";
     return total;
   }
-  const diff = Math.round(total - custodianAmount);
+  const required = denomRequiredTotal(shift);
+  const diff = Math.round(total - required);
   if (diff === 0) {
     note.style.color = "var(--success)";
     note.textContent = "Matches the amount handed to custodian.";
   } else {
     note.style.color = "var(--danger)";
-    note.textContent = `Breakdown total is off by PKR ${Math.abs(diff).toLocaleString()} vs. "Custodian ko Diya" (PKR ${Math.round(custodianAmount).toLocaleString()}) — fix the note counts before saving.`;
+    note.textContent = `Breakdown total is off by PKR ${Math.abs(diff).toLocaleString()} vs. "Custodian ko Diya" (PKR ${Math.round(required).toLocaleString()}${required !== custodianAmount ? ", after excluding JazzCash" : ""}) — fix the note counts before saving.`;
   }
   return total;
 }
@@ -1176,8 +1190,9 @@ async function saveShift(shift, close){
   const custodianAmountForCheck = nS("custodianAmount", shift);
   if (custodianAmountForCheck > 0) {
     const denomTotal = recalcDenomination(shift);
-    if (Math.abs(Math.round(denomTotal - custodianAmountForCheck)) > 1) {
-      alert("The note breakdown (PKR " + Math.round(denomTotal).toLocaleString() + ") doesn't match \"Custodian ko Diya\" (PKR " + Math.round(custodianAmountForCheck).toLocaleString() + "). Count the notes again before saving.");
+    const denomRequiredForCheck = denomRequiredTotal(shift);
+    if (Math.abs(Math.round(denomTotal - denomRequiredForCheck)) > 1) {
+      alert("The note breakdown (PKR " + Math.round(denomTotal).toLocaleString() + ") doesn't match \"Custodian ko Diya\" minus JazzCash (PKR " + Math.round(denomRequiredForCheck).toLocaleString() + "). Count the notes again before saving.");
       document.getElementById("denomGrid_" + shift).scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
