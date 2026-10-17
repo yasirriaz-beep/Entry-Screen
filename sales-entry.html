@@ -184,8 +184,8 @@ let resolvedRole = null;
 // own opening float, its own real cash-expense total, its own "has the custodian field been
 // hand-edited" flag, and its own lock status. Added 2026-10-13 for the side-by-side redesign.
 const state = {
-  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null, handoverPhotoPath: null },
-  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, custodianTouched: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null, handoverPhotoPath: null },
+  morning: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, legacyCustodianAmount: null, usingLegacyCustodianAmount: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null, handoverPhotoPath: null },
+  evening: { openingCashTill: STANDARD_TILL_FLOAT, tillCashExpenses: 0, legacyCustodianAmount: null, usingLegacyCustodianAmount: false, existingEntryId: null, status: "draft", shortOver: 0, jazzcashCollectedTouched: false, resolution: null, handoverPhotoPath: null },
 };
 
 // Full active employee roster at this location — the "charge to a person" picker is
@@ -355,15 +355,15 @@ function panelInnerHTML(shift, label){
         </div>
         <div class="field" style="margin:10px 0 0">
           <label for="custodianAmount_${s}">&minus; Custodian ko Diya (<b>Hard Cash</b>)</label>
-          <p class="ur">Ye amount apne bundle bana kar custodian ke hawale ker diya hai</p>
-          <input type="number" id="custodianAmount_${s}" inputmode="decimal" placeholder="0">
+          <p class="ur">Khud ban jaata hai &mdash; neeche notes gin kar likhen, yeh unka jorr hai</p>
+          <input type="number" id="custodianAmount_${s}" inputmode="decimal" placeholder="0" disabled>
         </div>
         <p class="muted" id="handoverVarianceNote_${s}" style="margin:8px 0 0;font-size:.76rem"></p>
 
         <div class="field" style="margin:14px 0 0;border-top:1px solid var(--border);padding-top:12px">
           <label style="margin-bottom:2px">Note Breakdown of the Packet</label>
-          <p class="ur">Jo bundle custodian ko diya hai uske notes ginKar yahan tadaad likhen &mdash; required jab bhi custodian ko kuch diya ja raha ho</p>
-          <p class="muted" style="margin:2px 0 0;font-size:.76rem">Doesn't need to include any JazzCash amount &mdash; only the physical cash notes.</p>
+          <p class="ur">Jo bundle custodian ko dena hai uske notes gin kar yahan tadaad likhen &mdash; "Custodian ko Diya" khud ban jayega isi se</p>
+          <p class="muted" style="margin:2px 0 0;font-size:.76rem">Doesn't need to include any JazzCash amount &mdash; that's added on top automatically. This is what sets "Custodian ko Diya" above &mdash; it's no longer typed by hand.</p>
           <div class="denom-grid" id="denomGrid_${s}">
             ${DENOMINATIONS.map(d => `
             <div class="denom-row">
@@ -481,22 +481,18 @@ function wireShift(shift){
       recalcTotals();
     });
   }
-  // Typing in the custodian field is what marks it as a manual override — after that, the
-  // auto-suggestion stops overwriting it for the rest of this shift.
-  document.getElementById(fid("custodianAmount", shift)).addEventListener("input", () => {
-    state[shift].custodianTouched = true;
-    recalcCashRecon(shift);
-    recalcTotals();
-    recalcDenomination(shift);
-  });
+  // "Custodian ko Diya" is no longer typed directly (the input is disabled) — it's always
+  // computed from the note breakdown below plus the JazzCash portions, so there is no
+  // listener on it. Changed 2026-10-17, per the owner.
   document.getElementById(fid("varianceReason", shift)).addEventListener("input", () => recalcTotals());
 
   // Denomination breakdown — every note-qty box and the Coins/Other box recompute the
-  // breakdown total and check it against "Custodian ko Diya" live.
+  // breakdown total, which in turn recomputes "Custodian ko Diya" and everything downstream
+  // of it (expected closing, short/over, totals) — same path as cardAmount/jazzcashAmount above.
   DENOMINATIONS.forEach(d => {
-    document.getElementById(`denomQty_${d}_${shift}`).addEventListener("input", () => recalcDenomination(shift));
+    document.getElementById(`denomQty_${d}_${shift}`).addEventListener("input", () => { recalcCashRecon(shift); recalcTotals(); });
   });
-  document.getElementById(`denomCoins_${shift}`).addEventListener("input", () => recalcDenomination(shift));
+  document.getElementById(`denomCoins_${shift}`).addEventListener("input", () => { recalcCashRecon(shift); recalcTotals(); });
 
   document.getElementById(`handoverPhoto_${shift}`).addEventListener("change", (e) => handleHandoverPhotoChange(e, shift));
   document.getElementById("saveBtn_" + shift).addEventListener("click", () => saveShift(shift, false));
@@ -551,6 +547,10 @@ function cashAvailableTotal(shift){
 
 function recalcCashRecon(shift){
   const st = state[shift];
+  // "Custodian ko Diya" is computed from the note breakdown + JazzCash portions, not typed —
+  // refresh it first so everything below (handover variance, expected closing, short/over)
+  // reads the current figure, not a stale one from before this input changed.
+  recalcDenomination(shift);
   const cashSales = cashSalesTotal(shift);
   const cashAvailable = cashAvailableTotal(shift);
   document.getElementById("cashSalesDisplay_" + shift).value = "PKR " + Math.round(cashSales).toLocaleString();
@@ -648,26 +648,42 @@ function recalcCashRecon(shift){
     st.shortOver = 0;
     shortOverBlock.hidden = true;
   }
-  recalcDenomination(shift);
 }
 
-// Note-by-note breakdown of the packet handed to the custodian. Recomputes the breakdown
-// total from the note-qty + Coins/Other boxes and checks it against "Custodian ko Diya" —
-// mirrors the pattern used for the till count above (denomVarianceNote next to
-// handoverVarianceNote). This is an audit layer on top of that single total, not a
-// replacement for it: the manager still types the final handover amount, and this proves
-// it was actually counted out note-by-note rather than guessed. Added 2026-10-17, per the
-// owner, along with a required photo of the packet (see uploadHandoverPhoto below).
+// Note-by-note breakdown of the packet handed to the custodian — this is what "Custodian ko
+// Diya" above is computed FROM, not a separate figure checked against it. Added 2026-10-17,
+// per the owner, along with a required photo of the packet (see uploadHandoverPhoto below).
+// Changed the same day (still 2026-10-17) to drive the handover total directly instead of
+// being typed twice and cross-checked — one real count instead of a number plus a count that
+// has to agree with it.
 // "Custodian ko Diya" minus whatever portion of it isn't physical cash in the first place —
 // the JazzCash/wallet slice of today's own sales (jazzcashAmount) and, for Evening, JazzCash
 // Collected from Morning. Neither has to show up as counted notes, so the breakdown only
 // has to add up to what's left after both are taken out. Added 2026-10-17, per the owner.
-function denomRequiredTotal(shift){
-  const custodianAmount = nS("custodianAmount", shift);
+// JazzCash portions that ride along with the handover without being physical notes — today's
+// own JazzCash sales, and for Evening, JazzCash Collected from Morning.
+function jazzcashPortionTotal(shift){
   const jazzcashPortion = nS("jazzcashAmount", shift);
   const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
   const jazzcashCollected = collectedEl ? (parseFloat(collectedEl.value) || 0) : 0;
-  return custodianAmount - jazzcashPortion - jazzcashCollected;
+  return jazzcashPortion + jazzcashCollected;
+}
+
+// Sets "Custodian ko Diya" from the counted notes (denomTotal) plus the JazzCash portions —
+// the field itself is disabled, this is the only thing that writes to it. Falls back to a
+// shift's historical custodian_cash_amount only when it was saved before this breakdown
+// existed (no denomination detail on file) and nothing has been counted here yet — see
+// loadShiftEntry. Once real notes are entered, the real count always wins.
+function recalcCustodianAmount(shift, denomTotal){
+  const st = state[shift];
+  const jazzcash = jazzcashPortionTotal(shift);
+  const computed = denomTotal + jazzcash;
+  const hasActivity = denomTotal > 0 || jazzcash > 0;
+  st.usingLegacyCustodianAmount = !hasActivity && !!st.legacyCustodianAmount;
+  const total = st.usingLegacyCustodianAmount ? st.legacyCustodianAmount : computed;
+  const el = document.getElementById(fid("custodianAmount", shift));
+  el.value = (hasActivity || st.usingLegacyCustodianAmount) ? Math.round(total) : "";
+  return total;
 }
 
 function recalcDenomination(shift){
@@ -682,24 +698,30 @@ function recalcDenomination(shift){
   total += coins;
   document.getElementById(`denomTotal_${shift}`).textContent = "PKR " + Math.round(total).toLocaleString();
 
+  const custodianTotal = recalcCustodianAmount(shift, total);
   const note = document.getElementById(`denomVarianceNote_${shift}`);
-  const custodianEntered = document.getElementById(fid("custodianAmount", shift)).value !== "";
-  const custodianAmount = nS("custodianAmount", shift);
-  if (!custodianEntered || custodianAmount <= 0) {
+  const jazzcash = jazzcashPortionTotal(shift);
+  if (state[shift].usingLegacyCustodianAmount) {
+    note.style.color = "var(--danger)";
+    note.textContent = `This shift's handover (PKR ${Math.round(custodianTotal).toLocaleString()}) was saved before notes were counted on this page — count the packet below before saving again.`;
+  } else if (jazzcash > 1) {
+    note.style.color = "";
+    note.textContent = `+ PKR ${Math.round(jazzcash).toLocaleString()} JazzCash portion added automatically = PKR ${Math.round(custodianTotal).toLocaleString()} handed to custodian.`;
+  } else {
     note.style.color = "";
     note.textContent = "";
-    return total;
-  }
-  const required = denomRequiredTotal(shift);
-  const diff = Math.round(total - required);
-  if (diff === 0) {
-    note.style.color = "var(--success)";
-    note.textContent = "Matches the amount handed to custodian.";
-  } else {
-    note.style.color = "var(--danger)";
-    note.textContent = `Breakdown total is off by PKR ${Math.abs(diff).toLocaleString()} vs. "Custodian ko Diya" (PKR ${Math.round(required).toLocaleString()}${required !== custodianAmount ? ", after excluding JazzCash" : ""}) — fix the note counts before saving.`;
   }
   return total;
+}
+
+// Adds a top-up (a resolved till overage) into the Coins/Other box of the note breakdown,
+// then recomputes everything downstream of it — used instead of ever writing to the now-
+// computed "Custodian ko Diya" field directly.
+function addToDenominationCoins(shift, amount){
+  const coinsEl = document.getElementById(`denomCoins_${shift}`);
+  const current = Math.max(0, parseFloat(coinsEl.value) || 0);
+  coinsEl.value = Math.round(current + amount);
+  recalcDenomination(shift);
 }
 
 function denominationDetailPayload(shift){
@@ -860,9 +882,10 @@ async function resolveOverage(shift){
   statusEl.textContent = "Adding to handover and saving…";
 
   // Fold the excess into the custodian handover — it simply becomes extra cash for Safe 2,
-  // no separate booking needed. Marked "touched" so the auto-suggestion never overwrites it.
-  setVal("custodianAmount", shift, Math.round(nS("custodianAmount", shift) + variance));
-  state[shift].custodianTouched = true;
+  // no separate booking needed. Added into the Coins/Other box of the note breakdown (not
+  // the now-computed "Custodian ko Diya" field directly) since that's what the real packet
+  // physically gains — the manager should fold this cash into the actual bundle too.
+  addToDenominationCoins(shift, variance);
   recalcCashRecon(shift);
   recalcTotals();
 
@@ -956,7 +979,9 @@ function applyLockUI(shift){
   const pastDateLocked = saleDate !== todayStr() && !isDirector;
   const shiftClosed = state[shift].status === "closed";
   const closed = shiftClosed || pastDateLocked;
-  const lockFields = FIELD_BASES.concat(["custodianAmount","closingCash","varianceReason"]);
+  // "custodianAmount" is deliberately left out — it's always disabled (computed from the
+  // note breakdown), locked or not, so there's nothing for applyLockUI to toggle on it.
+  const lockFields = FIELD_BASES.concat(["closingCash","varianceReason"]);
   lockFields.forEach(base => { document.getElementById(fid(base, shift)).disabled = closed; });
   const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
   if (collectedEl) collectedEl.disabled = closed;
@@ -1090,11 +1115,13 @@ async function loadShiftEntry(shift){
       st.jazzcashCollectedTouched = true; // already has a real saved figure — don't clobber it with Morning's suggestion
     }
     // custodian_cash_amount is stored negative when cash left the till (the normal case) —
-    // flip the sign back to "actual handover", where positive means cash went to the custodian.
-    setVal("custodianAmount", shift, -(Number(existing.custodian_cash_amount) || 0));
+    // flip the sign back to "actual handover", where positive means cash went to the
+    // custodian. Not written to the field directly anymore (it's computed) — kept only as
+    // the legacy fallback for a shift saved before the note breakdown existed; recalcDenomination
+    // (called by setDenominationFields below) overwrites it the moment real notes are on file.
+    st.legacyCustodianAmount = -(Number(existing.custodian_cash_amount) || 0);
     setVal("closingCash", shift, existing.closing_cash_till != null ? existing.closing_cash_till : "");
     setVal("varianceReason", shift, existing.variance_reason || "");
-    st.custodianTouched = true; // this shift already has a real saved handover — don't clobber it with a fresh suggestion
     setDenominationFields(shift, existing.custodian_denomination_detail);
     st.handoverPhotoPath = existing.custodian_handover_photo_path || null;
     document.getElementById(`handoverPhotoStatus_${shift}`).innerHTML = st.handoverPhotoPath
@@ -1107,14 +1134,13 @@ async function loadShiftEntry(shift){
     st.openingCashTill = STANDARD_TILL_FLOAT;
     st.status = "draft";
     FIELD_BASES.forEach(base => setVal(base, shift, ""));
-    setVal("custodianAmount", shift, "");
     setVal("closingCash", shift, "");
     setVal("varianceReason", shift, "");
     if (shift === "evening") {
       setVal("jazzcashCollected", shift, "");
       st.jazzcashCollectedTouched = false;
     }
-    st.custodianTouched = false; // fresh shift — let the auto-suggestion fill the custodian handover
+    st.legacyCustodianAmount = null;
     setDenominationFields(shift, null);
     st.handoverPhotoPath = null;
     document.getElementById(`handoverPhotoStatus_${shift}`).textContent = "";
@@ -1185,14 +1211,16 @@ async function saveShift(shift, close){
   }
   // Whenever cash is actually being handed to the custodian this shift, the note breakdown
   // and a photo of the packet are both required — on Save as well as Close, since the
-  // handover itself usually happens mid-shift, not only at close time. Added 2026-10-17,
-  // per the owner, as an extra audit layer on top of the single "Custodian ko Diya" total.
+  // handover itself usually happens mid-shift, not only at close time. Added 2026-10-17, per
+  // the owner. "Custodian ko Diya" is now computed straight from the breakdown (see
+  // recalcDenomination), so there's nothing left to cross-check them against each other —
+  // only the legacy-fallback case (a pre-breakdown shift being resaved untouched) still needs
+  // catching, since that would otherwise save a nonzero handover with an empty breakdown.
   const custodianAmountForCheck = nS("custodianAmount", shift);
   if (custodianAmountForCheck > 0) {
-    const denomTotal = recalcDenomination(shift);
-    const denomRequiredForCheck = denomRequiredTotal(shift);
-    if (Math.abs(Math.round(denomTotal - denomRequiredForCheck)) > 1) {
-      alert("The note breakdown (PKR " + Math.round(denomTotal).toLocaleString() + ") doesn't match \"Custodian ko Diya\" minus JazzCash (PKR " + Math.round(denomRequiredForCheck).toLocaleString() + "). Count the notes again before saving.");
+    recalcDenomination(shift);
+    if (state[shift].usingLegacyCustodianAmount) {
+      alert("This shift's handover (PKR " + Math.round(custodianAmountForCheck).toLocaleString() + ") was saved before notes were counted on this page. Count the packet below before saving again.");
       document.getElementById("denomGrid_" + shift).scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
@@ -1220,8 +1248,7 @@ async function saveShift(shift, close){
       }
     } else if (!resolved) {
       autoFoldedOverage = rounded;
-      setVal("custodianAmount", shift, Math.round(nS("custodianAmount", shift) + rounded));
-      st.custodianTouched = true;
+      addToDenominationCoins(shift, rounded);
       recalcCashRecon(shift);
       recalcTotals();
     }

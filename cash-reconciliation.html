@@ -282,7 +282,8 @@
     <div class="step-label">Physical Count — what Zeeshan actually finds in the safe</div>
     <div class="field">
       <label>Counted Cash in Safe (PKR)</label>
-      <input type="number" id="f-counted" step="any" placeholder="Count the safe and enter the exact amount">
+      <input type="number" id="f-counted" step="any" placeholder="Count the safe and enter the exact amount" disabled>
+      <div class="hint" style="margin-top:4px">Khud ban jaata hai — neeche notes gin kar likhen, yeh unka jorr hai.</div>
     </div>
     <div class="row2 field" style="margin-top:4px;">
       <div><span class="hint">Expected (Opening + In − Out)</span><div class="amount-display" id="expected-display">PKR 0</div></div>
@@ -296,7 +297,7 @@
 
     <div class="field" id="denom-block" style="border-top:1px solid var(--border);padding-top:14px">
       <label>Note Breakdown of the Count (required to submit)</label>
-      <div class="hint" style="margin:-2px 0 6px">Count the notes in the safe one denomination at a time and enter how many of each.</div>
+      <div class="hint" style="margin:-2px 0 6px">Count the notes in the safe one denomination at a time and enter how many of each. "Counted Cash in Safe" above khud ban jayega isi se.</div>
       <div class="denom-grid" id="denom-grid"></div>
       <div class="hint" style="margin-top:8px">Breakdown total: <strong id="denom-total">PKR 0</strong></div>
       <div class="hint" id="denom-variance-note"></div>
@@ -358,7 +359,7 @@ const PAGE_KEY = "cash_reconciliation";
 // (not a note count) for loose change and odd amounts the notes don't cover.
 const DENOMINATIONS = [5000, 1000, 500, 100, 50, 20, 10];
 
-let state = { userId: null, userName: null, managerId: null, role: null, currentRow: null, safePhoto: null };
+let state = { userId: null, userName: null, managerId: null, role: null, currentRow: null, safePhoto: null, legacyCountedAmount: null, usingLegacyCountedAmount: false };
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -490,6 +491,10 @@ toggleDetail("box-out", "detail-out");
 toggleDetail("box-closing", "detail-closing");
 
 function recalc() {
+  // "Counted Cash in Safe" is computed from the note breakdown, not typed — refresh it
+  // first so everything below (Expected/Variance/Closing) reads the current figure, not
+  // a stale one.
+  recalcDenomination();
   const opening = parseFloat(document.getElementById("f-opening").value) || 0;
   const cashIn = parseFloat(document.getElementById("fb-in").dataset.raw || "0");
   const cashOut = parseFloat(document.getElementById("fb-out").dataset.raw || "0");
@@ -528,11 +533,9 @@ function recalc() {
   } else {
     varianceAlert.hidden = true;
   }
-  recalcDenomination();
   return { opening, cashIn, cashOut, expected, counted, variance, closing };
 }
 document.getElementById("f-opening").addEventListener("input", recalc);
-document.getElementById("f-counted").addEventListener("input", recalc);
 
 // Same note-breakdown audit practice as the Sales Entry custodian handover (2026-10-17):
 // Zeeshan counts the safe note-by-note, and that breakdown has to add up to what he typed
@@ -551,9 +554,9 @@ function buildDenomGrid() {
       <span class="denom-sub"></span>
     </div>`;
   DENOMINATIONS.forEach(d => {
-    document.getElementById(`denom-qty-${d}`).addEventListener("input", recalcDenomination);
+    document.getElementById(`denom-qty-${d}`).addEventListener("input", recalc);
   });
-  document.getElementById("denom-coins").addEventListener("input", recalcDenomination);
+  document.getElementById("denom-coins").addEventListener("input", recalc);
 }
 buildDenomGrid();
 
@@ -569,21 +572,22 @@ function recalcDenomination() {
   total += coins;
   document.getElementById("denom-total").textContent = "PKR " + Math.round(total).toLocaleString();
 
+  // "Counted Cash in Safe" is set FROM this breakdown, not compared against a separately
+  // typed figure. For a day saved before this feature existed (no note breakdown on file),
+  // fall back to displaying the historically saved counted_cash until real notes are
+  // entered — see legacyCountedAmount below.
+  const hasActivity = total > 0;
+  state.usingLegacyCountedAmount = !hasActivity && !!state.legacyCountedAmount;
+  const counted = state.usingLegacyCountedAmount ? state.legacyCountedAmount : total;
+  document.getElementById("f-counted").value = (hasActivity || state.usingLegacyCountedAmount) ? Math.round(counted) : "";
+
   const note = document.getElementById("denom-variance-note");
-  const countedRaw = document.getElementById("f-counted").value;
-  if (countedRaw === "") {
+  if (state.usingLegacyCountedAmount) {
+    note.style.color = "var(--err)";
+    note.textContent = `This count (PKR ${Math.round(counted).toLocaleString()}) was saved before notes were counted on this page — count the safe below before submitting again.`;
+  } else {
     note.textContent = "";
     note.style.color = "";
-    return total;
-  }
-  const counted = parseFloat(countedRaw) || 0;
-  const diff = Math.round(total - counted);
-  if (diff === 0) {
-    note.style.color = "var(--ok)";
-    note.textContent = "Matches the counted cash entered above.";
-  } else {
-    note.style.color = "var(--err)";
-    note.textContent = `Breakdown total is off by PKR ${Math.abs(diff).toLocaleString()} vs. Counted Cash (PKR ${Math.round(counted).toLocaleString()}) — count the notes again before submitting.`;
   }
   return total;
 }
@@ -1020,7 +1024,8 @@ function renderBreakdown(elId, lines, emptyMsg) {
 
 function applyLockState(row) {
   const isLocked = row && row.status === "locked";
-  document.getElementById("f-counted").disabled = isLocked;
+  // "f-counted" is deliberately left out here — it's always disabled (computed from the
+  // note breakdown), locked or not, so there's nothing for applyLockState to toggle on it.
   document.getElementById("f-adjustment-reason").disabled = isLocked;
   document.getElementById("f-safe-photo").disabled = isLocked;
   DENOMINATIONS.forEach(d => { document.getElementById(`denom-qty-${d}`).disabled = isLocked; });
@@ -1089,7 +1094,13 @@ async function loadDay(dateStr) {
     // the note below is informational, not a call to action. Added 2026-10-15.
     const countedStale = useLive && r.counted_cash !== null && r.counted_cash !== undefined &&
       (Math.abs((Number(r.cash_in) || 0) - cashIn.total) > 0.5 || Math.abs((Number(r.cash_out) || 0) - cashOut.total) > 0.5);
-    document.getElementById("f-counted").value = countedStale ? "" : (r.counted_cash ?? "");
+    // "Counted Cash in Safe" is computed from the note breakdown. If this row predates that
+    // feature (no counted_denomination_detail on file), fall back to the historically saved
+    // figure until real notes are counted — unless the count itself is stale (above), in
+    // which case there's nothing from today to fall back to.
+    state.legacyCountedAmount = (!countedStale && r.counted_denomination_detail == null && r.counted_cash !== null && r.counted_cash !== undefined)
+      ? Number(r.counted_cash) || 0
+      : null;
     setDenominationFields(countedStale ? null : r.counted_denomination_detail);
     document.getElementById("f-adjustment-reason").value = r.adjustment_reason || "";
     document.getElementById("opening-hint").textContent = "Loaded from today's saved entry.";
@@ -1124,7 +1135,7 @@ async function loadDay(dateStr) {
     drift.hidden = true;
     const prevClosing = await fetchPreviousClosing(dateStr);
     document.getElementById("f-opening").value = prevClosing;
-    document.getElementById("f-counted").value = "";
+    state.legacyCountedAmount = null;
     setDenominationFields(null);
     document.getElementById("f-adjustment-reason").value = "";
     document.getElementById("opening-hint").textContent = prevClosing
@@ -1257,11 +1268,13 @@ async function saveDay(status) {
     return alert("Explain the variance before saving — that's the one thing we need from you if the count doesn't match the expected amount.");
   }
   // Same note-breakdown requirement as the Sales Entry custodian handover — required on
-  // Submit (not Draft), same as the photo and the variance explanation above.
+  // Submit (not Draft), same as the photo and the variance explanation above. "Counted
+  // Cash in Safe" is computed from the note breakdown, so this only blocks the legacy-
+  // fallback case: a row saved before the breakdown feature existed, not yet re-counted.
   const denomTotal = recalcDenomination();
-  if (status === "submitted" && Math.abs(Math.round(denomTotal - (calc.counted || 0))) > 1) {
+  if (status === "submitted" && state.usingLegacyCountedAmount) {
     document.getElementById("denom-block").scrollIntoView({ behavior: "smooth", block: "center" });
-    return alert("The note breakdown (PKR " + Math.round(denomTotal).toLocaleString() + ") doesn't match Counted Cash (PKR " + Math.round(calc.counted || 0).toLocaleString() + "). Count the notes again before submitting.");
+    return alert("This day's count (PKR " + Math.round(state.legacyCountedAmount).toLocaleString() + ") was saved before notes were counted on this page. Count the safe before submitting again.");
   }
 
   const payload = {
