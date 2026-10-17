@@ -326,7 +326,7 @@ function panelInnerHTML(shift, label){
       </div>
 
       <div class="field" style="margin-top:12px;background:var(--surface);border-radius:9px;padding:12px">
-        <div>
+        <div hidden>
           <label style="margin-bottom:2px">Custodian ko Dena Hai</label>
           <p class="ur">Apne custodian ko kitna dena hai (khud ban jaata hai)</p>
           <div class="num" id="autoHandoverDisplay_${s}" style="font-size:1.1rem">PKR 0</div>
@@ -505,20 +505,25 @@ function recalcCashRecon(shift){
   }
 
   // Auto-generated: what should go to the custodian to keep the till at the 20,000 float.
+  // Kept hidden from staff on purpose (Yasir, 2026-10-16) — if they can see the target
+  // number they'll just type it back instead of actually counting the till. It still runs
+  // in the background for the variance check below, same as before.
   const autoHandover = cashAvailable - st.tillCashExpenses;
   document.getElementById("autoHandoverDisplay_" + shift).textContent = "PKR " + Math.round(autoHandover).toLocaleString();
 
-  // Pre-fills the actual-handover field until the shift manager edits it themselves —
-  // after that we leave their number alone (it's a record of what really happened).
-  if (!st.custodianTouched) {
-    setVal("custodianAmount", shift, Math.round(autoHandover));
-  }
+  // No longer pre-fills the actual-handover field — it has to come from counting the
+  // till, not from seeing the auto-generated number sitting there already. Changed
+  // 2026-10-16, per the owner.
+  const custodianEntered = document.getElementById("custodianAmount_" + shift).value !== "";
   const actualHandover = nS("custodianAmount", shift); // positive = custodian took cash out; negative = custodian topped the till up
 
   const handoverNote = document.getElementById("handoverVarianceNote_" + shift);
   const handoverDiff = Math.round(actualHandover - autoHandover);
-  st.handoverDiff = handoverDiff; // rolled up into Whole Day Totals' "Excess cash handed over" line
-  if (handoverDiff > 1) {
+  st.handoverDiff = custodianEntered ? handoverDiff : 0; // rolled up into Whole Day Totals' "Excess cash handed over" line
+  if (!custodianEntered) {
+    handoverNote.style.color = "";
+    handoverNote.textContent = "";
+  } else if (handoverDiff > 1) {
     // More handed over than the formula expected — just excess cash (rounding, etc.) riding
     // along to the custodian. Nothing to double-check; only a shortfall needs a look.
     handoverNote.style.color = "var(--success)";
