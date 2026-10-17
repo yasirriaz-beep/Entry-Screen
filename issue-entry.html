@@ -65,7 +65,7 @@
   .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .cadence-banner, .banner { border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-bottom: 14px; }
   .banner-err { background: var(--err-bg); color: var(--err); }
-  .sticky-save { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 900px; margin: 0 auto; }
+  .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 900px; margin: 0 auto; }
   .sticky-save button { max-width: 900px; margin: 0 auto; display: block; }
   .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
   .po-card .po-title { font-weight: 600; }
@@ -157,8 +157,8 @@
   </div>
 </div>
 
-<div class="sticky-save" id="sticky-save" hidden>
-  <button class="btn-primary" id="btn-save-all" type="button">Save Issues (<span id="dirty-count">0</span>)</button>
+<div class="sticky-save" id="sticky-save">
+  <button class="btn-primary" id="btn-save-all" type="button" disabled>Save Issues (<span id="dirty-count">0</span>)</button>
 </div>
 
 <script src="session.js"></script>
@@ -426,9 +426,12 @@ function renderItemList() {
 }
 
 function updateSaveBar() {
+  // The Save bar always stays on screen (just disabled at 0) so it's never
+  // mistaken for missing — a fully hidden bar looked, to a store man who
+  // hadn't typed anything yet, like there was no way to save at all.
   const count = Object.values(state.dirty).reduce((s, row) => s + Object.keys(row).length, 0);
   document.getElementById("dirty-count").textContent = count;
-  document.getElementById("sticky-save").hidden = count === 0;
+  document.getElementById("btn-save-all").disabled = count === 0;
 }
 
 async function saveAllCounts() {
@@ -461,8 +464,11 @@ async function saveAllCounts() {
     } catch (e) { failed++; }
     btn.textContent = `Saving ${done + failed}/${total}…`;
   }
-  btn.textContent = `Save Issues (0)`;
-  btn.disabled = false;
+  // Restore the dirty-count span inside the button — a plain textContent
+  // reset here destroys it, and the next updateSaveBar() call throws trying
+  // to find it, leaving the button stuck looking broken/missing.
+  btn.innerHTML = `Save Issues (<span id="dirty-count">0</span>)`;
+  btn.disabled = true;
   state.dirty = {};
   updateSaveBar();
   await loadAll();

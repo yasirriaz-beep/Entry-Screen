@@ -54,7 +54,7 @@
   .grid-fields label { font-size: 0.62rem; margin-bottom: 4px; }
   .grid-fields input { padding: 8px; font-size: 0.85rem; text-align: right; }
   .grid-fields input.dirty { border-color: var(--accent); background: var(--warn-bg); }
-  .sticky-save { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 820px; margin: 0 auto; }
+  .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 820px; margin: 0 auto; }
   .sticky-save button { max-width: 820px; margin: 0 auto; display: block; }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
@@ -143,8 +143,8 @@
   <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 </div>
 
-<div class="sticky-save" id="sticky-save" hidden>
-  <button class="btn-primary" id="btn-save-all" type="button">Save Ending Counts (<span id="dirty-count">0</span>)</button>
+<div class="sticky-save" id="sticky-save">
+  <button class="btn-primary" id="btn-save-all" type="button" disabled>Save Ending Counts (<span id="dirty-count">0</span>)</button>
 </div>
 
 <script src="session.js"></script>
@@ -456,9 +456,12 @@ async function moveItemToFloor(item, toFloor) {
 }
 
 function updateSaveBar() {
+  // Stays on screen always (just disabled at 0) so it's never mistaken for
+  // missing — fully hiding it looked, to someone who hadn't typed anything
+  // yet, like there was no way to save at all.
   const count = Object.keys(state.dirty).length;
   document.getElementById("dirty-count").textContent = count;
-  document.getElementById("sticky-save").hidden = count === 0;
+  document.getElementById("btn-save-all").disabled = count === 0;
 }
 
 async function saveAllEntries() {
@@ -485,8 +488,11 @@ async function saveAllEntries() {
     } catch (e) { failed++; }
     btn.textContent = `Saving ${done + failed}/${ids.length}…`;
   }
-  btn.textContent = `Save Ending Counts (0)`;
-  btn.disabled = false;
+  // Restore the dirty-count span inside the button — a plain textContent
+  // reset here destroys it, and the next updateSaveBar() call throws trying
+  // to find it, leaving the button stuck looking broken/missing.
+  btn.innerHTML = `Save Ending Counts (<span id="dirty-count">0</span>)`;
+  btn.disabled = true;
   state.dirty = {};
   updateSaveBar();
   await loadFloor();

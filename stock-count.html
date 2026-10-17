@@ -75,7 +75,7 @@
   .cadence-ok { background: var(--ok-bg); color: var(--ok); }
   .cadence-warn { background: var(--warn-bg); color: var(--warn); }
   .cadence-err { background: var(--err-bg); color: var(--err); }
-  .sticky-save { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
+  .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
   .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
   .variance-tag { font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-left: 4px; }
   .variance-ok { background: var(--ok-bg); color: var(--ok); }
@@ -152,8 +152,8 @@
   <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 </div>
 
-<div class="sticky-save" id="sticky-save" hidden>
-  <button class="btn-primary" id="btn-save-all" type="button">Save Counts (<span id="dirty-count">0</span>)</button>
+<div class="sticky-save" id="sticky-save">
+  <button class="btn-primary" id="btn-save-all" type="button" disabled>Save Counts (<span id="dirty-count">0</span>)</button>
 </div>
 
 <script src="session.js"></script>
@@ -512,9 +512,12 @@ function dirtyIds() {
 }
 
 function updateSaveBar() {
+  // Stays on screen always (just disabled at 0) so it's never mistaken for
+  // missing — fully hiding it looked, to an auditor who hadn't typed
+  // anything yet, like there was no way to save at all.
   const count = dirtyIds().length;
   document.getElementById("dirty-count").textContent = count;
-  document.getElementById("sticky-save").hidden = count === 0;
+  document.getElementById("btn-save-all").disabled = count === 0;
 }
 
 async function saveAllCounts() {
@@ -568,8 +571,11 @@ async function saveAllCounts() {
     } catch (e) { failed++; }
     btn.textContent = `Saving ${done + failed}/${ids.length}…`;
   }
-  btn.textContent = `Save Counts (0)`;
-  btn.disabled = false;
+  // Restore the dirty-count span inside the button — a plain textContent
+  // reset here destroys it, and the next updateSaveBar() call throws trying
+  // to find it, leaving the button stuck looking broken/missing.
+  btn.innerHTML = `Save Counts (<span id="dirty-count">0</span>)`;
+  btn.disabled = true;
   state.dirty = {};
   state.comments = {};
   state.retireFlags = {};
