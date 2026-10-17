@@ -56,6 +56,8 @@
   .diff-ok { color: var(--ok); }
   .diff-off { color: var(--err); }
   .overflow-x { overflow-x: auto; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 </style>
 </head>
 <body>
@@ -64,6 +66,11 @@
 
 <h1>Drinks &amp; Bakery Variance</h1>
 <div class="sub">Usage (store side) vs. Sold (POS side) — flags where the gap exceeds the threshold</div>
+
+<div class="urdu-box">
+  <b>Tareeqa (Instructions in Roman Urdu)</b>
+  Yeh ek dekhne wala (read-only) page hai, yahan kuch likhna nahi hota. "Usage" woh quantity hai jo store se nikali gayi (Daily Usage Entry se), aur "Sold (POS)" woh hai jo POS report ke mutabiq becha gaya. Dono ke farq (Diff) ko agar aap ne diye gaye threshold se zyada paya to woh row laal (red) ho kar flag ho jati hai — matlab us item mein kuch gadbad ho sakti hai, check karne ki zaroorat hai. Drinks aur Bakery ke tabs alag alag hain, aur date range upar se badal sakte hain.
+</div>
 
 <div class="card">
   <div class="row2 field" style="margin-bottom:14px;">
