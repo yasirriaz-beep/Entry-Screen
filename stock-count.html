@@ -324,7 +324,7 @@ async function loadAll() {
     state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date`);
   } catch (e) { state.issues = []; }
   try {
-    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc`);
+    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty,notes&order=snapshot_date.desc`);
   } catch (e) { state.snapshots = []; }
 
   const cats = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
@@ -375,6 +375,33 @@ function computeExistingForDate() {
   state.snapshots.forEach(s => {
     if (s.snapshot_date === date) state.existing[s.product_id] = s;
   });
+}
+
+// Pulls the free-text comment and the retire-suggestion flag back out of a saved `notes`
+// string. Comments WERE always saving correctly (confirmed in the DB) — the bug was that
+// this screen never read `notes` back (the snapshots fetch above didn't even select it, and
+// loadAll() clears state.comments/retireFlags on every load/reload), so a comment an auditor
+// had just typed and saved looked like it vanished the moment the list refreshed. Fixed
+// 2026-10-17, per the owner.
+function parseSnapshotNotes(notes) {
+  if (!notes) return { comment: "", retired: false };
+  let retired = false;
+  const commentParts = notes.split(" | ").filter(part => {
+    if (/^⚑ Suggested for retirement by /.test(part)) { retired = true; return false; }
+    if (part === "(no physical count entered — comment only)") return false;
+    return true;
+  });
+  return { comment: commentParts.join(" | "), retired };
+}
+
+// The comment/retire-flag value to show and to save: whatever the auditor typed/toggled
+// THIS session takes priority; otherwise fall back to what's already saved for this date,
+// so an untouched row keeps its prior comment/flag instead of a resave silently wiping it.
+function effectiveNote(id) {
+  const saved = state.existing[id] ? parseSnapshotNotes(state.existing[id].notes) : { comment: "", retired: false };
+  const comment = state.comments[id] != null ? state.comments[id] : saved.comment;
+  const retired = state.retireFlags[id] != null ? !!state.retireFlags[id] : saved.retired;
+  return { comment, retired };
 }
 
 // Theoretical expected qty as of `date`: last count's closing_qty (or 0 if never counted)
@@ -456,8 +483,7 @@ function renderItemList() {
         : `<span class="variance-tag variance-off">${diff > 0 ? "+" : ""}${fmtQty(diff)}</span>`;
     }
 
-    const commentVal = state.comments[p.id] != null ? state.comments[p.id] : "";
-    const retireVal = !!state.retireFlags[p.id];
+    const { comment: commentVal, retired: retireVal } = effectiveNote(p.id);
 
     const block = document.createElement("div");
     block.className = "item-block";
@@ -502,7 +528,10 @@ function renderItemList() {
 
     const retireInput = block.querySelector(".i-retire");
     retireInput.addEventListener("change", () => {
-      if (retireInput.checked) state.retireFlags[p.id] = true; else delete state.retireFlags[p.id];
+      // Always record an explicit true/false (never delete the key) so unchecking a
+      // previously-saved retire flag is itself a real, savable change instead of silently
+      // reverting to whatever was last saved.
+      state.retireFlags[p.id] = retireInput.checked;
       retireInput.closest(".retire-label").classList.toggle("flagged", retireInput.checked);
       updateSaveBar();
     });
@@ -550,8 +579,8 @@ async function saveAllCounts() {
     const denom = opening + purchasesQty;
     const variance_pct = hasCount && denom > 0 ? Math.round((variance_qty / denom) * 10000) / 100 : null;
 
-    const commentText = (state.comments[id] || "").trim();
-    const retireFlagged = !!state.retireFlags[id];
+    const { comment: commentTextRaw, retired: retireFlagged } = effectiveNote(id);
+    const commentText = commentTextRaw.trim();
     const noteParts = [];
     if (!hasCount && commentText) noteParts.push("(no physical count entered — comment only)");
     if (commentText) noteParts.push(commentText);
