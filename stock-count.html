@@ -50,12 +50,19 @@
   .progress-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; margin-right: 6px; }
   .table-scroll { overflow-x: auto; }
   .base-grid { min-width: 560px; }
-  .item-row { display: grid; grid-template-columns: 1fr 62px 62px 62px 66px 92px; gap: 6px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
-  .item-row:last-child { border-bottom: none; }
+  .item-block { border-bottom: 1px solid var(--border); padding: 9px 0; }
+  .item-block:last-child { border-bottom: none; }
+  .item-row { display: grid; grid-template-columns: 1fr 62px 62px 62px 66px 92px; gap: 6px; align-items: center; }
   .item-name { font-size: 0.88rem; min-width: 0; }
   .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
   .item-row input { padding: 7px 8px; font-size: 0.85rem; text-align: right; }
   .item-row input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .item-extra { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .i-comment { flex: 1; min-width: 0; padding: 6px 9px !important; font-size: 0.82rem !important; text-align: left !important; }
+  .i-comment.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .retire-label { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--ink-soft); white-space: nowrap; text-transform: none; flex: none; }
+  .retire-label input { width: auto !important; }
+  .retire-label.flagged { color: var(--err); font-weight: 600; }
   .expected-val, .num-val { font-size: 0.8rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
   .num-val.end-val { color: var(--ink); font-weight: 600; }
   .col-header { display: grid; grid-template-columns: 1fr 62px 62px 62px 66px 92px; gap: 6px; font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
@@ -158,7 +165,9 @@ let state = {
   userId: null, userName: null, managerId: null, userRole: null,
   products: [], purchases: [], issues: [], snapshots: [],
   existing: {}, // product_id -> snapshot row for the chosen date
-  dirty: {}
+  dirty: {},
+  comments: {}, // product_id -> free-text comment typed this session
+  retireFlags: {} // product_id -> true if "suggest retire" checked this session
 };
 
 // Cadence rule Yasir asked for: Store Person checks the physical balance every
@@ -205,6 +214,9 @@ async function sbRpc(fn, body) {
 function fmtQty(n) {
   const v = Number(n) || 0;
   return (Math.round(v * 100) / 100).toLocaleString();
+}
+function escapeAttr(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 function todayStr() {
   // Gulberg's business day: before 9:00am PKT still counts as the previous
@@ -284,6 +296,8 @@ document.getElementById("f-date").addEventListener("change", loadAll);
 
 async function loadAll() {
   state.dirty = {};
+  state.comments = {};
+  state.retireFlags = {};
   updateSaveBar();
   try {
     state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate,min_stock_level,reorder_qty&order=category,name`);
@@ -424,20 +438,31 @@ function renderItemList() {
         : `<span class="variance-tag variance-off">${diff > 0 ? "+" : ""}${fmtQty(diff)}</span>`;
     }
 
-    const row = document.createElement("div");
-    row.className = "item-row";
-    row.innerHTML = `
-      <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
-      <div class="num-val">${fmtQty(opening)}</div>
-      <div class="num-val">+${fmtQty(purchasesQty)}</div>
-      <div class="num-val">-${fmtQty(issuesQty)}</div>
-      <div class="num-val end-val">${fmtQty(expected)}</div>
-      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
-        <input type="number" class="i-count" step="any" value="${countedVal}" placeholder="—">
-        ${varianceTag}
+    const commentVal = state.comments[p.id] != null ? state.comments[p.id] : "";
+    const retireVal = !!state.retireFlags[p.id];
+
+    const block = document.createElement("div");
+    block.className = "item-block";
+    block.innerHTML = `
+      <div class="item-row">
+        <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
+        <div class="num-val">${fmtQty(opening)}</div>
+        <div class="num-val">+${fmtQty(purchasesQty)}</div>
+        <div class="num-val">-${fmtQty(issuesQty)}</div>
+        <div class="num-val end-val">${fmtQty(expected)}</div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+          <input type="number" class="i-count" step="any" value="${countedVal}" placeholder="—">
+          ${varianceTag}
+        </div>
+      </div>
+      <div class="item-extra">
+        <input type="text" class="i-comment" value="${escapeAttr(commentVal)}" placeholder="Comment (optional) — e.g. damaged, wrong shelf, out of stock...">
+        <label class="retire-label${retireVal ? " flagged" : ""}">
+          <input type="checkbox" class="i-retire" ${retireVal ? "checked" : ""}> Suggest retire
+        </label>
       </div>
     `;
-    const countInput = row.querySelector(".i-count");
+    const countInput = block.querySelector(".i-count");
     if (dirtyVal != null) countInput.classList.add("dirty");
     countInput.addEventListener("input", () => {
       const v = parseFloat(countInput.value);
@@ -447,32 +472,71 @@ function renderItemList() {
       updateSaveBar();
       renderItemList();
     });
-    list.appendChild(row);
+
+    const commentInput = block.querySelector(".i-comment");
+    if (commentVal) commentInput.classList.add("dirty");
+    commentInput.addEventListener("input", () => {
+      const v = commentInput.value;
+      if (v.trim() === "") delete state.comments[p.id]; else state.comments[p.id] = v;
+      commentInput.classList.toggle("dirty", !!v.trim());
+      updateSaveBar();
+    });
+
+    const retireInput = block.querySelector(".i-retire");
+    retireInput.addEventListener("change", () => {
+      if (retireInput.checked) state.retireFlags[p.id] = true; else delete state.retireFlags[p.id];
+      retireInput.closest(".retire-label").classList.toggle("flagged", retireInput.checked);
+      updateSaveBar();
+    });
+
+    list.appendChild(block);
   });
   // append variance tags after the fact via a second pass (kept simple: re-render covers it)
 }
 
+// A row is worth saving if the auditor touched any of: the count, a comment,
+// or the retire flag. A comment/retire-flag-only row (no count typed) still
+// gets saved so the note isn't lost — it just keeps the system's own expected
+// qty as closing_qty rather than asserting a physical count that was never taken.
+function dirtyIds() {
+  return [...new Set([
+    ...Object.keys(state.dirty),
+    ...Object.keys(state.comments),
+    ...Object.keys(state.retireFlags)
+  ])];
+}
+
 function updateSaveBar() {
-  const count = Object.keys(state.dirty).length;
+  const count = dirtyIds().length;
   document.getElementById("dirty-count").textContent = count;
   document.getElementById("sticky-save").hidden = count === 0;
 }
 
 async function saveAllCounts() {
   const date = document.getElementById("f-date").value || todayStr();
-  const ids = Object.keys(state.dirty);
+  const ids = dirtyIds();
   if (!ids.length) return;
   const btn = document.getElementById("btn-save-all");
   btn.disabled = true;
   let done = 0, failed = 0;
   for (const id of ids) {
-    const counted = state.dirty[id];
     const p = state.products.find(x => x.id === id);
     const rate = p ? (Number(p.current_rate) || 0) : 0;
     const { opening, purchasesQty, issuesQty, expected } = expectedQty(id, date);
-    const variance_qty = counted - expected;
+    const hasCount = state.dirty[id] != null;
+    const counted = hasCount ? state.dirty[id] : expected;
+    const variance_qty = hasCount ? (counted - expected) : null;
     const denom = opening + purchasesQty;
-    const variance_pct = denom > 0 ? Math.round((variance_qty / denom) * 10000) / 100 : null;
+    const variance_pct = hasCount && denom > 0 ? Math.round((variance_qty / denom) * 10000) / 100 : null;
+
+    const commentText = (state.comments[id] || "").trim();
+    const retireFlagged = !!state.retireFlags[id];
+    const noteParts = [];
+    if (!hasCount && commentText) noteParts.push("(no physical count entered — comment only)");
+    if (commentText) noteParts.push(commentText);
+    if (retireFlagged) noteParts.push(`⚑ Suggested for retirement by ${state.userName || "auditor"} on ${date} — no activity`);
+    const notes = noteParts.length ? noteParts.join(" | ") : undefined;
+
     const payload = {
       location_id: LOCATION_ID, product_id: id, snapshot_date: date,
       opening_qty: opening, opening_amount: Math.round(opening * rate * 100) / 100,
@@ -481,7 +545,8 @@ async function saveAllCounts() {
       closing_qty: counted, closing_amount: Math.round(counted * rate * 100) / 100,
       variance_qty, variance_pct,
       entered_by_user_id: state.userId,
-      entered_by_manager_id: state.managerId
+      entered_by_manager_id: state.managerId,
+      ...(notes ? { notes } : {})
     };
     try {
       const exist = state.existing[id];
@@ -501,6 +566,8 @@ async function saveAllCounts() {
   btn.textContent = `Save Counts (0)`;
   btn.disabled = false;
   state.dirty = {};
+  state.comments = {};
+  state.retireFlags = {};
   updateSaveBar();
   await loadAll();
   if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
