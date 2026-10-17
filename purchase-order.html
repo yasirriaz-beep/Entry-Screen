@@ -67,6 +67,8 @@
   .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
   .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
   .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
   .success-wrap { text-align: center; padding: 48px 16px; }
   .success-wrap .check { font-size: 2.6rem; }
@@ -132,6 +134,11 @@
 </div>
 
 <div id="stage-content">
+
+<div class="urdu-box">
+  <b>Tareeqa (Instructions in Roman Urdu)</b>
+  Yeh page purchase order ke teen stage dikhata hai. "Demand" mein koi bhi item mangwane ke liye select karein, quantity likhein aur "Submit Demand" dabayen — yeh director ki authorization ke liye chala jata hai. "Authorize" sirf director ke paas hota hai — wahan se demand ko qty confirm karke "Authorize" ya "Reject" kiya jata hai. "Order" tab un sab ke liye hai jinko yeh page access mila hai — yahan vendor select karein, qty aur rate likhein, agar advance dena hai to woh box check karein aur aaj ka asal (actual) amount daalen, phir "Mark as Ordered" dabayen. Har qadam apna button dabanay se hi save hota hai.
+</div>
 
 <!-- AUDITOR / DIRECTOR : create demand -->
 <div id="panel-demand" hidden>
