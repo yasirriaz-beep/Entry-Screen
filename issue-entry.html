@@ -108,6 +108,12 @@
     bas har column mein uski apni quantity daal dein. Jo item issue nahi ho raha, uska box khali chhor dein.
     Sab likhne ke baad neeche "Save Issues" button dabayen. Agar dobara isi din kuch aur issue karna ho to wapas aa kar naya amount likh dein,
     yeh purana entry ke upar nahi likhega balke ek nayi entry ban jayegi (neeche "Issued Today" mein sab dikh jayega).
+    <br><br>
+    <b>Halka grey number (box ke andar)</b>
+    Kabhi kabhi khali box mein ek halka grey number nazar aayega — yeh system ka apna andaza hai ke aaj kitna issue lagna chahiye
+    (purane din ke data aur is waqt floor par maujooda stock se calculate hota hai). Yeh sirf ek hint hai, khud se bharta nahi aur save bhi
+    nahi hota — aapko apni marzi se asal quantity type karni hai. Abhi data sirf chand dinon ka hai, is liye yeh andaza thoda kam theek ho sakta hai;
+    jitna zyada din ka data ikatha hoga, utna behtar hota jayega.
   </div>
 
   <div class="card">
@@ -185,6 +191,9 @@ const DESTS = [
 let state = {
   userId: null, userName: null, managerId: null, userRole: null,
   products: [], purchases: [], issues: [], snapshots: [],
+  floorPeriods: [], // open floor_stock_periods rows, used only for the demand-suggestion hint
+  suggestions: {}, // product_id -> { KITCHEN: qty, BOH: qty, ... } advisory "replenish to par" estimate
+  historyDays: {}, // floor -> distinct days of daily_issues history observed (for future UI use)
   existing: {}, // product_id -> today's existing daily_issues rows, by destination
   dirty: {} // product_id -> { KITCHEN: qty, BOH: qty, ... }
 };
@@ -312,11 +321,20 @@ async function loadAll() {
     state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date`);
   } catch (e) { state.purchases = []; }
   try {
-    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date`);
+    // issued_to + created_at included (not just the issue_date the store-level
+    // expectedQty() below needs) so the same fetch also feeds the per-floor
+    // suggested-demand estimate further down — one bulk request either way.
+    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date,issued_to,created_at`);
   } catch (e) { state.issues = []; }
   try {
     state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc`);
   } catch (e) { state.snapshots = []; }
+  try {
+    // Open floor_stock_periods — same table Floor Inventory itself tracks
+    // balances in — used only to estimate current floor stock for the
+    // suggested-demand hint below, one bulk fetch for every floor/item.
+    state.floorPeriods = await sb(`floor_stock_periods?location_id=eq.${LOCATION_ID}&period_end_at=is.null&select=product_id,floor,beginning_qty,period_start_at`);
+  } catch (e) { state.floorPeriods = []; }
 
   const cats = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
   const sel = document.getElementById("filter-category");
@@ -325,8 +343,62 @@ async function loadAll() {
   sel.value = prevCat;
 
   computeExistingForDate();
+  computeSuggestions();
   renderItemList();
   loadTodayList();
+}
+
+// Suggested demand — "replenish to par": par is roughly one typical day's
+// usage for that floor (trailing average over however many days we actually
+// have data for), minus whatever's already on the floor right now (from the
+// same floor_stock_periods balance Floor Inventory itself shows). Purely
+// advisory: shown as a faint placeholder inside each blank box, never
+// written into state.dirty, so nothing is ever auto-filled or auto-saved —
+// the store man decides what to actually type. With only a handful of days
+// of history so far these numbers will be rough; they quietly get more
+// reliable as more days of real issuance accumulate.
+function computeSuggestions() {
+  state.suggestions = {}; // product_id -> { KITCHEN: qty, BOH: qty, ... }
+  state.historyDays = {}; // floor -> distinct days observed, for the disclaimer
+
+  const floorDays = {};
+  DESTS.forEach(d => { floorDays[d.key] = new Set(); });
+  state.issues.forEach(i => { if (floorDays[i.issued_to]) floorDays[i.issued_to].add(i.issue_date); });
+  DESTS.forEach(d => { state.historyDays[d.key] = floorDays[d.key].size; });
+
+  const totalsByKey = {}; // "productId|floor" -> total qty issued
+  state.issues.forEach(i => {
+    if (!floorDays[i.issued_to]) return;
+    const key = `${i.product_id}|${i.issued_to}`;
+    totalsByKey[key] = (totalsByKey[key] || 0) + (Number(i.qty) || 0);
+  });
+
+  const periodByKey = {}; // "productId|floor" -> latest open period
+  state.floorPeriods.forEach(p => { periodByKey[`${p.product_id}|${p.floor}`] = p; });
+
+  state.products.forEach(p => {
+    DESTS.forEach(d => {
+      const key = `${p.id}|${d.key}`;
+      const days = floorDays[d.key].size;
+      if (!days) return;
+      const avgDaily = (totalsByKey[key] || 0) / days;
+      if (avgDaily < 0.01) return;
+
+      const period = periodByKey[key];
+      let onFloor = 0;
+      if (period) {
+        onFloor = Number(period.beginning_qty) || 0;
+        onFloor += state.issues
+          .filter(i => i.product_id === p.id && i.issued_to === d.key && i.created_at >= period.period_start_at)
+          .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+      }
+      const suggested = Math.round((avgDaily - onFloor) * 100) / 100;
+      if (suggested >= 1) {
+        state.suggestions[p.id] = state.suggestions[p.id] || {};
+        state.suggestions[p.id][d.key] = suggested;
+      }
+    });
+  });
 }
 
 function computeExistingForDate() {
@@ -404,9 +476,12 @@ function renderItemList() {
 
     const row = document.createElement("div");
     row.className = "item-row";
+    const suggRow = (state.suggestions && state.suggestions[p.id]) || {};
     const destCells = DESTS.map(d => {
       const v = dirtyRow[d.key] != null ? dirtyRow[d.key] : "";
-      return `<input type="number" class="${d.cls}" step="any" value="${v}" placeholder="—">`;
+      const sugg = suggRow[d.key];
+      const ph = sugg != null ? fmtQty(sugg) : "—";
+      return `<input type="number" class="${d.cls}" step="any" value="${v}" placeholder="${ph}">`;
     }).join("");
     row.innerHTML = `
       <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
