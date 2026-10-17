@@ -65,6 +65,20 @@
   .value-tile.total .vt-value { color: var(--accent); }
   .value-tile.paid .vt-value { color: var(--ok); }
   .value-tile.payable .vt-value { color: var(--warn); }
+  .value-tile.foodcost .vt-value { color: var(--ok); }
+  .value-tile.nonconv .vt-value { color: var(--ink-soft); }
+  .value-tile.uncat .vt-value { color: var(--err); }
+  .value-tile.small { padding: 10px 14px; }
+  .value-tile.small .vt-value { font-size: 1.1rem; }
+  .rate-alert-warn { color: var(--warn); font-weight: 600; }
+  .rate-alert-err { color: var(--err); font-weight: 700; }
+  .rate-badge { font-size: 0.63rem; font-weight: 700; border-radius: 999px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
+  .rate-badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .rate-badge.err { color: var(--err); background: var(--err-bg); }
+  .cost-type-badge { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; border-radius: 999px; padding: 1px 7px; }
+  .cost-type-badge.food_cost { color: var(--ok); background: var(--ok-bg); }
+  .cost-type-badge.non_convertible { color: var(--ink-soft); background: var(--field-bg); }
+  .cost-type-badge.uncategorized { color: var(--err); background: var(--err-bg); }
   .top-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
   .as-of { color: var(--ink-soft); font-size: 0.8rem; }
   @media print {
@@ -162,6 +176,24 @@
   </div>
   <div class="hint" style="margin-top:-10px; margin-bottom:16px;">Paid vs. Payable is an estimate, not a lot-tracked figure: each item's current stock value is split using that <em>item's own</em> lifetime purchase mix (how much of everything ever bought of it was paid for in cash vs. on credit), applied to what's on the shelf today — the same weighted-average assumption used anywhere this system can't trace a specific unit back to a specific invoice.</div>
 
+  <div class="value-summary">
+    <div class="value-tile small foodcost">
+      <div class="vt-label">Food Cost (COGS-convertible)</div>
+      <div class="vt-value" id="val-foodcost">PKR 0</div>
+      <div class="vt-sub">Food &amp; Beverage, spices, food-service packaging</div>
+    </div>
+    <div class="value-tile small nonconv">
+      <div class="vt-label">Non-Convertible Stock</div>
+      <div class="vt-value" id="val-nonconv">PKR 0</div>
+      <div class="vt-sub">Cutlery, equipment, cleaning, uniforms, marketing — written off when used/broken, not sold</div>
+    </div>
+    <div class="value-tile small uncat" id="tile-uncat" hidden>
+      <div class="vt-label">Uncategorized</div>
+      <div class="vt-value" id="val-uncat">PKR 0</div>
+      <div class="vt-sub">Category not yet assigned — not counted in either bucket above</div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="top-bar">
       <div id="row-count" class="as-of"></div>
@@ -171,7 +203,7 @@
       <table class="base-table">
         <thead>
           <tr>
-            <th>Category</th><th>Item</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th><th>Value (PKR)</th>
+            <th>Category</th><th>Item</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Prior Rate</th><th>Δ Rate %</th><th>Value (PKR)</th>
           </tr>
         </thead>
         <tbody id="rows-body"></tbody>
@@ -326,7 +358,7 @@ document.getElementById("f-view").addEventListener("change", (e) => {
 
 async function loadAll() {
   try {
-    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate&order=category,name`);
+    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate,last_rate,rate_updated_at,cost_type&order=category,name`);
   } catch (e) { state.products = []; }
   try {
     state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date,amount,payment_status`);
@@ -439,7 +471,7 @@ function renderRows() {
     if (c !== lastCat) {
       const tr = document.createElement("tr");
       tr.className = "dept-row";
-      tr.innerHTML = `<td colspan="10">${c}</td>`;
+      tr.innerHTML = `<td colspan="13">${c}</td>`;
       body.appendChild(tr);
       lastCat = c;
     }
@@ -458,10 +490,31 @@ function renderRows() {
       ? fmtMoney(itemValue)
       : `${fmtMoney(0)} <span class="no-rate-badge">no rate</span>`;
 
+    // Price-change audit: compares the product's current buying rate against the
+    // rate it replaced (last_rate, set whenever a purchase or manual update changes
+    // current_rate — see rate_updated_at). Flags swings that look larger than normal
+    // month-to-month drift, since PKR food-cost rates move with fuel/currency shocks.
+    const priorRate = Number(p.last_rate) || 0;
+    let deltaCell = "—", priorRateCell = "—";
+    if (priorRate > 0 && rate > 0) {
+      priorRateCell = fmtMoney(priorRate);
+      const deltaPct = ((rate - priorRate) / priorRate) * 100;
+      const absDelta = Math.abs(deltaPct);
+      const sign = deltaPct > 0 ? "+" : "";
+      let cls = "", badge = "";
+      if (absDelta >= 25) { cls = "rate-alert-err"; badge = ` <span class="rate-badge err">⚠ large jump</span>`; }
+      else if (absDelta >= 10) { cls = "rate-alert-warn"; badge = ` <span class="rate-badge warn">↑ check</span>`; }
+      deltaCell = `<span class="${cls}">${sign}${deltaPct.toFixed(1)}%</span>${badge}`;
+    }
+
+    const costBadge = p.cost_type
+      ? ` <span class="cost-type-badge ${p.cost_type}">${p.cost_type === "food_cost" ? "COGS" : p.cost_type === "non_convertible" ? "supplies" : "uncat."}</span>`
+      : "";
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td></td>
-      <td>${p.name}</td>
+      <td>${p.name}${costBadge}</td>
       <td>${p.unit || ""}</td>
       <td>${fmtQty(b.opening)}</td>
       <td>+${fmtQty(b.addQty)}</td>
@@ -469,6 +522,9 @@ function renderRows() {
       <td class="end-val">${fmtQty(b.ending)}</td>
       <td>${b.physical === null ? "—" : fmtQty(b.physical)}</td>
       <td>${varianceCell}</td>
+      <td>${rate > 0 ? fmtMoney(rate) : "—"}</td>
+      <td>${priorRateCell}</td>
+      <td>${deltaCell}</td>
       <td class="end-val">${valueCell}</td>
     `;
     body.appendChild(tr);
@@ -482,6 +538,7 @@ function renderRows() {
 // to answer "what is all the stock in the restaurant worth right now", not a filtered view.
 function renderValueSummary(date) {
   let totalValue = 0, paidValue = 0, payableValue = 0;
+  let foodCostValue = 0, nonConvValue = 0, uncatValue = 0;
   state.products.forEach((p) => {
     const rate = Number(p.current_rate) || 0;
     if (rate <= 0) return;
@@ -492,6 +549,13 @@ function renderValueSummary(date) {
     totalValue += value;
     paidValue += value * ratio;
     payableValue += value * (1 - ratio);
+
+    // Food cost (COGS-convertible: sold or served to a customer) vs non-convertible
+    // stock (cutlery, equipment, cleaning supplies, etc. — expensed/written off when
+    // used or broken, never itself sold) — see products.cost_type, set from category.
+    if (p.cost_type === "food_cost") foodCostValue += value;
+    else if (p.cost_type === "non_convertible") nonConvValue += value;
+    else uncatValue += value;
   });
 
   document.getElementById("val-total").textContent = fmtMoney(totalValue);
@@ -499,6 +563,16 @@ function renderValueSummary(date) {
   document.getElementById("val-payable").textContent = fmtMoney(payableValue);
   document.getElementById("val-paid-pct").textContent = totalValue > 0 ? `${Math.round((paidValue / totalValue) * 100)}% of stock value` : "—";
   document.getElementById("val-payable-pct").textContent = totalValue > 0 ? `${Math.round((payableValue / totalValue) * 100)}% of stock value` : "—";
+
+  document.getElementById("val-foodcost").textContent = fmtMoney(foodCostValue);
+  document.getElementById("val-nonconv").textContent = fmtMoney(nonConvValue);
+  const uncatTile = document.getElementById("tile-uncat");
+  if (uncatValue > 0) {
+    uncatTile.hidden = false;
+    document.getElementById("val-uncat").textContent = fmtMoney(uncatValue);
+  } else {
+    uncatTile.hidden = true;
+  }
 }
 
 // Already logged in via home.html this visit? Skip straight to the sheet.
