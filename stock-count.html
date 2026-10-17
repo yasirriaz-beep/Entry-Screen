@@ -71,6 +71,8 @@
   .dept-header { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; border-radius: 6px; margin: 10px 0 4px; }
   .dept-header:first-child { margin-top: 0; }
   .dept-count { font-weight: 500; text-transform: none; letter-spacing: normal; opacity: 0.75; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .cadence-banner { border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-bottom: 14px; }
   .cadence-ok { background: var(--ok-bg); color: var(--ok); }
   .cadence-warn { background: var(--warn-bg); color: var(--warn); }
@@ -107,6 +109,17 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page sirf physical count ke liye hai — system khud hisaab laga ke "End" column mein apna number dikhata hai
+    (Beginning + purchases − issuance), lekin "Count" box hamesha khali shuru hota hai. Aap ne jo maal godam/store mein
+    jaa kar gin'na hai, usi ginti ko "Count" mein likhein — system ke number ko copy na karein. Agar aapki ginti aur
+    system ke "End" mein farq ho to variance tag khud ba khud dikh jayega (koi ghalti nahi, bas farq ka nishan hai).
+    Har item ke saamne comment box hai — agar kisi item mein masla ho (ghalat label, tootaphoota maal, wagera) to wahan
+    likh dein, aur agar lagta hai koi item ab use nahi hota to "Suggest retire" per tick kar dein.
+    Jo cheez gin li ho, neeche "Save Counts" button dabana zaroori hai — ginti button dabaye bina save nahi hoti.
+  </div>
 
   <div id="cadence-banner" hidden></div>
 

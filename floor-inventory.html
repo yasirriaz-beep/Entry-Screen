@@ -54,6 +54,8 @@
   .grid-fields label { font-size: 0.62rem; margin-bottom: 4px; }
   .grid-fields input { padding: 8px; font-size: 0.85rem; text-align: right; }
   .grid-fields input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 820px; margin: 0 auto; }
   .sticky-save button { max-width: 820px; margin: 0 auto; display: block; }
 
@@ -93,6 +95,14 @@
 </div>
 
 <div id="panel-main" hidden>
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Oopar tabs mein apna floor chunein — Kitchen, BOH, FOH, Bar ya Delivery. "Beginning" aur "Addition" khud system bharta hai
+    (Addition wo maal hai jo Issue Entry se is floor ko bheja gaya). Aap ko sirf "Ending Count" mein woh number likhna hai
+    jo aap ne physically count kiya hai is floor par. Kitchen mein shift (Morning/Evening) bhi chunein — nayi shift shuru
+    karne se purani shift band ho jati hai aur uska Ending Count agli shift ki Beginning ban jata hai.
+    Jab sab floors ka Ending Count likh lein to neeche "Save Ending Counts" button dabayen.
+  </div>
   <div class="tabs">
     <button type="button" class="tab-btn active" data-floor="KITCHEN">Kitchen</button>
     <button type="button" class="tab-btn" data-floor="BOH">BOH</button>

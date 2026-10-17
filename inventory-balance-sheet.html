@@ -43,6 +43,8 @@
   .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
   .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; align-items: flex-end; }
   .filter-row > * { flex: 1; min-width: 140px; }
   .filter-row .btn-ghost { flex: none; }
@@ -113,6 +115,15 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="urdu-box no-print">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh report sirf dekhne ke liye hai, ismein kuch likhna nahi hai. "Beginning" wo balance hai jo pichli date se chala aya,
+    "Add" purchases hain, "Sub" wo maal hai jo issue hua, aur "End" system ka calculated number hai. Agar kisi item ki rate
+    recently zyada badli ho to "Δ Rate %" column mein nishan (⚠) dikhega — is par nazar rakhein, yeh ghalti bhi ho sakti hai
+    aur sacha price change bhi. Upar "Food Cost" / "Non-Convertible" / "Uncategorized" tiles batate hain kitna stock bikne
+    ke kaabil hai aur kitna sirf consumable/non-sellable hai. Date badalne ke liye "As of date" use karein.
+  </div>
 
   <div class="card controls">
     <div class="filter-row" id="view-switch-row" hidden>
