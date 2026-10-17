@@ -116,6 +116,8 @@ share the same underlying `shift_manager` app_user row).
 | `goods_receipt` | goods-receipt.html | Store Person, Ahsan, Hamza, Aqib, Anjum, + Directors |
 | `pos_upload` | pos-upload.html | Zeeshan, + Directors |
 | `purchase_order` | purchase-order.html | Hammad, Imran, + Directors |
+| `po_authorize` | purchase-order.html (Authorize stage) | Imran, + Directors (Admin, Yasir Riaz) — undocumented until 2026-10-17; directors do NOT get this automatically from `role==='director'`, they need the same explicit `manager_page_access` row as anyone else |
+| `fast_track_demand` | fast-track-demand.html | Ahsan, Hamza, Aqib, Anjum, Store Person, Imran, + Directors (2026-10-17 — new page; lets a shift manager send a pre-authorized order straight to `purchase_orders.status='Ordered'` for vendors flagged `vendors.fast_track=true` only, skipping the Authorize stage. Built for overnight perishables — FNK Bakery, FNK Grill — where the demand is phoned in and delivered before the store opens, i.e. before the store person or Zeeshan come on duty. Receive and Vendor Payment stages are untouched: whoever opens the store receives it normally on Goods Receipt, and since both vendors run on `payment_terms='credit'`, it becomes a payable Zeeshan clears later through the existing running-balance logic in vendor-payment.html. Gated in RLS by policy `anon_fast_track_order_po`, which requires BOTH `manager_has_page_access(..., 'fast_track_demand')` AND the target vendor's `fast_track=true` flag, plus `requested_by = ordered_by` = the logged-in user.) |
 | `item_master` | item-master.html | Directors only |
 | `variance_items` | variance-items.html | Directors only |
 | `moq_setup` | moq-setup.html | Directors only |

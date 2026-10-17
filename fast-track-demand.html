@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C-5 Fast-Track Demand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  select[readonly], input[readonly] { opacity: 0.7; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+  .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .po-card .po-title { font-weight: 600; }
+  .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+  .badge-ordered { background: var(--warn-bg); color: var(--warn); }
+  .badge-received { background: var(--ok-bg); color: var(--ok); }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit; width:auto;">← Entry Screen</a>
+
+<h1>C-5 Fast-Track Demand</h1>
+<div class="sub">For bakery/grill-style perishables only — overnight order, no live authorization step</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="main-panel" hidden>
+
+<div class="urdu-box">
+  <b>Tareeqa (Instructions in Roman Urdu)</b>
+  Yeh page sirf un items ke liye hai jo raat ko count hone ke baad seedha bakery/grill ko phone per order kiye jate hain aur subah store khulne se pehle delivery ho jate hain (jaise cakes, malai boti) — iss waqt store person aur Zeeshan duty per nahi hote, isliye normal Authorize step yahan skip ho jata hai, sirf un vendors ke liye jo owner ne "fast-track" mark kiye hain. Vendor aur item select karein, raat ko jo ending balance gin'na hai wo likhein (optional), phir jitni demand bakery/grill ko phone per batai hai wahi quantity likh kar "Send Pre-Authorized Order" dabayen. Yeh order seedha "Ordered" ban jata hai — subah jo bhi store khole, Goods Receipt page per isay receive kar sakta hai, aur Zeeshan apni normal duty per aa kar is vendor ka payment credit/running account se clear karega.
+</div>
+
+<div class="banner banner-warn">
+  This skips the director Authorize step — only because the owner has pre-flagged this vendor as fast-track (overnight perishable, no time for prior sign-off). It's still fully logged: who ordered it, when, and why. Use it only for genuinely time-boxed overnight items, not as a shortcut for ordinary purchases.
+</div>
+
+<div class="card">
+  <div class="step-label">New Fast-Track Order</div>
+  <div class="field">
+    <label>Vendor</label>
+    <select id="f-vendor"><option value="">— pick a vendor —</option></select>
+    <div class="hint" id="vendor-empty-hint" hidden>No vendors are flagged fast-track yet — ask the owner to flag one in Manage Access / vendor setup.</div>
+  </div>
+  <div class="field">
+    <label>Item</label>
+    <input type="text" id="f-item-search" placeholder="Start typing an item name...">
+    <select id="f-item-select" style="margin-top:6px;"></select>
+  </div>
+  <div class="row2 field">
+    <div>
+      <label>Qty to Order</label>
+      <input type="number" id="f-qty" step="any" placeholder="0">
+    </div>
+    <div>
+      <label>Unit</label>
+      <input type="text" id="f-unit" readonly>
+    </div>
+  </div>
+  <div class="hint" id="f-suggest-hint"></div>
+  <div class="field">
+    <label>Ending Balance Counted Tonight (optional)</label>
+    <input type="number" id="f-counted" step="any" placeholder="What you physically counted, if relevant">
+  </div>
+  <div class="field">
+    <label>Notes</label>
+    <textarea id="f-notes" rows="2" placeholder="e.g. phoned to bakery manager at 11:40pm"></textarea>
+  </div>
+</div>
+<button class="btn-primary" id="btn-submit" type="button">Send Pre-Authorized Order</button>
+<button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+
+<div class="card" style="margin-top:16px;">
+  <div class="step-label">Today's Fast-Track Orders</div>
+  <div id="today-list"></div>
+  <div class="hint" id="today-empty" hidden>Nothing sent yet today.</div>
+</div>
+
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;" id="success-title">Sent</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub"></div>
+  <button class="btn-primary" id="btn-success-ok" type="button" style="margin-top:18px;">OK</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
+const PAGE_KEY = "fast_track_demand";
+
+let state = { userId: null, userRole: null, userName: null, managerId: null, products: [], vendors: [] };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userRole = role;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("main-panel").hidden = false;
+  resetForm();
+  loadTodayList();
+}
+
+function backToNames() {
+  state.userId = null; state.userRole = null; state.userName = null;
+  document.getElementById("main-panel").hidden = true;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+async function loadProducts() {
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
+  } catch (e) { state.products = []; }
+}
+
+async function loadVendors() {
+  try {
+    // Only vendors the owner has explicitly flagged fast_track show up here — this page
+    // can never be used to pre-authorize an order for an ordinary vendor.
+    state.vendors = await sb(`vendors?active=eq.true&fast_track=eq.true&select=id,name&order=name`);
+  } catch (e) { state.vendors = []; }
+  const sel = document.getElementById("f-vendor");
+  sel.innerHTML = '<option value="">— pick a vendor —</option>' +
+    state.vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join("");
+  document.getElementById("vendor-empty-hint").hidden = state.vendors.length > 0;
+}
+
+function populateItemSelect(filterText) {
+  const sel = document.getElementById("f-item-select");
+  const ft = (filterText || "").trim().toUpperCase();
+  const matches = ft
+    ? state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft))
+    : state.products.slice(0, 40);
+  sel.innerHTML = '<option value="">— pick an item —</option>' +
+    matches.slice(0, 60).map(p => `<option value="${p.id}">${p.code || "?"} — ${p.name}</option>`).join("");
+}
+
+async function onItemSelected() {
+  const sel = document.getElementById("f-item-select");
+  const p = state.products.find(x => x.id === sel.value);
+  const hintEl = document.getElementById("f-suggest-hint");
+  document.getElementById("f-unit").value = p ? (p.unit || "") : "";
+  if (!p) { hintEl.textContent = ""; return; }
+  hintEl.textContent = "Checking recent usage…";
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/suggest_reorder_qty`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_location_id: LOCATION_ID, p_product_id: p.id })
+    });
+    const suggested = await res.json();
+    if (suggested != null) {
+      document.getElementById("f-qty").value = suggested;
+      hintEl.textContent = `Suggested ${suggested} ${p.unit || ""} based on recent usage — change to match tonight's actual demand.`;
+    } else {
+      hintEl.textContent = "No usage pattern on file yet — enter the quantity you're phoning in manually.";
+    }
+  } catch (e) {
+    hintEl.textContent = "Couldn't calculate a suggestion — enter the quantity manually.";
+  }
+}
+
+function resetForm() {
+  document.getElementById("f-vendor").value = "";
+  document.getElementById("f-item-search").value = "";
+  document.getElementById("f-qty").value = "";
+  document.getElementById("f-unit").value = "";
+  document.getElementById("f-counted").value = "";
+  document.getElementById("f-notes").value = "";
+  document.getElementById("f-suggest-hint").textContent = "";
+  populateItemSelect("");
+}
+
+document.getElementById("f-item-search").addEventListener("input", (e) => populateItemSelect(e.target.value));
+document.getElementById("f-item-select").addEventListener("change", onItemSelected);
+
+async function loadTodayList() {
+  const list = document.getElementById("today-list");
+  const emptyHint = document.getElementById("today-empty");
+  try {
+    const rows = await sb(
+      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${todayStr()}T00:00:00&select=id,qty_requested,unit,status,ordered_at,received_qty,products(name,code),vendors(name)&order=ordered_at.desc`
+    );
+    // Keep only fast-track rows (this page's own orders) — a plain status/vendor filter
+    // server-side would need a join condition REST doesn't express simply, so filter here.
+    const fastTrackIds = new Set(state.vendors.map(v => v.id));
+    const filtered = rows.filter(r => r.vendors); // has a vendor at all (fast-track orders always do)
+    list.innerHTML = "";
+    if (!filtered.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    filtered.forEach(r => {
+      const card = document.createElement("div");
+      card.className = "po-card";
+      const badge = r.status === "Received"
+        ? `<span class="badge badge-received">Received${r.received_qty != null ? " — " + r.received_qty + " " + (r.unit || "") : ""}</span>`
+        : `<span class="badge badge-ordered">Awaiting receipt</span>`;
+      card.innerHTML = `
+        <div class="po-title">${r.products?.name || "Item"} ${badge}</div>
+        <div class="po-sub">${r.vendors?.name || "Vendor"} — ordered ${r.qty_requested} ${r.unit || r.products?.unit || ""} at ${new Date(r.ordered_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}</div>`;
+      list.appendChild(card);
+    });
+  } catch (e) {
+    emptyHint.hidden = false;
+    emptyHint.textContent = "Couldn't load today's list: " + e.message;
+  }
+}
+
+function todayStr() {
+  // C-5's business day: before 9:00am PKT still counts as the previous calendar day,
+  // same convention as every other page (sales-entry, expense-entry, etc).
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function submitOrder() {
+  const vendorSel = document.getElementById("f-vendor");
+  const itemSel = document.getElementById("f-item-select");
+  const qty = parseFloat(document.getElementById("f-qty").value) || 0;
+  const counted = document.getElementById("f-counted").value.trim();
+  const freeNotes = document.getElementById("f-notes").value.trim();
+
+  if (!vendorSel.value) return alert("Pick a vendor.");
+  if (!itemSel.value) return alert("Pick an item.");
+  if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+
+  const vendor = state.vendors.find(v => v.id === vendorSel.value);
+  const p = state.products.find(x => x.id === itemSel.value);
+
+  const noteParts = [
+    `Fast-track perishable order — pre-authorized per standing policy (vendor flagged fast-track; overnight delivery window leaves no time for the normal director Authorize step).`
+  ];
+  if (counted) noteParts.push(`Ending balance counted tonight: ${counted}.`);
+  if (freeNotes) noteParts.push(freeNotes);
+
+  const btn = document.getElementById("btn-submit");
+  btn.disabled = true;
+  try {
+    await sb("purchase_orders", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        location_id: LOCATION_ID,
+        product_id: itemSel.value,
+        vendor_id: vendorSel.value,
+        qty_requested: qty,
+        unit: p ? p.unit : null,
+        requested_by: state.userId,
+        ordered_by: state.userId,
+        ordered_at: new Date().toISOString(),
+        entered_by_manager_id: state.managerId,
+        status: "Ordered",
+        notes: noteParts.join(" ")
+      })
+    });
+    document.getElementById("main-panel").hidden = true;
+    document.getElementById("step-success").hidden = false;
+    document.getElementById("success-title").textContent = "Order sent";
+    document.getElementById("success-sub").textContent =
+      `${p ? p.name : "Item"} — ${qty} ${p ? p.unit || "" : ""} from ${vendor ? vendor.name : "vendor"}. It'll show up on Goods Receipt for whoever opens tomorrow morning.`;
+  } catch (e) {
+    alert("Couldn't send: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btn-submit").addEventListener("click", submitOrder);
+
+document.getElementById("btn-success-ok").addEventListener("click", () => {
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("main-panel").hidden = false;
+  resetForm();
+  loadTodayList();
+});
+
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
+}
+loadProducts();
+loadVendors();
+</script>
+</body>
+</html>
