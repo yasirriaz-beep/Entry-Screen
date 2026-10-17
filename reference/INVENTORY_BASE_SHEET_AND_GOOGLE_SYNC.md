@@ -1,7 +1,7 @@
 # Inventory BASE balance sheet & Google Sheets sync (2026-10-10)
 
 Reference notes for future sessions. Covers the rework of `stock-count.html` to
-show an explicit Beginning/Add/Sub/Ending breakdown "like Excel" (Yasir's
+show an explicit Beginning/Add/Sub/Ending breakdown "like Excel" (the owner's
 words), the physical-count cadence rule, and the automatic push into a Google
 Sheet in his Drive.
 
@@ -22,12 +22,12 @@ This was always saved to `inventory_snapshots` (`opening_qty`, `purchases_qty`,
 *displayed* two columns, "Expected" and "Counted" — the four-part breakdown
 existed in the data but not on screen. The 2026-10-10 change added explicit
 **Beg / Add / Sub / End** columns to the item list (plus the existing Count
-input and a variance tag), matching the layout Yasir used in Excel. No new
+input and a variance tag), matching the layout the owner used in Excel. No new
 math was introduced — this was a display change over the same formula.
 
 ## Physical-count cadence banner
 
-Yasir's rule: the physical balance must be checked **every 2 days by Store
+The owner's rule: the physical balance must be checked **every 2 days by Store
 Person**, and **biweekly (14 days) by Auditor**. `stock-count.html` now shows
 a banner (`renderCadenceBanner()`) right after login, keyed off
 `state.userRole` (returned by `verify_manager_pin`, see
@@ -42,9 +42,9 @@ location and compares it to today. This is a **reminder only** — it does not
 block counting early or late, and it does not track per-item cadence, only
 "has anyone counted anything recently."
 
-## Google Sheet: "Gulberg (C-5) Inventory Balance Sheet"
+## Google Sheet: "C-5 (C-5) Inventory Balance Sheet"
 
-A live-sync target was created in Yasir's Google Drive (not a template match —
+A live-sync target was created in the owner's Google Drive (not a template match —
 he confirmed there was no pre-existing item-level BASE sheet to mirror; the
 old monthly C-5 files only had a branch-level inventory rollup). Columns:
 `Category, Item, Unit, Beginning, Add (Purchases), Sub (Issuance), Ending
@@ -53,11 +53,11 @@ product (665 rows as of creation), seeded from a one-time SQL snapshot.
 
 ## Automatic sync: Supabase Edge Function + pg_cron
 
-Yasir asked for **true automatic sync**, not just an on-demand export button.
+The owner asked for **true automatic sync**, not just an on-demand export button.
 
 - **Edge Function `sync-inventory-to-sheets`** (deployed, `verify_jwt:
   false`) — recomputes the same BASE formula server-side for every active
-  product at the Gulberg location, then authenticates to the Google Sheets
+  product at the C-5 location, then authenticates to the Google Sheets
   API as a service account (builds and signs its own JWT with Web Crypto,
   exchanges it for an OAuth access token) and overwrites the sheet's data
   range with the fresh values.
@@ -66,7 +66,7 @@ Yasir asked for **true automatic sync**, not just an on-demand export button.
   the business day's close) and calls the function via `net.http_post`
   (`pg_cron` + `pg_net` extensions, enabled in the same migration).
 
-### One-time setup still needed from Yasir before this actually syncs
+### One-time setup still needed from the owner before this actually syncs
 
 The function is deployed and scheduled, but it has **no credentials yet** —
 Supabase Edge Function secrets are entered by the user directly in the
@@ -77,7 +77,7 @@ AI session. Three secrets need values (Supabase Dashboard → Edge Functions →
 1. **Create a Google Cloud service account** (console.cloud.google.com → a
    project → APIs & Services → enable "Google Sheets API" → IAM & Admin →
    Service Accounts → Create → download its JSON key).
-2. **Share the Google Sheet** ("Gulberg (C-5) Inventory Balance Sheet") with
+2. **Share the Google Sheet** ("C-5 (C-5) Inventory Balance Sheet") with
    that service account's email (from the JSON, `client_email`) as **Editor**
    — a service account only sees sheets explicitly shared with it.
 3. Set the three secrets from that JSON key / sheet URL:
@@ -103,7 +103,7 @@ build.
 
 ## Excel master workbook — automatic backup sync (2026-10-10)
 
-Yasir's separate, earlier ask: keep **`FNK_Gulberg_Master_Workbook.xlsx`** (the
+The owner's separate, earlier ask: keep **`FNK_Gulberg_Master_Workbook.xlsx`** (the
 real Excel file he built by hand, with real September 2026 data and live
 formulas across 14 sheets — README, Dashboard, P&L Summary, Sales, Food
 Panda, Expense Entry, Purchase Orders, Payables, Issue Log, Inventory,
@@ -138,12 +138,12 @@ this needed a different mechanism than the inventory-sheet sync above:
    ranges don't loop back and sum themselves.
 2. **`excel-sync/scripts/sync_excel_backup.py`** — pulls from four read-only
    Supabase views (`v_excel_sync_sales`, `v_excel_sync_expenses`,
-   `v_excel_sync_purchase_orders`, `v_excel_sync_issue_log`, all Gulberg-only,
+   `v_excel_sync_purchase_orders`, `v_excel_sync_issue_log`, all C-5-only,
    granted to `service_role` only), fully rewrites rows 5+ of the four input
    sheets from that data (every run is a clean regenerate, not an append —
    simpler and can't double-count), fills in each row's own per-row formulas
    (Item Name/Unit/Rate lookups, Cash Impact, etc.) by copying row 5's formula
-   pattern down, and saves the result. Tested locally against real Gulberg
+   pattern down, and saves the result. Tested locally against real C-5
    rows pulled via SQL — recalculates with 0 formula errors and the numbers
    roll up correctly (verified Dashboard total, Inventory closing stock for a
    few items by hand).
@@ -152,7 +152,7 @@ this needed a different mechanism than the inventory-sheet sync above:
    has baked-in values, not just formula text.
 4. **`excel-sync/scripts/upload_to_drive.py`** — creates (first run) or
    overwrites (every run after) one file in Google Drive via a service
-   account, so the shareable link never changes, and shares it with Yasir's
+   account, so the shareable link never changes, and shares it with the owner's
    email if `EXCEL_BACKUP_NOTIFY_EMAIL` is set.
 5. **`.github/workflows/sync-excel-backup.yml`** — runs the three steps above
    nightly at 20:05 UTC (5 minutes after the Google Sheet sync, so the two
@@ -163,7 +163,7 @@ this needed a different mechanism than the inventory-sheet sync above:
 
 The app's own product catalog (`products.code`, 787 products) and this
 workbook's Item Code list (481 codes like `FD-001`) are **two different,
-partially-reconciled numbering schemes**. Checking real Gulberg data:
+partially-reconciled numbering schemes**. Checking real C-5 data:
 some products already carry the workbook's own codes (`FD-205`, `CL-008`,
 `PK-014`) — those sync perfectly and show up correctly on the Inventory tab.
 Others still carry the app's original seed codes (`1.1.00`, `1.3.09`,
@@ -176,7 +176,7 @@ Payroll `SUMIFS` formulas won't count that row. Every synced Expense Entry
 sheet gets a note in cell `S1` saying this plainly, so it's visible, not
 silent.
 
-**Fix, when Yasir wants to do it:** either (a) re-code the ~300 unmigrated
+**Fix, when the owner wants to do it:** either (a) re-code the ~300 unmigrated
 `products` rows to the workbook's `FD-`/`PK-`/`CL-`/... scheme (cleanest,
 makes the two catalogs genuinely the same list), or (b) add a mapping table
 (`product_id -> workbook_item_code`) so the sync can translate without
@@ -184,7 +184,7 @@ touching `products.code` itself. Neither has been done yet — this is a
 pre-existing data-quality gap in the app's product catalog, not something
 introduced by this sync.
 
-### One-time setup needed from Yasir (shares the service account above)
+### One-time setup needed from the owner (shares the service account above)
 
 Same Google Cloud service account as the inventory-sheet sync can be reused
 — just needs two more things:

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Item Master</title>
+<title>C-5 Item Master</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -74,7 +74,7 @@
 <a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
 
 
-<h1>Gulberg Item Master</h1>
+<h1>C-5 Item Master</h1>
 <div class="sub">Add, edit, or retire items — director access only</div>
 
 <div id="step-name" class="card">
@@ -176,8 +176,8 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const ORG_ID = "00000000-0000-0000-0000-000000000001";
 const PAGE_KEY = "item_master";
 
-// ADMIN OVERRIDE PASSWORD — change this to something only Yasir and his director(s) know.
-const ADMIN_OVERRIDE_PASSWORD = "FNK-Gulberg-2026";
+// ADMIN OVERRIDE PASSWORD — change this to something only the owner and director(s) know.
+const ADMIN_OVERRIDE_PASSWORD = "C5-OVERRIDE-2026";
 
 let state = { userId: null, userName: null, managerId: null, products: [] };
 
@@ -237,13 +237,13 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
           setTimeout(() => {
         afterLogin(row.app_user_id, match.name, match.id, row.role);
       }, 150);
     nameInput.value = "";
     pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -272,7 +272,7 @@ function selectUser(managerId, name, pillEl) {
       if (!row) { alert("Incorrect PIN."); return; }
       document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
       pillEl.classList.add("selected");
-      FNKSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+      AppSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
       setTimeout(() => {
         afterLogin(row.app_user_id, name, managerId, row.role);
       }, 150);
@@ -492,10 +492,10 @@ async function setItemActive(p, active) {
 document.getElementById("search-items").addEventListener("input", renderItemList);
 document.getElementById("show-inactive").addEventListener("change", loadItems);
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 </body>

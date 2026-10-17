@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Cash Priority &amp; Payments</title>
+<title>C-5 Cash Priority &amp; Payments</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -74,7 +74,7 @@
 <a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit; width:auto;">← Entry Screen</a>
 
 <h1>Cash Priority &amp; Payments</h1>
-<div class="sub">Forks N Knives — Gulberg — how much cash is available right now, what it owes this month, and where to put it next</div>
+<div class="sub">C-5 — how much cash is available right now, what it owes this month, and where to put it next</div>
 
 <div id="step-name" class="card">
   <div class="hint" style="margin-bottom:10px;">Who's checking in?</div>
@@ -123,7 +123,7 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "cash_priority";
 
 let state = { userId: null, userName: null, managerId: null, role: null };
@@ -155,7 +155,7 @@ function fmtMoney(n) {
 }
 
 function todayStr() {
-  // Gulberg's business day cuts over at 9am PKT, same convention as the other entry pages.
+  // C-5's business day cuts over at 9am PKT, same convention as the other entry pages.
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false }).formatToParts(new Date());
   const get = (t) => parts.find((p) => p.type === t).value;
   let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
@@ -186,10 +186,10 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
     setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
     nameInput.value = ""; pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false; pinInput.value = ""; pinInput.focus();
   } finally {
@@ -361,10 +361,10 @@ async function loadWaterfallAndSuggestions() {
   sugWrap.innerHTML = suggestHtml;
 }
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 </body>

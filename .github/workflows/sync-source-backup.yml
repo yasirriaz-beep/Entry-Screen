@@ -1,0 +1,54 @@
+name: Nightly source code backup (off-site, Google Drive)
+
+# Independent of GitHub itself: zips the whole repo (minus .git) every
+# night and uploads it to the same Google Drive the Excel-workbook backup
+# already uses, reusing its service-account credentials. This exists so a
+# full copy of the system lives somewhere other than GitHub too — git
+# history on GitHub is already a backup, but this is a second, separate
+# location in case GitHub access is ever lost, the repo is ever deleted,
+# or an account issue locks it out.
+#
+# Keeps one dated zip per day (C5_Source_Backup_YYYY-MM-DD.zip) rather than
+# overwriting a single rolling file, so a bad night never erases the last
+# good backup. Drive storage cost for a small HTML/JS repo is negligible;
+# prune old dated files by hand in Drive if the folder gets cluttered.
+
+on:
+  schedule:
+    # 20:15 UTC ~= 01:15 AM PKT -- 10 minutes after the Excel-workbook
+    # backup job, so the two never race on the same service-account token.
+    - cron: "15 20 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install -r excel-sync/scripts/requirements.txt
+
+      - name: Zip the full source tree (excludes .git)
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          echo "BACKUP_FILE=C5_Source_Backup_${DATE}.zip" >> "$GITHUB_ENV"
+          zip -rq "/tmp/C5_Source_Backup_${DATE}.zip" . -x ".git/*"
+
+      - name: Upload to Google Drive
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_TARGET_FILE_NAME: ${{ env.BACKUP_FILE }}
+          NOTIFY_EMAIL: ${{ secrets.EXCEL_BACKUP_NOTIFY_EMAIL }}
+        run: python excel-sync/scripts/upload_to_drive.py "/tmp/${{ env.BACKUP_FILE }}" "application/zip"
+
+      - name: Upload run artifact (debug copy, 7-day retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-backup
+          path: /tmp/${{ env.BACKUP_FILE }}
+          retention-days: 7

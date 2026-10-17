@@ -55,7 +55,7 @@ the per-screen access matrix: see `ACCESS_CONTROL_AND_PIN_SYSTEM.md` in this sam
 
 ## Drinks/Bakery usage entry — Added/Closing split (2026-10-08)
 
-Yasir's words: "any number that was input by store man as issuance would be added in the
+The owner's words: "any number that was input by store man as issuance would be added in the
 daily usage screen. all manager would input is the closing balance. he cannot change the
 added amount as they can show misleading amounts to match their inventory." Confirmed:
 Discard still belongs to Shift Manager (not Store Man), and Opening auto-carries-forward
@@ -89,7 +89,7 @@ the row). Update policy requires `last_updated_by_user_id` to resolve to `direct
 `shift_manager`.
 
 **Tested and confirmed working** (2026-10-08, via `begin; set local role anon; ...;
-rollback;` against the real Gulberg location and a real variance_item): Store Man insert
+rollback;` against the real C-5 location and a real variance_item): Store Man insert
 succeeds with Opening auto-computed as 0; a Shift Manager update that also tries to sneak
 in a changed `added_qty` is rejected with a clear Postgres exception; a legitimate Shift
 Manager Closing/Discard update succeeds and `usage_qty` computes correctly; a Store Man

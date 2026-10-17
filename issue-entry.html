@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Issue Entry</title>
+<title>C-5 Issue Entry</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -83,7 +83,7 @@
 <a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
 
 
-<h1>Gulberg Issue Entry</h1>
+<h1>C-5 Issue Entry</h1>
 <div class="sub">Store room se Kitchen / BOH / FOH / Delivery ko roz ka issuance</div>
 
 <div id="task-banner-wrap"></div>
@@ -172,12 +172,12 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "issue_entry";
 
 // Matches Floor Inventory's FLOORS exactly (Kitchen/BOH/FOH/Bar/Delivery) —
 // Bar was dropped from here at first since it had zero historical issues at
-// Gulberg, but that left Floor Inventory's Bar tab with no way to ever
+// C-5, but that left Floor Inventory's Bar tab with no way to ever
 // receive stock through this page. Keeping the two in lockstep even if Bar
 // stays empty in practice.
 const DESTS = [
@@ -238,7 +238,7 @@ function fmtQty(n) {
   return (Math.round(v * 100) / 100).toLocaleString();
 }
 function todayStr() {
-  // Gulberg's business day: before 9:00am PKT still counts as the previous
+  // C-5's business day: before 9:00am PKT still counts as the previous
   // calendar day, since the restaurant runs past midnight and does not
   // really "end" until the early-morning close.
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -273,14 +273,14 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({
+    AppSession.set({
         managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role,
         pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString()
       });
           setTimeout(() => afterLogin(row.app_user_id, match.name, match.id, row.role), 150);
     nameInput.value = "";
     pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -469,7 +469,7 @@ function renderItemList() {
     }
 
     // opening/purchasesQty/issuesQty are still computed (expectedQty returns them
-    // together with expected) but no longer displayed — Yasir asked to show only
+    // together with expected) but no longer displayed — the owner asked to show only
     // the Ending Balance here, since Beg/Add/Sub aren't relevant to the store man.
     const { expected } = expectedQty(p.id, date);
     const dirtyRow = state.dirty[p.id] || {};
@@ -589,10 +589,10 @@ async function loadTaskBanner(){
   } catch (e) { wrap.innerHTML = ""; }
 }
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 loadTaskBanner();
 </script>

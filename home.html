@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Forks N Knives — Gulberg</title>
+<title>C-5</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -66,7 +66,7 @@
 </head>
 <body>
 
-<h1>Forks N Knives — Gulberg</h1>
+<h1>C-5</h1>
 <div class="sub">Sign in to see the pages you have access to</div>
 
 <div id="step-login" class="card">
@@ -209,7 +209,7 @@ async function doLogin(e) {
       viewOnlyPages: (pageRows || []).filter((r) => r.view_only).map((r) => r.page_key),
       loginAt: new Date().toISOString(),
     };
-    FNKSession.set(session);
+    AppSession.set(session);
     nameInput.value = "";
     pinInput.value = "";
     showMain();
@@ -231,7 +231,7 @@ function showMain() {
   document.getElementById("director-hint").hidden = session.role !== "director";
 
   const visibleSections = SECTIONS
-    .map((s) => ({ name: s.name, pages: s.pages.filter((p) => FNKSession.hasAccess(session, p.key)) }))
+    .map((s) => ({ name: s.name, pages: s.pages.filter((p) => AppSession.hasAccess(session, p.key)) }))
     .filter((s) => s.pages.length);
 
   if (!visibleSections.length) {
@@ -271,14 +271,14 @@ function renderPages(visibleSections) {
     const a = document.createElement("a");
     a.className = "page-link";
     a.href = p.url;
-    const viewOnly = FNKSession.isViewOnly(session, p.key);
+    const viewOnly = AppSession.isViewOnly(session, p.key);
     a.innerHTML = `<span>${p.label}${viewOnly ? ' <span class="view-only-badge">view only</span>' : ""}</span><span class="arrow">&rarr;</span>`;
     grid.appendChild(a);
   });
 }
 
 document.getElementById("btn-switch").addEventListener("click", () => {
-  FNKSession.clear();
+  AppSession.clear();
   session = null;
   document.getElementById("panel-main").hidden = true;
   document.getElementById("step-login").hidden = false;
@@ -289,7 +289,7 @@ document.getElementById("btn-switch").addEventListener("click", () => {
 });
 
 // Already logged in this visit? Skip straight to their pages.
-const existing = FNKSession.get();
+const existing = AppSession.get();
 if (existing) {
   session = existing;
   showMain();

@@ -1,4 +1,4 @@
-# Gulberg System — Operations Guide
+# C-5 System — Operations Guide
 
 A living reference for how this system works day to day. Grows as the system grows — every
 time a new screen, rule, or control gets added, a note goes here so new staff (and future-us)
@@ -12,7 +12,7 @@ don't have to reverse-engineer it from the code.
 |---|---|---|
 | Record a sale (dine-in/takeaway/delivery/etc.) | `sales-entry.html` | Shift manager |
 | Record an expense (cash out) | `expense-entry.html` | Store man / shift manager |
-| Fix a miscategorized/incorrect expense | `expense-edit.html` | Zeeshan / Imran / Yasir |
+| Fix a miscategorized/incorrect expense | `expense-edit.html` | Zeeshan / Imran / the owner |
 | Add/edit/retire an expense category or subcategory | `expense-categories.html` | Director only |
 | Demand → Authorize → Order a purchase (before it's received) | `purchase-order.html` | Any manager (Demand) / Director (Authorize, Order) |
 | Authorize a purchase demand only (standalone page) | `po-authorize.html` | Anyone granted the "Purchase Order — Authorize" page in Manage Access |
@@ -43,7 +43,7 @@ editable from `expense-categories.html` (director access only). Each category ca
   "Charge to Restaurant": an entry under that head couldn't be saved without sign-off first
   (enforced both in the UI and by a database trigger, `validate_expense_category()` — it
   would fail even if someone bypassed the app and hit the database directly). Removed at
-  Yasir's request — the column still exists (`UPDATE expense_categories SET
+  the owner's request — the column still exists (`UPDATE expense_categories SET
   requires_rgm_approval = false WHERE name = 'Charge to Restaurant'`), so the RGM-sign-off
   block, PIN field, and database trigger check all come back automatically if it's ever
   flipped back to `true` for this or any other category; nothing else needs to change.
@@ -94,7 +94,7 @@ editable from `expense-categories.html` (director access only). Each category ca
      in every report from the moment it was entered — this is a review trail, not a
      financial control.
   2. **Charge to Restaurant — for your review** (visible to Directors only). Once Hammad (or
-     a director) approves an entry, it shows up here for Yasir — amount, date, who entered
+     a director) approves an entry, it shows up here for the owner — amount, date, who entered
      it, when it was approved. No action is required; a **Got it** button
      (`mark_charge_to_restaurant_seen_v1`) just clears it off the list by stamping
      `owner_seen_at`, director-only, purely for the owner's own tidiness.
@@ -104,7 +104,7 @@ editable from `expense-categories.html` (director access only). Each category ca
      `role_todos` (`role_key, text, status, created_by_manager_id, created_at,
      done_by_manager_id, done_at`). Anyone with access to this page can add an item to any
      role's list or check one off — there's no per-role write restriction, since in practice
-     Yasir is usually the one adding items for other roles. Adding goes through
+     the owner is usually the one adding items for other roles. Adding goes through
      `add_role_todo_v1`, checking off through `set_role_todo_status_v1` — both
      `SECURITY DEFINER` RPCs that verify the caller is an active manager granted the
      `rgm_tasks` page (reads of the table go straight through PostgREST, since
@@ -182,7 +182,7 @@ column throughout. Below-the-line items sit in a separate memo box, excluded fro
 2. **Goods Receipt** — every vendor delivery logged in `purchases`, broken down by vendor.
    This was missing until Oct 12, 2026 — Cost of Sales was understating real cost by
    whatever had been received but not separately expensed.
-3. **Bakery (Intercompany)** — `daily_sales.bakery_sale` is deducted here as what Gulberg
+3. **Bakery (Intercompany)** — `daily_sales.bakery_sale` is deducted here as what C-5
    owes its sister bakery entity, compared against FNK Bakery's actual Goods Receipt total
    for the same period. The two should converge to ~0 variance at month end; a red flag means
    either FNK Bakery hasn't logged its deliveries yet, or the numbers genuinely don't match
@@ -239,7 +239,7 @@ responsible for the cash at each stage:
 
 ### Viewing/editing a past date on Sales Entry (added Oct 14, 2026)
 
-Logging in to `sales-entry.html` always opens **today's** entry (Gulberg's business day, with
+Logging in to `sales-entry.html` always opens **today's** entry (C-5's business day, with
 the usual 9am PKT cutoff). Only a **director** sees an editable **Date** field after logging
 in; everyone else (shift manager, etc.) is locked to today with no way to drift onto another
 day. A director changes the date there to review or correct a past day's shift — the two shift
@@ -352,7 +352,7 @@ That trigger function is now a no-op (neutralized via `CREATE OR REPLACE`, not d
 DROP/DELETE statements are blocked on this project) — all booking now happens only through the
 explicit, interactive flow above.
 
-**JazzCash collected at night (added Oct 13, 2026):** at Gulberg, the JazzCash balance flagged
+**JazzCash collected at night (added Oct 13, 2026):** at C-5, the JazzCash balance flagged
 during Morning is actually cashed out around 10pm and physically handed into the **Evening**
 till — it doesn't just sit as a receivable forever. So Evening (only) has a second field, **"Cash
 received this shift — JazzCash collected from Morning"**, right under Cash Expenses in the Till
@@ -630,7 +630,7 @@ hidden in the UI — a manager can't get around either by calling the API direct
   `role = 'shift_manager'` AND the date is `current_business_date()` (today, by the same
   9am Karachi cutover used everywhere else). Store man and Shift Manager both see a lock
   banner in the UI once a date other than today is selected, but the real enforcement is the
-  RLS check — all three Director accounts (Yasir, Imran, and the generic Admin account) can
+  RLS check — all three Director accounts (the owner, Imran, and the generic Admin account) can
   still fix a past day's attendance; this was confirmed as the intended rule (directors have
   full oversight access everywhere else in the system too), not a gap.
 - **Weekly Off is capped per calendar month, hard-enforced.** Added because managers were
@@ -777,11 +777,11 @@ picking a prepaid vendor from the "Select vendor…" dropdown said "No outstandi
 with no indication a receivable existed. Selecting one now says plainly "We've prepaid PKR X
 ahead of delivery — this is a receivable, not something owed."
 
-**Remember balances are per-location.** `vendor-payment.html` only ever looks at Gulberg's own
+**Remember balances are per-location.** `vendor-payment.html` only ever looks at C-5's own
 `purchases`/`vendor_payments` rows (`location_id` filter) — a vendor's balance here reflects only
-what Gulberg itself owes or is owed, not the group's combined balance across branches. K&N is a
+what C-5 itself owes or is owed, not the group's combined balance across branches. K&N is a
 good example: as of Oct 13, 2026 K&N's *group-wide* credit purchases (171,944, almost entirely
-from another branch) dwarf Gulberg's three advances (43,000) — but Gulberg's own position with
+from another branch) dwarf C-5's three advances (43,000) — but C-5's own position with
 K&N is a receivable (43,000 prepaid, nothing received here yet), which is exactly what this page
 now shows. Don't blend numbers across locations when answering "what do we owe/are owed" — always
 check the page for the specific location in question.
@@ -810,7 +810,7 @@ completely unchanged even though the data existed. Same bug class as the
 `manager_has_page_access` RLS fixes elsewhere in this file: a hardcoded role allow-list that
 the fixing query's own actor doesn't satisfy. **When manually inserting into `purchases` (or
 any table with a role-gated SELECT policy like this one) always point `entered_by_user_id` at
-a real user whose role the SELECT policy actually allows** — here, re-pointed to Gulberg's
+a real user whose role the SELECT policy actually allows** — here, re-pointed to C-5's
 shift_manager (`S.Manager`, id `67f7245e-...`) — and verify with a `SET ROLE anon` read
 afterward, not just a normal query, since a normal query runs with elevated privileges and
 won't catch this.
@@ -820,7 +820,7 @@ won't catch this.
 Chicken. Root cause: `anon_insert_purchases` and `anon_select_purchases` only allowed
 `entered_by_user_id` to belong to `store_man` or `shift_manager` — but `manage-access.html`'s
 Manage Access had already granted the `goods_receipt` page to **cash_custodian** (Zeeshan) and
-to **director** (Yasir, Admin, Imran), none of whom the RLS recognized. So the page itself let
+to **director** (the owner, Admin, Imran), none of whom the RLS recognized. So the page itself let
 them in, the UI showed the form, and the save failed at the database with no warning until they
 tried. Fixed by widening both policies' role list to
 `ARRAY['store_man','shift_manager','cash_custodian','director']`, verified with simulated
@@ -861,7 +861,7 @@ earlier, flagged for the owner to confirm before touching it.
 ### Standalone Authorize page (added Oct 13, 2026)
 
 `purchase-order.html` gates its Authorize panel on `role === "director"` — hardcoded, not tied
-to the page-access grant. That means even if Yasir granted someone the "Purchase Orders" page in
+to the page-access grant. That means even if the owner granted someone the "Purchase Orders" page in
 Manage Access, they'd still only see the Demand panel unless their manager record's role is
 literally "director".
 
@@ -870,7 +870,7 @@ literally "director".
 Authorize/Reject panel — no Demand or Order panels. Access is controlled purely by the Manage
 Access grant for that key: whoever is granted it can log in and authorize or reject pending
 demands, regardless of their role (director, auditor, or anything else). This is how "director
-or anyone Yasir chooses" gets to authorize, without touching `purchase-order.html`'s existing
+or anyone the owner chooses" gets to authorize, without touching `purchase-order.html`'s existing
 director-only behavior, which is left as-is for backward compatibility.
 
 To let someone else authorize demands: open `manage-access.html`, grant them the
@@ -880,7 +880,7 @@ To let someone else authorize demands: open `manage-access.html`, grant them the
 
 ### Owner Dashboard — Expenses drawer label bug + Cash Position carry-forward (fixed Oct 16, 2026)
 
-Yasir reported three things on the Owner Dashboard's Expenses drill-down and Cash Position card:
+The owner reported three things on the Owner Dashboard's Expenses drill-down and Cash Position card:
 every expense row showed the generic word "Expense" instead of its real category, Safe 2
 expenses looked missing from the drawer, and the Cash Position card didn't reflect the prior
 day's cash balance.
@@ -900,7 +900,7 @@ payment method — which also resolves the "Safe 2 looks missing" complaint: Saf
 already included in the query and in every total, they just weren't visually distinguishable
 from Safe 1 ones without a category label to anchor on.
 
-**Cash/non-cash classification** — confirmed with Yasir: today's "Charge to salary X"
+**Cash/non-cash classification** — confirmed with the owner: today's "Charge to salary X"
 (Payroll · Employee Charge) and "Charge to Restaurant" entries are correctly recorded as real
 cash leaving the safe at the time of entry (e.g. cash paid now for a bike repair, recovered via
 a later payroll deduction) — the existing cash/non-cash split on the Expenses KPI tile is
@@ -1120,7 +1120,7 @@ Two things worth knowing:
 
 ### Goods Receipt against a PO silently failed for cash_custodian (fixed Oct 16, 2026)
 
-Yasir reported that after entering a Goods Receipt against a Purchase Order (qty + payment),
+The owner reported that after entering a Goods Receipt against a Purchase Order (qty + payment),
 the same item kept showing up again to receive. Root cause: `goods-receipt.html` lets
 store_man, shift_manager, cash_custodian, and director all receive against a PO, and the
 `purchases` insert succeeded for all of them — but the follow-up `purchase_orders` UPDATE

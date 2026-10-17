@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Drinks &amp; Bakery Variance</title>
+<title>C-5 Drinks &amp; Bakery Variance</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -117,7 +117,7 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 
 let state = { dept: "drinks", rows: [] };
 
@@ -141,7 +141,7 @@ async function sb(path, opts = {}) {
 }
 
 function todayStr() {
-  // Gulberg's business day: before 9:00am PKT still counts as the previous
+  // C-5's business day: before 9:00am PKT still counts as the previous
   // calendar day, since the restaurant runs past midnight and does not
   // really "end" until the early-morning close.
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -260,7 +260,7 @@ function exportToExcel() {
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, state.dept === "drinks" ? "Drinks Variance" : "Bakery Variance");
-  XLSX.writeFile(wb, `Gulberg_${state.dept}_variance_${from}_to_${to}.xlsx`);
+  XLSX.writeFile(wb, `C-5_${state.dept}_variance_${from}_to_${to}.xlsx`);
 }
 document.getElementById("btn-export").addEventListener("click", exportToExcel);
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg POS Sold Report Upload</title>
+<title>C-5 POS Sold Report Upload</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -127,7 +127,7 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "pos_upload";
 
 let state = {
@@ -197,11 +197,11 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
           afterLogin(row.app_user_id, match.name, match.id, row.role);
     nameInput.value = "";
     pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -479,10 +479,10 @@ async function saveMappingAndUpload() {
 }
 document.getElementById("btn-save-upload").addEventListener("click", saveMappingAndUpload);
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 </body>

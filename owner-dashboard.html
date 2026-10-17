@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FNK Owner Dashboard</title>
+<title>C-5 Owner Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -124,7 +124,7 @@
 
 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
   <div>
-    <h1>FNK Owner Dashboard</h1>
+    <h1>C-5 Owner Dashboard</h1>
     <div class="sub">Cross-location snapshot — director access only</div>
   </div>
   <button type="button" class="btn-ghost" id="btn-master-file" style="width:auto; white-space:nowrap; margin-top:4px;">☰ Master File</button>
@@ -205,7 +205,7 @@
   <div class="card">
     <h2>Daily Checklist &mdash; Today</h2>
     <div id="checklist-list"><div class="spinner-note">Loading…</div></div>
-    <div class="hint" style="margin-top:8px;">Shift Manager closes each shift's till on Sales Entry; Store Man logs Issue to Kitchen/Floor; Cash Custodian clears any till discrepancy. Not scoped to the range above — this is always today, in Gulberg's own clock. Anything still open past its deadline lands in Open Audit Alerts below too.</div>
+    <div class="hint" style="margin-top:8px;">Shift Manager closes each shift's till on Sales Entry; Store Man logs Issue to Kitchen/Floor; Cash Custodian clears any till discrepancy. Not scoped to the range above — this is always today, in C-5's own clock. Anything still open past its deadline lands in Open Audit Alerts below too.</div>
   </div>
 
   <div class="card">
@@ -371,7 +371,7 @@ function safeLabel(e) {
 }
 
 function todayStr() {
-  // Gulberg's business day, not the viewer's own browser date — so this reads
+  // C-5's business day, not the viewer's own browser date — so this reads
   // the same whether you're looking at the dashboard from the store or from
   // Dallas. Before 9:00am PKT still counts as the previous calendar day,
   // since the restaurant runs past midnight and doesn't really "end" until
@@ -430,11 +430,11 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
           afterLogin(row.app_user_id, match.name, match.id, row.role);
     nameInput.value = "";
     pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -520,7 +520,7 @@ async function loadFlaggedKm() {
 }
 
 function pktTodayStr() {
-  // Gulberg's business day, regardless of the viewer's own timezone: before
+  // C-5's business day, regardless of the viewer's own timezone: before
   // 9:00am PKT still counts as the previous calendar day, since the
   // restaurant runs past midnight and doesn't really "end" until the
   // early-morning close.
@@ -897,7 +897,7 @@ async function loadPayrollPayable() {
 // following month from the first week's cash), then rent and electricity, then dairy/protein
 // vendors (cheese/chicken prioritized, sized to 10-14 days of average sales), then whatever's
 // left is the inventory-maintenance reserve and profit. Advisory/dashboard only -- reads
-// targets from cash_allocation_priorities so Yasir can edit figures without a code change.
+// targets from cash_allocation_priorities so the owner can edit figures without a code change.
 async function loadCashWaterfall() {
   const wrap = document.getElementById("waterfall-list");
   if (!state.locationId) { wrap.innerHTML = '<div class="empty-note">No location.</div>'; return; }
@@ -1445,10 +1445,10 @@ async function loadAlerts() {
     </div>`).join("");
 }
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 </body>

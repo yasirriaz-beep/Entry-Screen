@@ -11,12 +11,12 @@
 // list_pages_for_manager). Directors get access to everything regardless of
 // what's in `pages` - see hasAccess().
 
-const FNK_SESSION_KEY = "fnk_session_v1";
+const APP_SESSION_KEY = "app_session_v1";
 
-const FNKSession = {
+const AppSession = {
   get() {
     try {
-      const raw = sessionStorage.getItem(FNK_SESSION_KEY);
+      const raw = sessionStorage.getItem(APP_SESSION_KEY);
       if (!raw) return null;
       const session = JSON.parse(raw);
       if (!session || !session.userId || !session.managerId) return null;
@@ -28,7 +28,7 @@ const FNKSession = {
 
   set(session) {
     try {
-      sessionStorage.setItem(FNK_SESSION_KEY, JSON.stringify(session));
+      sessionStorage.setItem(APP_SESSION_KEY, JSON.stringify(session));
     } catch (e) {
       /* sessionStorage unavailable (private mode, etc.) - caller falls back to per-page login */
     }
@@ -36,7 +36,7 @@ const FNKSession = {
 
   clear() {
     try {
-      sessionStorage.removeItem(FNK_SESSION_KEY);
+      sessionStorage.removeItem(APP_SESSION_KEY);
     } catch (e) {
       /* no-op */
     }
@@ -71,7 +71,7 @@ const FNKSession = {
   // path open on some screen. A view-only person can still read everything
   // on the page; they just can't click anything on it.
   applyAccessLock(session, pageKey) {
-    if (!FNKSession.isViewOnly(session, pageKey)) return;
+    if (!AppSession.isViewOnly(session, pageKey)) return;
     if (document.getElementById("fnk-view-only-banner")) return; // already applied
     const loginBox = document.getElementById("step-name") || document.getElementById("step-login") || document.getElementById("whoCard");
     document.querySelectorAll("input, select, textarea, button").forEach((el) => {

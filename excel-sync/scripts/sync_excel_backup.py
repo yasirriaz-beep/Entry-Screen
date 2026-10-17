@@ -199,12 +199,16 @@ def main():
     )
 
 
-def upload_to_drive(local_path):
+def upload_to_drive(local_path, mimetype=None):
     """Create-or-overwrite the Drive copy, keeping the same file id (and
     therefore the same shareable link) across every run. Needs:
       GOOGLE_SERVICE_ACCOUNT_JSON  base64 of the service-account key JSON
       GDRIVE_FILE_ID                (optional) reuse a specific existing file
       NOTIFY_EMAIL                  (optional) share with this address as writer
+
+    mimetype defaults to the original xlsx type for backward compatibility
+    with the Excel-workbook backup job; the source-code backup job passes
+    "application/zip" explicitly so Drive doesn't mislabel the file.
     """
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
@@ -221,7 +225,7 @@ def upload_to_drive(local_path):
     )
     media = MediaFileUpload(
         local_path,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        mimetype=mimetype or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         resumable=True,
     )
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Inventory Balance Sheet</title>
+<title>C-5 Inventory Balance Sheet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -101,7 +101,7 @@
 <a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
 
 
-<h1>Gulberg Inventory Balance Sheet</h1>
+<h1>C-5 Inventory Balance Sheet</h1>
 <div class="sub">Beginning + Add (purchases) − Sub (issuance) = Ending — checked against the latest physical count</div>
 
 <div id="step-name" class="card">
@@ -229,7 +229,7 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "inventory_balance_sheet";
 const MONTHLY_PAGE_KEY = "inventory_balance_sheet_monthly";
 
@@ -303,7 +303,7 @@ async function doLogin(e) {
           await afterLogin(row.app_user_id, match.name, match.id, row.role);
     nameInput.value = "";
     pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -344,7 +344,7 @@ async function afterLogin(userId, name, managerId, role) {
 
 function backToNames() {
   state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [] };
-  FNKSession.clear();
+  AppSession.clear();
   document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
   document.getElementById("panel-main").hidden = true;
   document.getElementById("step-name").hidden = false;
@@ -412,7 +412,7 @@ function baseFor(productId, date) {
 }
 
 // Monthly view (restricted — see MONTHLY_PAGE_KEY). Simplified 2026-10-16 at
-// Yasir's request: don't try to reconstruct the month from day 1 — the most
+// the owner's request: don't try to reconstruct the month from day 1 — the most
 // recent physical count (today's, once one's been logged) IS the Beginning
 // Balance, full stop. Anything before that count is tracked in Excel, not here.
 // So this is just baseFor() run through the end of the selected month (or
@@ -587,10 +587,10 @@ function renderValueSummary(date) {
 }
 
 // Already logged in via home.html this visit? Skip straight to the sheet.
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role).then(() => {
-    FNKSession.applyAccessLock(existing, PAGE_KEY);
+    AppSession.applyAccessLock(existing, PAGE_KEY);
   });
 }
 </script>

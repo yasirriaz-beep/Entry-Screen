@@ -103,7 +103,7 @@
 
 
 <h1>Tasks</h1>
-<div class="sub">Gulberg — Charge to Restaurant approvals, daily RGM review, and a running to-do list for each role</div>
+<div class="sub">C-5 — Charge to Restaurant approvals, daily RGM review, and a running to-do list for each role</div>
 
 <div id="step-login" class="card">
   <div class="hint" style="margin-bottom:10px;text-transform:uppercase;letter-spacing:0.02em;font-weight:600;color:var(--ink-soft)">Who's checking in?</div>
@@ -221,7 +221,7 @@ async function sbRpc(fn, body) {
   return ct.includes("application/json") ? res.json() : null;
 }
 
-// Gulberg's business day flips at 9am PKT, same cutover used on Sales Entry / Daily
+// C-5's business day flips at 9am PKT, same cutover used on Sales Entry / Daily
 // Checklist — "today" before 9am is still counted as yesterday.
 function todayStr() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -271,7 +271,7 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
     nameInput.value = "";
     pinInput.value = "";
     afterLogin(row.app_user_id, match.name, match.id, row.role);
@@ -293,7 +293,7 @@ function afterLogin(userId, name, managerId, role) {
   document.getElementById("step-login").hidden = true;
   document.getElementById("panel-main").hidden = false;
   document.getElementById("who-label").textContent = "Signed in as " + name + " (" + role.replace("_", " ") + ")";
-  FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+  AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
 
   // Default the To-Do tab to whatever's most relevant for this person.
   if (role === "director") activeTodoRole = "director";
@@ -443,7 +443,7 @@ async function markOwnerSeen(expenseId, rowId) {
 }
 
 // ---------- To-Do Lists, one per role, kept simple on purpose: anyone on this page can
-// add an item to any role's list (Yasir is usually the one adding for others) or check
+// add an item to any role's list (the owner is usually the one adding for others) or check
 // one off. Nothing here is time-bound or escalates — it's just a running list meant to
 // grow over time as new standing responsibilities come up. ----------
 
@@ -724,8 +724,8 @@ async function confirmTask(dateStr, task, noteId, btnId, statusId) {
 }
 
 // Auto-login from an existing session (e.g. navigated here from Home).
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
 }
 </script>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Reports</title>
+<title>C-5 Reports</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -126,7 +126,7 @@
 <a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
 
 
-<h1>Gulberg Reports</h1>
+<h1>C-5 Reports</h1>
 <div class="sub">Director audit view — any day, any screen, with photos where available</div>
 <div class="retention-note">Photos are kept for 40 days from upload, then automatically removed to save space. The underlying figures stay in the system permanently.</div>
 
@@ -315,7 +315,7 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "reports";
 
 let state = { userId: null, userName: null, managerId: null, role: null, users: {}, managers: {}, vendors: {}, products: {}, lastDaily: {} };
@@ -405,11 +405,11 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
     nameInput.value = "";
     pinInput.value = "";
     afterLogin(row.app_user_id, match.name, match.id, row.role);
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -573,7 +573,7 @@ function exportDailyToExcel(model, title, from, to, filenamePrefix) {
   ws["!cols"] = [{ wch: 14 }, ...model.columns.map(() => ({ wch: 16 })), { wch: 16 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, title.slice(0, 31));
-  XLSX.writeFile(wb, `Gulberg_${filenamePrefix}_${from}_to_${to}.xlsx`);
+  XLSX.writeFile(wb, `C-5_${filenamePrefix}_${from}_to_${to}.xlsx`);
 }
 function presetRange(preset) {
   const today = todayStr();
@@ -747,7 +747,7 @@ wireDrillDown("vp-result", "vp-detail", async (date, detailEl) => {
 });
 
 // --- Cash Reconciliation report (monthly, per day — fixed columns, Status is text so no
-// row Total column; cash_safe_ledger is Gulberg-wide, so there's no location filter here,
+// row Total column; cash_safe_ledger is C-5-wide, so there's no location filter here,
 // matching the single-day report this replaces) ---
 async function runCrReport() {
   const ctx = rangeAndGuard("cr"); if (!ctx) return;
@@ -788,7 +788,7 @@ document.getElementById("cr-export").addEventListener("click", () => {
   ws["!cols"] = [{ wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Cash Reconciliation");
-  XLSX.writeFile(wb, `Gulberg_Cash_Reconciliation_${s.from}_to_${s.to}.xlsx`);
+  XLSX.writeFile(wb, `C-5_Cash_Reconciliation_${s.from}_to_${s.to}.xlsx`);
 });
 document.querySelectorAll(".btn-preset[data-range-target]").forEach(wireRangePreset);
 
@@ -862,10 +862,10 @@ document.getElementById("pay-run").addEventListener("click", runPayReport);
 // daily_sales' channel columns. Deliberately NOT built off chart_of_accounts/journal_entries
 // — those tables exist but nothing in this app posts to them, so they're not the source of truth.
 const OPEX_GROUP_ORDER = ["Payroll & Benefits", "Occupancy", "Operating Expenses", "Marketing & Delivery", "G&A / Other"];
-// Bakery items sold at Gulberg are already counted inside Dine-In/Takeaway/Delivery/etc
+// Bakery items sold at C-5 are already counted inside Dine-In/Takeaway/Delivery/etc
 // (bakery_sale on daily_sales is a memo breakdown, not a separate channel — see the comment
 // in sales-entry.html). So it must NOT be added again as revenue. It's deducted here as a
-// Cost of Sales line instead (what Gulberg owes its sister bakery entity for those goods),
+// Cost of Sales line instead (what C-5 owes its sister bakery entity for those goods),
 // and compared against FNK BAKERY's actual Goods Receipt purchases for the same period —
 // the two should converge to ~0 variance at month end.
 const FNK_BAKERY_VENDOR_ID = "a36f9863-aae0-5a58-ba7c-a97c6b259757";
@@ -1020,7 +1020,7 @@ function renderIncomeStatement(model, from, to) {
     html += `<div class="pl-uncat-banner">&#9888; ${fmtMoney(model.uncategorizedTotal)} in expenses fell under a category with no income-statement group assigned &mdash; check Expense Categories.</div>`;
   }
 
-  html += `<div class="pl-period-hdr"><strong>Forks N Knives &mdash; Gulberg</strong><br><span class="hint">Income Statement &middot; ${fmtDateLabel(from)} to ${fmtDateLabel(to)}</span></div>`;
+  html += `<div class="pl-period-hdr"><strong>C-5</strong><br><span class="hint">Income Statement &middot; ${fmtDateLabel(from)} to ${fmtDateLabel(to)}</span></div>`;
 
   html += `<div class="pl-section-title">Revenue</div>`;
   model.revenueLines.forEach(l => { html += plRow({ label: l.label, amount: l.amount, pct: pctOf(l.amount, R), level: 1 }); });
@@ -1068,7 +1068,7 @@ function renderIncomeStatement(model, from, to) {
 function modelToAoa(model, from, to) {
   const R = model.totalRevenue;
   const aoa = [];
-  aoa.push(["Forks N Knives — Gulberg"]);
+  aoa.push(["C-5"]);
   aoa.push(["Income Statement"]);
   aoa.push([`Period: ${from} to ${to}`]);
   aoa.push([]);
@@ -1123,7 +1123,7 @@ function exportIncomeStatementToExcel(model, from, to) {
   ws["!cols"] = [{ wch: 36 }, { wch: 16 }, { wch: 12 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Income Statement");
-  XLSX.writeFile(wb, `Gulberg_Income_Statement_${from}_to_${to}.xlsx`);
+  XLSX.writeFile(wb, `C-5_Income_Statement_${from}_to_${to}.xlsx`);
 }
 
 async function runIncomeStatement() {
@@ -1175,10 +1175,10 @@ document.querySelectorAll(".btn-preset").forEach(btn => {
   });
 });
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 </body>

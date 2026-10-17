@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Cash Reconciliation</title>
+<title>C-5 Cash Reconciliation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -129,7 +129,7 @@
 <a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
 
 
-<h1>Gulberg Cash Reconciliation</h1>
+<h1>C-5 Cash Reconciliation</h1>
 <div class="sub">Till handover → Zeeshan's safe, carried day to day</div>
 
 <div id="step-name" class="card">
@@ -233,7 +233,7 @@
   </div>
 
   <div class="flow-detail" id="detail-in" hidden>
-    <div class="fd-title">Cash In — from today's till handovers (Gulberg)</div>
+    <div class="fd-title">Cash In — from today's till handovers (C-5)</div>
     <div id="in-breakdown"></div>
     <div class="hint">Pulled automatically from Sales Entry's till cash reconciliation, plus any Safe 1 → Safe 2 internal transfer recorded below (e.g. a float taken back). Nothing to enter here directly.</div>
   </div>
@@ -328,7 +328,7 @@
     <button class="btn-ghost" id="acm-load" type="button" style="margin-top:0;">Refresh</button>
     <div id="acm-list" style="margin-top:12px;"><div class="hint">Loading…</div></div>
     <div class="total-line"><span class="lbl">Total cash out, this range</span><span class="num" id="acm-total">PKR 0</span></div>
-    <div class="hint">Every cash vendor payment, cash goods receipt, cash expense, and internal safe transfer recorded for Gulberg in this range — independent of whether that day's reconciliation has been opened or saved. This is the place to catch a late or advance payment your staff reports after the fact, without having to hunt down which date it landed on. Transfers are shown but excluded from the total — they're cash moving between safes, not real spending.</div>
+    <div class="hint">Every cash vendor payment, cash goods receipt, cash expense, and internal safe transfer recorded for C-5 in this range — independent of whether that day's reconciliation has been opened or saved. This is the place to catch a late or advance payment your staff reports after the fact, without having to hunt down which date it landed on. Transfers are shown but excluded from the total — they're cash moving between safes, not real spending.</div>
   </div>
 </div>
 
@@ -414,11 +414,11 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
     setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
     nameInput.value = "";
     pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -845,7 +845,7 @@ async function fetchPreviousClosing(dateStr) {
   } catch (e) { return 0; }
 }
 
-// A running, date-range log of every cash movement recorded for Gulberg — both safes —
+// A running, date-range log of every cash movement recorded for C-5 — both safes —
 // independent of the per-day reconciliation flow above. That flow only shows a day's cash
 // once you navigate to that specific date, and a "draft" day saved before a late entry lands
 // can silently go stale (the drift banner only fires when someone happens to reopen that
@@ -1316,10 +1316,10 @@ async function loadHistory() {
   }
 }
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 </body>

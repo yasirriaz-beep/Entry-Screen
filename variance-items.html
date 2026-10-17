@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Drinks &amp; Bakery Item List</title>
+<title>C-5 Drinks &amp; Bakery Item List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -150,11 +150,11 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "variance_items";
 
-// ADMIN OVERRIDE PASSWORD — change this to something only Yasir and his director(s) know.
-const ADMIN_OVERRIDE_PASSWORD = "FNK-Gulberg-2026";
+// ADMIN OVERRIDE PASSWORD — change this to something only the owner and director(s) know.
+const ADMIN_OVERRIDE_PASSWORD = "C5-OVERRIDE-2026";
 
 let state = { userId: null, userName: null, managerId: null, items: [], addDept: "drinks" };
 
@@ -214,13 +214,13 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
           setTimeout(() => {
         afterLogin(row.app_user_id, match.name, match.id, row.role);
       }, 150);
     nameInput.value = "";
     pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -249,7 +249,7 @@ function selectUser(managerId, name, pillEl) {
       if (!row) { alert("Incorrect PIN."); return; }
       document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
       pillEl.classList.add("selected");
-      FNKSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+      AppSession.set({ managerId, userId: row.app_user_id, userName: name, role: row.role, pages: [], loginAt: new Date().toISOString() });
       setTimeout(() => {
         afterLogin(row.app_user_id, name, managerId, row.role);
       }, 150);
@@ -453,10 +453,10 @@ async function setItemActive(i, active) {
 document.getElementById("search-item").addEventListener("input", renderItemList);
 document.getElementById("show-retired").addEventListener("change", loadItems);
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 </body>

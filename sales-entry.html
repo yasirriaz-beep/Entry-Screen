@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Sales Entry</title>
+<title>C-5 Sales Entry</title>
 <style>
 /* Layout: login card, then Morning / Evening / Totals shown side by side (desktop) or
    stacked Morning -> Evening -> Totals (mobile). Each shift is its own self-contained
@@ -93,7 +93,7 @@ button.ghost:disabled{opacity:.5;cursor:default}
 <a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
 
 
-<div class="eyebrow">Forks N Knives &middot; Gulberg</div>
+<div class="eyebrow">C-5</div>
 <h1>Shift Sales &amp; Cash Entry</h1>
 <p class="muted" style="margin:4px 0 18px">Morning and Evening side by side &mdash; sales by channel, then each shift's till cash reconciliation.</p>
 
@@ -140,7 +140,7 @@ button.ghost:disabled{opacity:.5;cursor:default}
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_NAME_HINT = "Gulberg";
+const LOCATION_NAME_HINT = "C-5";
 
 const headers = {
   "apikey": ANON_KEY,
@@ -511,7 +511,7 @@ function recalcCashRecon(shift){
   }
 
   // Auto-generated: what should go to the custodian to keep the till at the 20,000 float.
-  // Kept hidden from staff on purpose (Yasir, 2026-10-16) — if they can see the target
+  // Kept hidden from staff on purpose (the owner, 2026-10-16) — if they can see the target
   // number they'll just type it back instead of actually counting the till. It still runs
   // in the background for the variance check below, same as before.
   const autoHandover = cashAvailable - st.tillCashExpenses;
@@ -827,7 +827,7 @@ async function loadTaskBanner(){
 }
 
 function todayStr() {
-  // Gulberg's business day: before 9:00am PKT still counts as the previous
+  // C-5's business day: before 9:00am PKT still counts as the previous
   // calendar day, since the restaurant runs past midnight and does not
   // really "end" until the early-morning close.
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -1176,9 +1176,9 @@ document.getElementById("continueBtn").addEventListener("click", async () => {
     const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
     afterLogin(row.app_user_id, match.name, match.id, row.role);
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (e) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -1190,10 +1190,10 @@ document.getElementById("continueBtn").addEventListener("click", async () => {
 document.getElementById("dateInput").addEventListener("change", loadBothShifts);
 
 init().then(() => {
-  const existing = FNKSession.get();
-  if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+  const existing = AppSession.get();
+  if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
     afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-    FNKSession.applyAccessLock(existing, PAGE_KEY);
+    AppSession.applyAccessLock(existing, PAGE_KEY);
   }
 });
 </script>

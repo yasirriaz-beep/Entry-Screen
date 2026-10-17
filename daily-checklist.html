@@ -85,7 +85,7 @@
 
 
 <h1>Daily Checklist</h1>
-<div class="sub">Gulberg — what each role needs to get done today, with a timestamped sign-off</div>
+<div class="sub">C-5 — what each role needs to get done today, with a timestamped sign-off</div>
 
 <div id="step-name" class="card">
   <div class="step-label">Who's checking in?</div>
@@ -232,11 +232,11 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
     setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
     nameInput.value = "";
     pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (err) {
     errEl.hidden = false;
     pinInput.value = "";
@@ -438,10 +438,10 @@ document.getElementById("btn-add-item").addEventListener("click", async () => {
   } catch (e) { alert("Couldn't add item: " + e.message); }
 });
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 </script>
 </body>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gulberg Floor Inventory</title>
+<title>C-5 Floor Inventory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
@@ -161,7 +161,7 @@
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
-const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // Gulberg
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "floor_inventory";
 const EPOCH = "2000-01-01T00:00:00.000Z";
 const FLOORS = ["KITCHEN", "BOH", "FOH", "BAR", "DEL"];
@@ -235,9 +235,9 @@ async function doLogin(e) {
     const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
-    FNKSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
     nameInput.value = ""; pinInput.value = "";
-    FNKSession.applyAccessLock(FNKSession.get(), PAGE_KEY);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
     setTimeout(() => afterLogin(row.app_user_id, match.name, match.id, row.role), 150);
   } catch (err) {
     errEl.hidden = false; pinInput.value = ""; pinInput.focus();
@@ -633,11 +633,11 @@ document.getElementById("db-save").addEventListener("click", async () => {
   } catch (e) { statusEl.textContent = "Could not save: " + e.message; }
 });
 
-const existing = FNKSession.get();
-if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   document.getElementById("step-name").hidden = true;
   document.getElementById("panel-main").hidden = false;
-  FNKSession.applyAccessLock(existing, PAGE_KEY);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
   afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
 }
 </script>

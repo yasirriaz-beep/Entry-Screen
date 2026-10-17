@@ -3,7 +3,7 @@
 Started 2026-10-08. Goal: a real double-entry ledger sitting underneath the operational
 screens, structured so it can be exported as QuickBooks General Journal Entries later if this
 ever becomes a product sold to other restaurants. Built additively — new tables only, nothing
-existing touched — specifically so it carries zero risk to the 2026-10-09 Gulberg mock run.
+existing touched — specifically so it carries zero risk to the 2026-10-09 C-5 mock run.
 
 ## What's built (schema only, nothing wired yet)
 

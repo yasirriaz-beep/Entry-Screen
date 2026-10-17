@@ -1,8 +1,8 @@
 # FSD Bakery — reference notes
 
 Source file: `FSD_BAKERY_FEB-2026.xlsx` (same folder). This is the central bakery's own
-operating file (Yasir calls it a separate entity that bakes in-house and bills the
-full amount to each branch, Gulberg/C-5 included). Full bakery financials are a
+operating file (the owner calls it a separate entity that bakes in-house and bills the
+full amount to each branch, C-5/C-5 included). Full bakery financials are a
 **later** build — not done yet. These notes are so a future session doesn't have to
 re-derive the structure from scratch.
 
@@ -13,7 +13,7 @@ inventory — flour, "SPONAGE", etc. — not finished-goods), `ISSU`, `DAILY UPD
 `Sheet2`, `GENERATOR`.
 
 **`ENDING AND MAKE` and `ORDER SENT` are a stale 2022 template** (dated Aug 2022,
-never updated) — do NOT use them as the live source. Per Yasir (2026-10-08):
+never updated) — do NOT use them as the live source. Per the owner (2026-10-08):
 > "the information that is sent to branches are in the daily update tab"
 
 ## `DAILY UPDATE` — the live source, structure
@@ -23,25 +23,25 @@ then cash-safe columns. (Despite the "KOHINOOR"/"SUSAN ROAD" labels here, cross-
 against the main `locations` table before trusting branch codes — this bakery file's
 own C-1/C-2/C-5 numbering may or may not line up 1:1 with the app's `locations.code`.)
 
-Gulberg's block is columns **AJ:BA** (36–53). Row 2/3/4 hold the category label, the
+C-5's block is columns **AJ:BA** (36–53). Row 2/3/4 hold the category label, the
 column code, and that item's price (PKR) respectively:
 
 | Col | Code | Price (Feb 2026) | Best-guess meaning |
 |---|---|---|---|
-| AJ | C/C | 1100 | Unclear — ask Yasir |
-| AL | C.2.P | 2399 | Unclear, Gulberg-only column (no equivalent in C-1/C-2 blocks) — ask Yasir |
+| AJ | C/C | 1100 | Unclear — ask the owner |
+| AL | C.2.P | 2399 | Unclear, C-5-only column (no equivalent in C-1/C-2 blocks) — ask the owner |
 | AM | CT-1 | 1499 | Cake, size/weight tier 1 |
 | AN | CT-2 | 1699 | Cake, size/weight tier 2 |
 | AO | CT-3 | 1899 | Cake, size/weight tier 3 |
 | AP | PAS | 250 | Pastry |
-| AQ | LAV / CAK | 275 | Unclear ("LAV" header, "CAK" sub-label) — ask Yasir |
+| AQ | LAV / CAK | 275 | Unclear ("LAV" header, "CAK" sub-label) — ask the owner |
 | AR | CUPCAKE REG | 220 | Cupcake, regular |
 | AS | CUPCAKE CUS | 320 | Cupcake, custom |
 | AT | SUN | 220 | Sundae |
 | AU | 3 MILKI | 450 | Three Milk Cake (spelled "3 MILK"/"3 MILKI"/"T.M.S" inconsistently across sheets) |
-| AV | C.B | 120 | Unclear (maybe "Choco Ball"?) — ask Yasir |
+| AV | C.B | 120 | Unclear (maybe "Choco Ball"?) — ask the owner |
 | AW | BRO | 275 | Brownie |
-| AX | DIME | 1000 | Unclear (also spelled "DIM"/"DIMI"/"DIME" across branches) — ask Yasir |
+| AX | DIME | 1000 | Unclear (also spelled "DIM"/"DIMI"/"DIME" across branches) — ask the owner |
 | AY | TOTAL/SALE | — | computed, not an item |
 | AZ | CASH/REC. | — | cash received, not an item |
 | BA | CASH/BAL | — | balance, not an item |
@@ -56,10 +56,10 @@ live sheet.
 
 ## What's seeded so far
 The CT-1/CT-2/CT-3/PAS/CUPCAKE-REG/CUPCAKE-CUS/SUN/3MILK/BRO items above were added
-to `variance_items` (department='bakery', location=Gulberg/C-5) on 2026-10-08. Yasir
+to `variance_items` (department='bakery', location=C-5/C-5) on 2026-10-08. The owner
 then clarified the 4 unclear codes (2026-10-08): C/C = Customized Cake (priced per
 lb), LAV = Lava Cake, C.B = Choco Ball, C.2.P = likely Cheese Cake (unconfirmed) —
-all added, plus an editable `current_price` column (prices drift, Yasir wanted them
+all added, plus an editable `current_price` column (prices drift, the owner wanted them
 fixable without re-importing a file every time).
 
 **2026-10-09: superseded by an updated bar & bakery menu** (two photos, saved as
@@ -76,24 +76,24 @@ replaced with flavor-level items:
   discontinued (the menu may have more pages not photographed).
 
 Also added the full **Drinks/Bar menu** from the same photos (all department='drinks',
-Gulberg): Hot Coffee (9 items), Hot Drink/Tea (5), basic bottled drinks (350ML Drink,
+C-5): Hot Coffee (9 items), Hot Drink/Tea (5), basic bottled drinks (350ML Drink,
 Small/Large Water), Cold Beverages special drinks (Mint Margarita, Lemonade, Fresh
 Lime), Mojito (6 flavors), Ice Cream Shake (6 flavors), Special Shake (3), Cold
 Coffee (6) — 41 drinks items total. Note: this is the BAR/coffee side of the menu,
 distinct from the bottle-size "Water & BEVERAGES" POS category discussed below.
 
 **2026-10-09: the dine-in pour-from-bottle process (the original theft-prevention
-scenario) added.** Per Yasir: "we use 2.25 ltr bottle in dine in. We take out 8
+scenario) added.** Per the owner: "we use 2.25 ltr bottle in dine in. We take out 8
 glasses of drink from 2.25 ltr which is priced at 110 rupees. 1.5 ltr, 1 ltr and
 regular size go in take away and delivery orders." Confirmed Rs. 110 is **per glass**
-(not per bottle). Added to `variance_items` (department='drinks', Gulberg):
+(not per bottle). Added to `variance_items` (department='drinks', C-5):
 - **Cold Drink – Dine-In Glass** (poured from 2.25L bottle, 8 glasses/bottle),
   unit='glass', price=Rs. 110. This is the item the shift manager's drinks person
   tracks via Opening/Added/Closing/Discard — note for whoever enters data: counts
   should be in **glass-equivalent units** (1 bottle issued = 8 glasses) so usage can
   be compared against POS-sold glasses.
 - **Cold Drink – 1.5 LTR / 1 LTR / Regular Bottle (Takeaway/Delivery)** — sold whole,
-  not poured; unit='bottle'. Prices not yet given (Yasir chose to skip for now) —
+  not poured; unit='bottle'. Prices not yet given (the owner chose to skip for now) —
   `current_price` left null, editable later in variance-items.html.
 
 ## For the later full bakery-financials build
@@ -101,4 +101,4 @@ regular size go in take away and delivery orders." Confirmed Rs. 110 is **per gl
   for the bakery's own COGS, separate from what it bills branches.
 - `PAY ROLL`, `EXPENSES`, `PURCHASE`, `P&L WITH EXP.` = the bakery's own P&L inputs.
 - Branch billing ("charges the full amount to branches") would come from the
-  per-branch `SALE`/`REC.`/`BAL` columns in `DAILY UPDATE` (e.g. Gulberg's AY/AZ/BA).
+  per-branch `SALE`/`REC.`/`BAL` columns in `DAILY UPDATE` (e.g. C-5's AY/AZ/BA).

@@ -10,8 +10,8 @@ role/table permission matrix; this file only covers the new identity layer sitti
 Several `app_users` rows are shared by multiple real people: `S.Manager` (shift_manager)
 is used by four different humans (Ahsan/RGM, Hamza, Aqib, Anjum), so the database had no
 way to tell them apart — every row they touched was attributed to the same generic
-"Shift Manager" identity. Yasir asked for individual accountability: each real person gets
-their own name and PIN, and Yasir can grant/revoke each person's access to each screen
+"Shift Manager" identity. The owner asked for individual accountability: each real person gets
+their own name and PIN, and the owner can grant/revoke each person's access to each screen
 individually (e.g. Anjum can get Delivery access but not Payroll, even though he and Ahsan
 share the same underlying `shift_manager` app_user row).
 
@@ -70,11 +70,11 @@ share the same underlying `shift_manager` app_user row).
   (`director-home.html`/`shift-manager-home.html`/`store-man-home.html`/
   `cash-custodian-home.html`/`auditor-home.html`), which are now just redirect stubs to
   `home.html` so old bookmarks still land somewhere sensible.
-- **`session.js`** — shared helper (`FNKSession.get/set/clear/hasAccess`) backing the
+- **`session.js`** — shared helper (`AppSession.get/set/clear/hasAccess`) backing the
   "log in once per visit" behavior. It stores `{managerId, userId, userName, role, pages,
   loginAt}` in `sessionStorage` (not `localStorage`) — deliberately so it clears when the
   browser/tab closes, rather than staying "logged in" as whoever last used a shared device.
-  Every entry screen checks `FNKSession.get()` on load: if there's a valid session with
+  Every entry screen checks `AppSession.get()` on load: if there's a valid session with
   access to that page, it skips straight past the name grid; otherwise it falls back to its
   own `list_managers_for_page` + PIN picker exactly as before (so a direct link/bookmark to
   any screen still works without having gone through `home.html` first).
@@ -140,7 +140,7 @@ in `manage-access.html`, not by editing this file or the database directly.
 
 | Manager | Underlying `app_users` role | Notes |
 |---|---|---|
-| Yasir Riaz | director | own `app_users` row |
+| The owner | director | own `app_users` row |
 | Admin | director | own `app_users` row (also backs the client-side `ADMIN_OVERRIDE_PASSWORD` flow — see role-model doc) |
 | Ahsan (RGM) | shift_manager | shares `S.Manager` app_user row with Hamza/Aqib/Anjum |
 | Hamza | shift_manager | shares `S.Manager` app_user row |
@@ -151,13 +151,13 @@ in `manage-access.html`, not by editing this file or the database directly.
 | Imran | auditor | own `app_users` row |
 | Store Person | store_man | single generic account — if there's more than one real store-department person, split this into additional named managers under the same `app_user_id`, same as the shift-manager group |
 
-All PINs were supplied directly by Yasir in chat and set via `admin_set_manager_pin` — never
-invented by Claude. If a PIN needs changing, either ask Yasir for the new value and set it
+All PINs were supplied directly by the owner in chat and set via `admin_set_manager_pin` — never
+invented by Claude. If a PIN needs changing, either ask the owner for the new value and set it
 the same way, or point him to Manage Access to do it himself.
 
 ## 2-letter login codes (2026-10-10) — replaces typed full name
 
-Yasir asked for the login name to be a 2-letter code instead of a typed full
+The owner asked for the login name to be a 2-letter code instead of a typed full
 name, and asked Claude to suggest and show new PINs (since the existing
 PINs are bcrypt-hashed and genuinely unrecoverable — there was no way to
 "show" the old ones). This is a one-time, explicitly-authorized exception
@@ -166,13 +166,13 @@ PINs and wrote them straight into the database (direct `UPDATE ... SET
 pin_hash = crypt(...)` via migration access, not through
 `admin_set_manager_pin`, since that RPC itself requires an owner PIN to
 authorize — which Claude doesn't have or ask for). From here on, new PINs
-should go back to being supplied by Yasir, not invented by Claude, unless
+should go back to being supplied by the owner, not invented by Claude, unless
 he says otherwise again.
 
 - **Schema**: additive `managers.login_code` column (2 letters, unique),
   alongside the existing `name`/`pin_hash`. Nothing was removed — `name` is
   unchanged and still shown wherever the app already displayed it after
-  login (e.g. "Logged in as Yasir Riaz").
+  login (e.g. "Logged in as the owner").
 - **New RPCs** (additive, mirroring the existing ones without touching
   them): `list_all_managers_with_code()` and
   `list_managers_for_page_with_code(p_page_key)`, both returning
@@ -183,7 +183,7 @@ he says otherwise again.
 
   | Name | Code | PIN |
   |---|---|---|
-  | Yasir Riaz | YR | 7142 |
+  | The owner | YR | 7142 |
   | Admin | AD | 3059 |
   | Ahsan (RGM) | AH | 6284 |
   | Hamza | HZ | 9173 |
