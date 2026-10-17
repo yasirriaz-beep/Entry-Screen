@@ -289,11 +289,22 @@ async function loadFloor() {
   updateSaveBar();
 
   const floor = state.floor;
-  let issuedIds = [];
+  // One bulk fetch of every daily_issues row ever sent to this floor — qty and
+  // created_at included up front so we don't need a second per-product fetch
+  // below. This used to be a per-product request inside the loop further down;
+  // with 150-190 tracked items that meant 150-190+ sequential network round
+  // trips in series, which on a mobile connection could take well over a
+  // minute and looked exactly like the page being stuck/not wired up. It was
+  // never a wiring gap (both pages always read the same daily_issues table,
+  // keyed by the same floor values) — it was just too slow to visibly finish.
+  let issuedRows = [];
   try {
-    const rows = await sb(`daily_issues?issued_to=eq.${floor}&location_id=eq.${LOCATION_ID}&select=product_id`);
-    issuedIds = [...new Set(rows.map(r => r.product_id))];
-  } catch (e) { issuedIds = []; }
+    issuedRows = await sb(`daily_issues?issued_to=eq.${floor}&location_id=eq.${LOCATION_ID}&select=product_id,qty,created_at`);
+  } catch (e) { issuedRows = []; }
+  const issuedIds = [...new Set(issuedRows.map(r => r.product_id))];
+  const issuesByProduct = {};
+  issuedRows.forEach(r => { (issuesByProduct[r.product_id] = issuesByProduct[r.product_id] || []).push(r); });
+
   let trackedIds = [];
   try {
     // Only items with a still-open period stay listed here without active issuance —
@@ -317,7 +328,8 @@ async function loadFloor() {
   const latestByProduct = {};
   periodRows.forEach(r => { if (!latestByProduct[r.product_id]) latestByProduct[r.product_id] = r; });
 
-  // Open a fresh period for any item whose latest period is missing or closed.
+  // Open a fresh period for any item whose latest period is missing or closed —
+  // as a single bulk insert instead of one POST per item.
   const toOpen = [];
   ids.forEach(id => {
     const latest = latestByProduct[id];
@@ -331,51 +343,74 @@ async function loadFloor() {
   });
   if (toOpen.length) {
     const label = floor === "KITCHEN" ? `${todayStr()} ${state.shift}` : todayStr();
-    for (const o of toOpen) {
-      try {
-        const created = await sb(`floor_stock_periods`, {
-          method: "POST", headers: { "Prefer": "return=representation" },
-          body: JSON.stringify({
-            location_id: LOCATION_ID, floor, product_id: o.product_id, period_label: label,
-            period_start_at: o.period_start_at, beginning_qty: o.beginning_qty,
-            entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
-          })
-        });
-        if (created && created[0]) latestByProduct[o.product_id] = created[0];
-      } catch (e) { /* likely already open from a race — ignore, will refetch */ }
+    try {
+      const created = await sb(`floor_stock_periods`, {
+        method: "POST", headers: { "Prefer": "return=representation" },
+        body: JSON.stringify(toOpen.map(o => ({
+          location_id: LOCATION_ID, floor, product_id: o.product_id, period_label: label,
+          period_start_at: o.period_start_at, beginning_qty: o.beginning_qty,
+          entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+        })))
+      });
+      (created || []).forEach(row => { latestByProduct[row.product_id] = row; });
+    } catch (e) {
+      // Bulk insert failed (e.g. a race with another device opening the same
+      // periods) — fall back to one-by-one so a single collision doesn't lose
+      // every item in the batch.
+      for (const o of toOpen) {
+        try {
+          const created = await sb(`floor_stock_periods`, {
+            method: "POST", headers: { "Prefer": "return=representation" },
+            body: JSON.stringify({
+              location_id: LOCATION_ID, floor, product_id: o.product_id, period_label: label,
+              period_start_at: o.period_start_at, beginning_qty: o.beginning_qty,
+              entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+            })
+          });
+          if (created && created[0]) latestByProduct[o.product_id] = created[0];
+        } catch (e2) { /* likely already open from a race — ignore, will refetch next load */ }
+      }
     }
   }
 
-  // Live Addition (store issuance since period_start_at) per item.
+  // Kitchen dough usage: one bulk fetch of every dough_batches row since the
+  // earliest open period on this floor, then filter per item client-side —
+  // instead of one dough_batches query per product.
+  let doughBatches = [];
+  if (floor === "KITCHEN") {
+    const starts = ids.map(id => latestByProduct[id]?.period_start_at).filter(Boolean);
+    const earliest = starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : null;
+    if (earliest) {
+      try {
+        doughBatches = await sb(`dough_batches?location_id=eq.${LOCATION_ID}&created_at=gte.${encodeURIComponent(earliest)}&select=batches_made,created_at`);
+      } catch (e) { doughBatches = []; }
+    }
+  }
+  function doughUsageSince(productId, sinceIso) {
+    const recipeRow = state.recipe.find(r => r.product_id === productId);
+    if (!recipeRow) return 0;
+    const totalBatches = doughBatches
+      .filter(b => b.created_at >= sinceIso)
+      .reduce((s, b) => s + (Number(b.batches_made) || 0), 0);
+    return totalBatches * (Number(recipeRow.qty_per_batch) || 0);
+  }
+
+  // Live Addition (store issuance since period_start_at) per item — from the
+  // bulk fetch above, filtered client-side, no further network calls.
   const items = [];
   for (const id of ids) {
     const period = latestByProduct[id];
     if (!period) continue;
     const prod = prodMap[id] || { name: "(unknown item)", unit: "" };
-    let added = 0;
-    try {
-      const rows = await sb(`daily_issues?issued_to=eq.${floor}&location_id=eq.${LOCATION_ID}&product_id=eq.${id}&created_at=gte.${encodeURIComponent(period.period_start_at)}&select=qty`);
-      added = rows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
-    } catch (e) {}
-    let doughUsage = 0;
-    if (floor === "KITCHEN") {
-      doughUsage = await doughUsageSince(id, period.period_start_at);
-    }
+    const added = (issuesByProduct[id] || [])
+      .filter(r => r.created_at >= period.period_start_at)
+      .reduce((s, r) => s + (Number(r.qty) || 0), 0);
+    const doughUsage = floor === "KITCHEN" ? doughUsageSince(id, period.period_start_at) : 0;
     items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage });
   }
   items.sort((a, b) => a.name.localeCompare(b.name));
   state.items = items;
   renderItemList();
-}
-
-async function doughUsageSince(productId, sinceIso) {
-  const recipeRow = state.recipe.find(r => r.product_id === productId);
-  if (!recipeRow) return 0;
-  try {
-    const batches = await sb(`dough_batches?location_id=eq.${LOCATION_ID}&created_at=gte.${encodeURIComponent(sinceIso)}&select=batches_made`);
-    const totalBatches = batches.reduce((s, b) => s + (Number(b.batches_made) || 0), 0);
-    return totalBatches * (Number(recipeRow.qty_per_batch) || 0);
-  } catch (e) { return 0; }
 }
 
 function fieldHtml(label, value, note) {
