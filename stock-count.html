@@ -115,6 +115,10 @@
     <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
       <input type="checkbox" id="filter-moq" style="width:auto;" checked> Only items with an MOQ threshold set
     </label>
+    <label style="display:flex; align-items:center; gap:6px; margin-top:6px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="filter-instock" style="width:auto;" checked> Only items currently carrying stock (hide zero-stock lines)
+    </label>
+    <div class="hint" style="margin-top:6px;">For a full physical audit, uncheck "Only items with an MOQ threshold set" above — that filter is for reorder tracking, not counting.</div>
     <div id="progress-chips"></div>
   </div>
 
@@ -364,6 +368,7 @@ function renderItemList() {
   const search = document.getElementById("search-items").value.trim().toUpperCase();
   const cat = document.getElementById("filter-category").value;
   const onlyMoq = document.getElementById("filter-moq").checked;
+  const onlyInStock = document.getElementById("filter-instock").checked;
   const date = document.getElementById("f-date").value || todayStr();
   const list = document.getElementById("item-list");
   const emptyHint = document.getElementById("item-list-empty");
@@ -372,6 +377,14 @@ function renderItemList() {
     if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
     if (cat && p.category !== cat) return false;
     if (onlyMoq && (p.min_stock_level == null || p.reorder_qty == null)) return false;
+    // Compresses the list to what's actually on the shelf — a zero-stock item stays
+    // in the system either way, this just keeps it off the day-to-day count sheet.
+    // A count already logged for this exact date always stays visible even at zero,
+    // so entering 0 on purpose never makes a row disappear out from under you.
+    if (onlyInStock && !state.existing[p.id]) {
+      const { expected } = expectedQty(p.id, date);
+      if (Math.abs(expected) < 0.01) return false;
+    }
     return true;
   });
 
@@ -493,6 +506,7 @@ document.getElementById("btn-save-all").addEventListener("click", saveAllCounts)
 document.getElementById("search-items").addEventListener("input", renderItemList);
 document.getElementById("filter-category").addEventListener("change", renderItemList);
 document.getElementById("filter-moq").addEventListener("change", renderItemList);
+document.getElementById("filter-instock").addEventListener("change", renderItemList);
 
 const existing = FNKSession.get();
 if (existing && FNKSession.hasAccess(existing, PAGE_KEY)) {
