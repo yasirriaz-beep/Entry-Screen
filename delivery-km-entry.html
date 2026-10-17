@@ -46,6 +46,8 @@
   .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
   .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .date-row { display: flex; align-items: center; gap: 8px; }
   .date-row input[type="date"] { flex: 1; }
   .date-row button { width: auto; padding: 11px 14px; }
@@ -92,6 +94,11 @@
 </div>
 
 <div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh screen delivery riders ki roz ki odometer (KM) reading darj karne ke liye hai. Pehle date check karen (upar wale arrow se pichle/agle din par ja saktay hain), phir jis rider ki entry karni hai uska naam click karen taake detail khul jaye. Odometer Start aur End reading number mein likhen — KM apne aap calculate ho jayegi. Orders Delivered bhi likhen. Pehli baar kisi rider ki entry karte waqt Start aur End dono odometer ki photo lazmi upload karni hai; agli baar wohi purani photo chal jaati hai agar nayi na lagayen. Aakhir mein "Save KM Entry" dabayen. Purani date ki entry sirf Director badal sakta hai.
+  </div>
 
   <div id="lock-banner" class="hint" style="display:none; background:var(--err-bg); color:var(--err); border:1px solid var(--err); border-radius:10px; padding:10px 12px; margin-bottom:14px;"></div>
 
@@ -252,7 +259,11 @@ document.getElementById("f-date").addEventListener("change", loadLogsForDate);
 
 async function loadRiders() {
   try {
-    state.riders = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&department=eq.DELIVERY&designation=ilike.rider&select=id,name,designation&order=name`);
+    // department is matched case-insensitively (ilike, no wildcards = exact match ignoring
+    // case) because the employees table has both "Delivery" and "DELIVERY" for the same
+    // department -- an exact eq.DELIVERY silently dropped every rider stored as "Delivery"
+    // out of this list. Fixed 2026-10-17.
+    state.riders = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&department=ilike.DELIVERY&designation=ilike.rider&select=id,name,designation&order=name`);
   } catch (e) { state.riders = []; }
 }
 
