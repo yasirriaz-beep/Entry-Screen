@@ -149,10 +149,8 @@
 
 <div class="urdu-box">
   <b>Tareeqa (Instructions in Roman Urdu)</b>
-  Yeh page sirf un items ke liye hai jo raat ko count hone ke baad seedha bakery/grill ko phone per order kiye jate hain aur subah store khulne se pehle delivery ho jate hain — iss waqt store person aur Zeeshan duty per nahi hote, isliye normal Authorize step yahan skip ho jata hai, sirf un vendors ke liye jo owner ne "fast-track" mark kiye hain. Oopar vendor chunein (Bakery ya Grill), neeche har item ke saamne jitni quantity bakery/grill ko phone per batai hai wahi likh dein — baqi items khali chor dein. Jab sab likh lein to neeche "Send Pre-Authorized Order" button dabayen, sab items ek saath order ban jayenge. Subah jo bhi store khole, Goods Receipt page per inhe receive kar sakta hai, aur Zeeshan apni normal duty per aa kar vendor ka payment credit/running account se clear karega.
+  Yeh page sirf un items ke liye hai jo raat ko count hone ke baad seedha bakery/grill/sabzi wale ko phone per order kiye jate hain aur subah store khulne se pehle delivery ho jate hain — iss waqt store person aur Zeeshan duty per nahi hote, isliye normal Authorize step yahan skip ho jata hai, sirf un vendors ke liye jo owner ne "fast-track" mark kiye hain. Oopar vendor chunein (Bakery, Grill, ya Sabzi), neeche har item ke saamne jitni quantity phone per batai hai wahi likh dein — baqi items khali chor dein. Jab sab likh lein to neeche "Send Pre-Authorized Order" button dabayen, sab items ek saath order ban jayenge. Subah jo bhi store khole, Goods Receipt page per inhe receive kar sakta hai, aur Zeeshan apni normal duty per aa kar vendor ka payment credit/running account se clear karega.
 </div>
-
-<button class="btn-ghost" id="btn-vegetable-ordering" type="button" style="margin-bottom:14px;">🥬 Vegetable Ordering</button>
 
 <div class="banner banner-warn">
   This skips the director Authorize step — only because the owner has pre-flagged this vendor as fast-track (overnight perishable, no time for prior sign-off). It's still fully logged: who ordered it, when, and why. Use it only for genuinely time-boxed overnight items, not as a shortcut for ordinary purchases.
@@ -625,12 +623,6 @@ async function confirmReceipt(btn, forDate) {
     btn.disabled = false;
   }
 }
-
-// Placeholder only — details to come later. Keeps the button visible to staff now so they
-// know it's coming, without building the ordering flow itself yet. Added 2026-10-18.
-document.getElementById("btn-vegetable-ordering").addEventListener("click", () => {
-  alert("Vegetable Ordering is coming soon — not set up yet.");
-});
 
 async function submitOrder() {
   const ids = Object.keys(state.qty);
