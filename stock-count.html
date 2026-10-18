@@ -318,13 +318,17 @@ async function loadAll() {
     state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate,min_stock_level,reorder_qty&order=category,name`);
   } catch (e) { state.products = []; }
   try {
-    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date`);
+    // limit=100000 on these three base fetches (also set in issue-entry.html and
+    // inventory-balance-sheet.html, which share this exact expectedQty()/baseFor()
+    // formula) — without it, PostgREST's default row cap could silently truncate the
+    // data as it grows, and the three screens would stop tying without any visible error.
+    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date&limit=100000`);
   } catch (e) { state.purchases = []; }
   try {
-    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date`);
+    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date&limit=100000`);
   } catch (e) { state.issues = []; }
   try {
-    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty,notes&order=snapshot_date.desc`);
+    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty,notes&order=snapshot_date.desc&limit=100000`);
   } catch (e) { state.snapshots = []; }
 
   const cats = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
