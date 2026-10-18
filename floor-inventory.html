@@ -114,7 +114,7 @@
   </div>
 
   <div class="card">
-    <div class="hint" style="margin-bottom:10px;" id="floor-formula-hint">Expected = Beginning + Addition. Ending Count is what you physically count.</div>
+    <div class="hint" style="margin-bottom:10px;" id="floor-formula-hint">Usage = Beginning + Addition − Ending Count, once you enter the Ending Count.</div>
     <div id="item-list"></div>
     <div class="hint" id="item-list-empty" hidden>No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear.</div>
     <div class="field" id="add-item-box" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"></div>
@@ -245,9 +245,7 @@ function setFloor(floor) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.floor === floor));
   document.getElementById("kitchen-shift-card").hidden = floor !== "KITCHEN";
   document.getElementById("dough-log-hint").hidden = floor !== "KITCHEN";
-  document.getElementById("floor-formula-hint").textContent = floor === "KITCHEN"
-    ? "Expected = Beginning + Addition − Dough Batch Usage. Ending Count is what you physically count."
-    : "Expected = Beginning + Addition. Ending Count is what you physically count.";
+  document.getElementById("floor-formula-hint").textContent = "Usage = Beginning + Addition − Ending Count, once you enter the Ending Count.";
   loadFloor();
   if (floor === "KITCHEN") loadDoughRecipe();
 }
@@ -511,6 +509,10 @@ function renderItemList() {
     const enteredEnding = it.period.ending_qty != null ? it.period.ending_qty : "";
     const showEnding = dirtyVal != null ? dirtyVal : enteredEnding;
     const variance = showEnding !== "" ? (Number(showEnding) - expected) : null;
+    // Usage is shown instead of Expected — it's the actual amount consumed since the
+    // last count (Beginning + Addition − Ending Count), computed live once Ending
+    // Count is entered. Added 2026-10-18, per the owner.
+    const usage = showEnding !== "" ? (beginning + it.added - Number(showEnding)) : null;
 
     // Par Qty is the desired floor stock (e.g. from the kitchen's paper par sheet) —
     // a standing target, not tied to this counting period. Reorder is what Issue
@@ -545,8 +547,8 @@ function renderItemList() {
         ${fieldHtml("Beginning", fmtQty(beginning))}
         ${fieldHtml("Addition", fmtQty(it.added))}
         ${it.isDoughIngredient ? fieldHtml("Dough Used", fmtQty(it.doughUsage)) : ""}
-        ${fieldHtml("Expected", fmtQty(expected))}
         <div><label>Ending Count</label><input type="number" step="any" class="f-ending" value="${showEnding}" placeholder="count"></div>
+        <div><label>Usage</label><input type="text" class="f-usage" value="${usage != null ? fmtQty(usage) : "—"}" disabled></div>
       </div>
       <div class="grid-fields" style="margin-top:8px;grid-template-columns:1fr 1fr;">
         <div><label>Par Qty (desired)</label><input type="number" step="any" class="f-par" value="${showPar}" placeholder="not set"></div>
@@ -577,6 +579,7 @@ function renderItemList() {
       });
     }
     const endingInput = block.querySelector(".f-ending");
+    const usageDisplay = block.querySelector(".f-usage");
     const parInput = block.querySelector(".f-par");
     const reorderDisplay = block.querySelector(".f-reorder");
     const overrideChk = block.querySelector(".f-reorder-override-chk");
@@ -597,6 +600,7 @@ function renderItemList() {
       state.dirty[it.id] = isNaN(v) ? "" : v;
       endingInput.classList.add("dirty");
       varTag.textContent = !isNaN(v) ? `Var: ${fmtQty(v - expected)}` : "";
+      usageDisplay.value = !isNaN(v) ? fmtQty(beginning + it.added - v) : "—";
       refreshReorder();
       updateSaveBar();
     });
