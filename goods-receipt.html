@@ -730,13 +730,14 @@ async function saveReceipt() {
     if (advanceAmount > amount + 0.01) return alert("The advance can't be more than the total (" + Math.round(amount).toLocaleString() + ") — for a bigger advance, record the extra separately on Vendor Payment.");
   }
 
-  let productId = null, unit = null, variance = null, poId = null;
+  let productId = null, unit = null, variance = null, poId = null, oldRate = null;
 
   if (state.mode === "po" && state.selectedPO) {
     const po = state.selectedPO;
     productId = po.products?.id || null;
     unit = po.unit || po.products?.unit || null;
     poId = po.id;
+    oldRate = po.products?.current_rate != null ? Number(po.products.current_rate) : null;
     const requested = parseFloat(po.qty_requested) || 0;
     if (requested > 0 && qty !== requested) {
       variance = `Ordered ${requested}, received ${qty} (${po.unit || unit || ""})`;
@@ -747,6 +748,7 @@ async function saveReceipt() {
     const p = state.products.find(x => x.id === itemSel.value);
     productId = itemSel.value;
     unit = p ? p.unit : null;
+    oldRate = p && p.current_rate != null ? Number(p.current_rate) : null;
   }
 
   const purchaseDate = document.getElementById("f-date").value || todayStr();
@@ -791,6 +793,20 @@ async function saveReceipt() {
       body: JSON.stringify(payload)
     });
     const purchaseId = inserted && inserted[0] ? inserted[0].id : null;
+
+    // Keep products.current_rate current — Goods Receipt is where a vendor's price change
+    // actually shows up first, and everything downstream (Issue Entry's issue amount, Manage
+    // Item's COGS card, the Inventory Balance Sheet's valuation) reads current_rate, not this
+    // purchase's own rate. Same last_rate/rate_updated_at convention as a manual rate edit on
+    // Manage Item. Non-fatal: the purchase itself is already saved either way.
+    if (productId && rate > 0 && (oldRate === null || Math.abs(rate - oldRate) > 0.0001)) {
+      try {
+        await sb(`products?id=eq.${productId}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({ current_rate: rate, last_rate: oldRate, rate_updated_at: new Date().toISOString() })
+        });
+      } catch (e) { /* non-fatal — rate can still be fixed later on Manage Item */ }
+    }
 
     if (poId && purchaseId) {
       await sb(`purchase_orders?id=eq.${poId}`, {

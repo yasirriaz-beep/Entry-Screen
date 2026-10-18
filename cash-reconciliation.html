@@ -749,9 +749,13 @@ async function fetchCashIn(dateStr) {
 // record_jazzcash_settlement used to paper over the "missing" part with an auto-booked expense —
 // removed in the same fix, since a partial settlement isn't a loss, just not fully collected yet).
 async function fetchJazzcashOutstanding() {
+  // limit=100000 — this is a lifetime (all-dates) fetch, unlike the rest of this page's
+  // date-scoped queries, so it's the one place here that could silently truncate as data
+  // grows without an explicit limit (same class of fix applied to the inventory screens
+  // earlier today).
   const [salesRows, settlementRows] = await Promise.all([
-    sb(`daily_sales?location_id=eq.${GULBERG_ID}&select=jazzcash_amount,jazzcash_collected_amount`),
-    sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=amount_received,amount_outstanding_before`)
+    sb(`daily_sales?location_id=eq.${GULBERG_ID}&select=jazzcash_amount,jazzcash_collected_amount&limit=100000`),
+    sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=amount_received,amount_outstanding_before&limit=100000`)
   ]);
   const accrued = (salesRows || []).reduce((s, r) => s + (Number(r.jazzcash_amount) || 0), 0);
   const sameDayCollected = (salesRows || []).reduce((s, r) => s + (Number(r.jazzcash_collected_amount) || 0), 0);
@@ -791,8 +795,8 @@ async function loadJazzcashLedger() {
   let salesRows = [], settlementRows = [];
   try {
     [salesRows, settlementRows] = await Promise.all([
-      sb(`daily_sales?location_id=eq.${GULBERG_ID}&select=sale_date,jazzcash_amount,jazzcash_collected_amount&order=sale_date`),
-      sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=settlement_date,amount_received&order=settlement_date`)
+      sb(`daily_sales?location_id=eq.${GULBERG_ID}&select=sale_date,jazzcash_amount,jazzcash_collected_amount&order=sale_date&limit=100000`),
+      sb(`jazzcash_settlements?location_id=eq.${GULBERG_ID}&select=settlement_date,amount_received&order=settlement_date&limit=100000`)
     ]);
   } catch (e) { wrap.innerHTML = `<div class="hint">Couldn't load: ${e.message}</div>`; return; }
 
