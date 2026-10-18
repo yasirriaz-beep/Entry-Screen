@@ -131,6 +131,11 @@
   .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
   .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
   .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .void-link { font-size: 0.8rem; color: var(--accent); cursor: pointer; }
+  .void-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .void-form textarea { margin-bottom: 8px; }
+  .void-form-actions { display: flex; gap: 8px; }
+  .void-form-actions button { flex: 1; }
   .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
   .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .amount-display {
@@ -152,6 +157,8 @@
   .entry-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
   .entry-flag { font-size: 0.72rem; color: var(--err); margin-top: 2px; font-weight: 600; }
   .entry-flag.warn { color: var(--warn); }
+  .entry-row.voided { opacity: 0.6; }
+  .entry-row.voided .entry-title, .entry-row.voided .entry-sub { text-decoration: line-through; }
   .success-wrap { text-align: center; padding: 48px 16px; }
   .success-wrap .check { font-size: 2.6rem; }
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
@@ -184,7 +191,7 @@
 <div id="step-list" hidden>
   <div class="urdu-box">
     <b>Tareeqa (Instructions in Roman Urdu)</b>
-    Yeh page purani (already save ho chuki) expense entries ko theek karne ke liye hai — naya expense yahan se nahi likha jata, woh Expense Entry page par hota hai. Pehle date choose karein, neeche list mein se woh entry dabayen jisay sudharna hai, phir form mein category, amount, shift ya detail jo bhi ghalat hai usay update karein. Reason box mein zaroor likhein ke kya aur kyun badla — yeh save karne se pehle zaroori hai, bina reason ke save nahi hoga. Jab tak "Save Changes" na dabayen, badlaw save nahi hota.
+    Yeh page purani (already save ho chuki) expense entries ko theek karne ke liye hai — naya expense yahan se nahi likha jata, woh Expense Entry page par hota hai. Pehle date choose karein, neeche list mein se woh entry dabayen jisay sudharna hai, phir form mein category, amount, shift ya detail jo bhi ghalat hai usay update karein. Reason box mein zaroor likhein ke kya aur kyun badla — yeh save karne se pehle zaroori hai, bina reason ke save nahi hoga. Jab tak "Save Changes" na dabayen, badlaw save nahi hota. Agar poori entry hi ghalat ho (duplicate ya bilkul ghalat expense), to "Entered by mistake entirely? Void this entry" per click kar k wajah likhen — entry ko mitaya nahi jata, sirf void (cancel) kiya jata hai taake record mehfooz rahe.
   </div>
   <div class="card">
     <div class="step-label">Pick a date to find entries</div>
@@ -317,6 +324,18 @@
 
   <button class="btn-primary" id="btn-save" type="button">Save Changes</button>
   <button class="btn-ghost" id="btn-cancel" type="button">Cancel</button>
+
+  <div class="card" id="block-void" style="margin-top:16px;">
+    <div class="void-link" id="void-open">Entered by mistake entirely? Void this entry</div>
+    <div class="void-form" id="void-form" hidden>
+      <textarea id="void-reason" rows="2" placeholder="Why is this being voided? (e.g. duplicate entry, wrong expense entirely)"></textarea>
+      <div class="void-form-actions">
+        <button class="btn-ghost" type="button" id="void-cancel">Cancel</button>
+        <button class="btn-primary" type="button" id="void-confirm" style="background:var(--err);color:#fff;">Confirm void</button>
+      </div>
+    </div>
+  </div>
+  <div class="banner banner-err" id="voided-banner" hidden style="margin-top:16px;"></div>
 </div>
 
 <div id="step-success" class="card success-wrap" hidden>
@@ -460,7 +479,7 @@ function afterLogin(userId, name, managerId, role) {
 async function openEntryById(id) {
   showList(); // shows step-list briefly as a safe fallback if the fetch below fails
   try {
-    const rows = await sb(`expenses?id=eq.${id}&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,paid_from_safe,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at`);
+    const rows = await sb(`expenses?id=eq.${id}&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,paid_from_safe,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at,voided_at,void_reason,original_amount,original_qty,original_rate`);
     const row = rows && rows[0];
     if (!row) {
       document.getElementById("list-empty").hidden = false;
@@ -493,7 +512,7 @@ async function loadEntryList() {
   document.getElementById("ai-scan-status").textContent = "";
   try {
     const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${date}` +
-      `&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,paid_from_safe,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at&order=created_at.desc`);
+      `&select=id,expense_date,category,subcategory,amount,created_at,detail,shift,vendor_id,payment_method,paid_from_safe,qty,rate,unit,product_id,charged_to,employee_id,edit_reason,receipt_photo_path,rgm_approved_by,rgm_approved_at,voided_at,void_reason,original_amount,original_qty,original_rate&order=created_at.desc`);
     state.listRows = rows || [];
     if (!rows.length) { emptyHint.hidden = false; return; }
     renderEntryList(rows);
@@ -508,15 +527,17 @@ function renderEntryList(rows) {
   list.innerHTML = "";
   rows.forEach(r => {
     const row = document.createElement("div");
-    row.className = "entry-row";
+    row.className = "entry-row" + (r.voided_at ? " voided" : "");
     const shiftTag = r.shift ? ` · ${r.shift === "morning" ? "Morning" : "Evening"}` : " · No shift (Safe 2)";
     const safe2Tag = r.paid_from_safe === "safe2" ? ` · <span style="color:var(--accent);font-weight:600;">Paid from Safe 2</span>` : "";
     const photoLink = r.receipt_photo_path ? ` · <span data-photo="${r.receipt_photo_path}" style="color:var(--accent);text-decoration:underline;">📷 View photo</span>` : "";
+    const displayAmount = r.voided_at ? (r.original_amount != null ? r.original_amount : r.amount) : r.amount;
     row.innerHTML = `
-      <div class="entry-title"><span>${r.category || "Expense"}</span><span>PKR ${Math.round(r.amount || 0).toLocaleString()}</span></div>
+      <div class="entry-title"><span>${r.category || "Expense"}</span><span>PKR ${Math.round(displayAmount || 0).toLocaleString()}</span></div>
       <div class="entry-sub">${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${shiftTag}${safe2Tag}${r.detail ? " · " + r.detail : ""}${photoLink}</div>
-      ${r.edit_reason ? `<div class="entry-flag">Previously edited</div>` : ""}
-      ${r._aiFlag ? `<div class="entry-flag warn">⚠ ${r._aiFlag}</div>` : ""}`;
+      ${r.voided_at ? `<div class="entry-flag">VOIDED — ${r.void_reason || ""}</div>` : ""}
+      ${!r.voided_at && r.edit_reason ? `<div class="entry-flag">Previously edited</div>` : ""}
+      ${!r.voided_at && r._aiFlag ? `<div class="entry-flag warn">⚠ ${r._aiFlag}</div>` : ""}`;
     row.addEventListener("click", (e) => {
       const photoEl = e.target.closest("[data-photo]");
       if (photoEl) { e.stopPropagation(); viewReceiptPhoto(photoEl.dataset.photo); return; }
@@ -851,6 +872,40 @@ function openEntry(row) {
     populateItemSelect("", row.product_id);
   }
   recalcAmount();
+  applyVoidedState(row);
+}
+
+// Mirrors Goods Receipt's void display — a voided entry shows its original amount
+// struck through with the void reason, every field disabled, and no way to save over
+// it or void it again. Not voided: normal editable form with the void option available.
+function applyVoidedState(row) {
+  const banner = document.getElementById("voided-banner");
+  const voidBlock = document.getElementById("block-void");
+  const saveBtn = document.getElementById("btn-save");
+  const formCard = document.getElementById("step-form");
+  const fieldIds = ["f-date","f-shift","f-category","f-subcategory","f-qty","f-rate","f-amount",
+    "f-vendor","f-payment-method","f-paid-from-safe","f-charged-to","f-employee","f-detail",
+    "f-edit-reason","f-item-search","f-item-select"];
+  if (row.voided_at) {
+    if (row.original_qty != null) document.getElementById("f-qty").value = row.original_qty;
+    if (row.original_rate != null) document.getElementById("f-rate").value = row.original_rate;
+    if (row.original_amount != null) document.getElementById("f-amount").value = row.original_amount;
+    recalcAmount();
+    banner.hidden = false;
+    banner.textContent = `VOIDED — ${row.void_reason || ""}`;
+    voidBlock.hidden = true;
+    saveBtn.hidden = true;
+    fieldIds.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
+    formCard.querySelectorAll("button[id^='btn-rgm']").forEach(b => b.disabled = true);
+  } else {
+    banner.hidden = true;
+    voidBlock.hidden = false;
+    saveBtn.hidden = false;
+    fieldIds.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+    document.getElementById("void-form").hidden = true;
+    document.getElementById("void-open").hidden = false;
+    document.getElementById("void-reason").value = "";
+  }
 }
 
 document.getElementById("link-back-list").addEventListener("click", (e) => { e.preventDefault(); showList(); loadEntryList(); });
@@ -960,6 +1015,54 @@ async function saveChanges() {
   }
 }
 document.getElementById("btn-save").addEventListener("click", saveChanges);
+
+document.getElementById("void-open").addEventListener("click", () => {
+  document.getElementById("void-form").hidden = false;
+  document.getElementById("void-open").hidden = true;
+});
+document.getElementById("void-cancel").addEventListener("click", () => {
+  document.getElementById("void-form").hidden = true;
+  document.getElementById("void-open").hidden = false;
+});
+document.getElementById("void-confirm").addEventListener("click", voidExpense);
+
+// Same convention as Goods Receipt's void: zero the amount, keep the original values for
+// the record, stamp who/why/when. Not a DELETE — the row stays, just flagged voided.
+async function voidExpense() {
+  const row = state.currentEntry;
+  if (!row) return;
+  const reasonEl = document.getElementById("void-reason");
+  const reason = (reasonEl.value || "").trim();
+  if (!reason) { reasonEl.focus(); return; }
+  const btn = document.getElementById("void-confirm");
+  btn.disabled = true;
+  try {
+    await sb(`expenses?id=eq.${row.id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        amount: 0,
+        qty: row.qty != null ? 0 : null,
+        original_amount: row.amount,
+        original_qty: row.qty,
+        original_rate: row.rate,
+        voided_at: new Date().toISOString(),
+        voided_by_manager_id: state.managerId,
+        void_reason: `${reason} (voided by ${state.userName})`
+      })
+    });
+    row.voided_at = new Date().toISOString();
+    row.void_reason = `${reason} (voided by ${state.userName})`;
+    row.original_amount = row.amount;
+    row.original_qty = row.qty;
+    row.original_rate = row.rate;
+    applyVoidedState(row);
+  } catch (e) {
+    alert("Couldn't void this entry: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 Promise.all([populateCategories(), loadSubcategories(), loadRgmManager()]).then(onCategoryChange);
 const existing = AppSession.get();
