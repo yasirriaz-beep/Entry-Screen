@@ -514,7 +514,7 @@ document.getElementById("f-receipt-photo").addEventListener("change", handleRece
 
 async function loadOpenPOs() {
   try {
-    state.pos = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=in.(Authorized,Ordered)&select=id,qty_requested,unit,status,advance_amount,products(id,name,code,unit,current_rate),vendors(id,name)&order=requested_at.desc`);
+    state.pos = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=in.(Authorized,Ordered)&select=id,qty_requested,unit,status,advance_amount,confirmed_received_qty,confirmed_rate,products(id,name,code,unit,current_rate),vendors(id,name)&order=requested_at.desc`);
   } catch (e) { state.pos = []; }
 
   // Partial receipts: a PO can now be received against more than once (a vendor delivers
@@ -552,9 +552,11 @@ async function loadOpenPOs() {
       ? ` · <span style="color:var(--accent);font-weight:600;">Advance of PKR ${Math.round(po.advance_amount).toLocaleString()} already paid</span>` : "";
     const partialTag = po.receivedSoFar > 0
       ? ` · <span style="color:var(--warn);font-weight:600;">${po.receivedSoFar} already received — ${po.remaining} ${po.unit || prod?.unit || ""} remaining</span>` : "";
+    const confirmedTag = po.confirmed_received_qty != null
+      ? ` · <span style="color:var(--accent);font-weight:600;">Confirmed overnight: ${po.confirmed_received_qty} ${po.unit || prod?.unit || ""}${po.confirmed_rate != null ? " @ PKR " + Math.round(po.confirmed_rate).toLocaleString() : ""}</span>` : "";
     card.innerHTML = `
       <div class="po-title">${prod ? prod.name : "Unknown item"}</div>
-      <div class="po-sub">${vend ? vend.name : "No vendor"} · Ordered ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${po.status}${advanceTag}${partialTag}</div>
+      <div class="po-sub">${vend ? vend.name : "No vendor"} · Ordered ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${po.status}${advanceTag}${partialTag}${confirmedTag}</div>
     `;
     card.onclick = () => selectPO(po, card);
     list.appendChild(card);
@@ -687,12 +689,20 @@ function enterForm() {
     const partialLine = po.receivedSoFar > 0
       ? `<br><strong>${po.receivedSoFar} ${po.unit || po.products?.unit || ""} already received</strong> on an earlier visit — ${po.remaining} still outstanding on this PO.`
       : "";
+    const confirmedLine = po.confirmed_received_qty != null
+      ? `<br>Confirmed overnight by whoever was on site: <strong>${po.confirmed_received_qty} ${po.unit || po.products?.unit || ""}</strong>${po.confirmed_rate != null ? ` @ <strong>PKR ${Math.round(po.confirmed_rate).toLocaleString()}</strong>` : ""} — pre-filled below, double-check before saving.`
+      : "";
     document.getElementById("po-context-banner").innerHTML = `
       <div class="banner banner-ok">
         Receiving against PO: <strong>${po.products?.name || "item"}</strong> ·
-        Ordered ${po.qty_requested} ${po.unit || po.products?.unit || ""} from ${po.vendors?.name || "vendor"}${advanceLine}${partialLine}
+        Ordered ${po.qty_requested} ${po.unit || po.products?.unit || ""} from ${po.vendors?.name || "vendor"}${advanceLine}${partialLine}${confirmedLine}
       </div>`;
-    if (po.products?.current_rate) document.getElementById("f-rate").value = po.products.current_rate;
+    // The rate confirmed overnight (for a vendor whose price changes daily) beats the
+    // product's last-known rate — that's exactly the number this flow exists to capture.
+    // Same for quantity: start from what was confirmed received, not a blank field.
+    if (po.confirmed_rate != null) document.getElementById("f-rate").value = po.confirmed_rate;
+    else if (po.products?.current_rate) document.getElementById("f-rate").value = po.products.current_rate;
+    if (po.confirmed_received_qty != null) document.getElementById("f-qty").value = po.confirmed_received_qty;
     if (po.vendors?.id) document.getElementById("f-vendor").value = po.vendors.id;
   } else {
     document.getElementById("block-item-pick").hidden = false;
@@ -840,9 +850,12 @@ async function saveReceipt() {
     // Manage Item. Non-fatal: the purchase itself is already saved either way.
     if (productId && rate > 0 && (oldRate === null || Math.abs(rate - oldRate) > 0.0001)) {
       try {
+        // updated_by is required by the products table's RLS policies (every UPDATE policy's
+        // with_check ties it to the acting user's role) — without it this silently 403'd for
+        // anyone who wasn't a director, even though the purchase itself still saved fine.
         await sb(`products?id=eq.${productId}`, {
           method: "PATCH", headers: { "Prefer": "return=minimal" },
-          body: JSON.stringify({ current_rate: rate, last_rate: oldRate, rate_updated_at: new Date().toISOString() })
+          body: JSON.stringify({ current_rate: rate, last_rate: oldRate, rate_updated_at: new Date().toISOString(), updated_by: state.userId })
         });
       } catch (e) { /* non-fatal — rate can still be fixed later on Manage Item */ }
     }
