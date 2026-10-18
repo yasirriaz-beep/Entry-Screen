@@ -512,17 +512,19 @@ function renderAddItemPicker(existingIds) {
   const box = document.getElementById("add-item-box");
   if (!box) return;
   const existing = new Set(existingIds);
-  // Only offer items that belong here: unassigned ones (first time being placed on a
-  // floor) or ones already assigned to this exact floor. An item assigned to another
-  // floor doesn't show at all — reassigning it is a Manage Item decision, not something
-  // to do from the count screen, so the same item can't end up open on two floors again.
-  // A floor_count_excluded item (e.g. a negligible-value item the owner wants off the
-  // default list) is still offered here — the manager can deliberately bring one back
-  // if they want to count it, even though it won't show up on its own. Changed
-  // 2026-10-18, per the owner.
+  // Only offer items actually tagged for this exact floor (products.floor_category) —
+  // an unassigned item used to show here too, on the theory of "first time being placed
+  // on a floor", but that meant any item nobody had tagged yet (e.g. a newly created
+  // product like a fast-track vegetable) showed up in EVERY floor's picker, including
+  // ones it has nothing to do with (vegetables on the Bar tab). Tightened 2026-10-18,
+  // per the owner — tag the item's Floor Category from Manage Item first, then it'll
+  // show up here to open its first count. A floor_count_excluded item (e.g. a
+  // negligible-value item the owner wants off the default list) is still offered here —
+  // the manager can deliberately bring one back if they want to count it, even though it
+  // won't show up on its own.
   const options = state.allProducts.filter(p =>
     !existing.has(p.id)
-    && (!p.floor_category || p.floor_category === state.floor)
+    && p.floor_category === state.floor
     && TRACKABLE_CATEGORIES.has(p.category)
   );
   box.innerHTML = `
@@ -531,7 +533,7 @@ function renderAddItemPicker(existingIds) {
       <option value="">Search/select a product…</option>
       ${options.map(p => `<option value="${p.id}">${p.name} (${p.unit})</option>`).join("")}
     </select>
-    <div class="hint">Only showing items not already assigned to another floor. To move an item here from elsewhere, assign it from Manage Item (Item Master).</div>`;
+    <div class="hint">Only showing items already tagged for this floor. To tag a new item here (or move one from another floor), assign its Floor Category from Manage Item (Item Master).</div>`;
   document.getElementById("add-item-select").addEventListener("change", async (e) => {
     const productId = e.target.value;
     if (!productId) return;
