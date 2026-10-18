@@ -760,6 +760,12 @@ async function handleHandoverPhotoChange(e, shift){
 }
 
 async function viewHandoverPhoto(path){
+  // iOS Safari only treats window.open() as user-initiated (and lets it through) when it's
+  // called synchronously inside the click handler — not after an await. Opening this blank
+  // tab first, then filling in its location once the signed URL comes back, keeps it tied to
+  // the tap; opening it after the fetch (as before) made Safari silently block it on iPhone,
+  // while desktop and Android browsers are lenient enough to let the late window.open through.
+  const win = window.open("", "_blank");
   try {
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/cash-handover-photos/${path}`, {
       method: "POST",
@@ -768,8 +774,10 @@ async function viewHandoverPhoto(path){
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+    if (win) win.location.href = `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+    else window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
   } catch (e) {
+    if (win) win.close();
     alert("Couldn't open the photo: " + e.message);
   }
 }

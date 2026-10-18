@@ -1238,6 +1238,11 @@ function showSavedSafePhoto(row) {
 // vendor-payment-photos, safe-photos. Added 2026-10-15 so Cash In/Cash Out breakdown rows
 // can link straight to the receipt behind each cash movement, for review.
 async function viewPhoto(bucket, path) {
+  // Open the blank tab synchronously on the click, before the await below — iOS Safari only
+  // honors window.open() as user-initiated when it happens inline in the click handler; a
+  // window.open() after an await (as this used to do) gets silently blocked on iPhone, even
+  // though desktop and Android browsers let it through.
+  const win = window.open("", "_blank");
   try {
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${path}`, {
       method: "POST",
@@ -1246,8 +1251,10 @@ async function viewPhoto(bucket, path) {
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+    if (win) win.location.href = `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+    else window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
   } catch (e) {
+    if (win) win.close();
     alert("Couldn't open the photo: " + e.message);
   }
 }

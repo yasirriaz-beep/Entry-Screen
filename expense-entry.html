@@ -641,6 +641,10 @@ async function loadTodayList() {
 }
 
 async function viewReceiptPhoto(path) {
+  // iOS Safari only honors window.open() as user-initiated when it's called synchronously in
+  // the click handler — not after an await. Opening the blank tab first and filling in its
+  // location once the signed URL arrives keeps it tied to the tap on iPhone.
+  const win = window.open("", "_blank");
   try {
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/receipts/${path}`, {
       method: "POST",
@@ -649,8 +653,10 @@ async function viewReceiptPhoto(path) {
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+    if (win) win.location.href = `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+    else window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
   } catch (e) {
+    if (win) win.close();
     alert("Couldn't open the photo: " + e.message);
   }
 }
