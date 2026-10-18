@@ -50,10 +50,14 @@
   table.access-matrix { border-collapse: collapse; width: max-content; min-width: 100%; }
   table.access-matrix th, table.access-matrix td { border: 1px solid var(--border); padding: 7px 9px; font-size: 0.78rem; }
   table.access-matrix th.corner, table.access-matrix td.page-label {
-    text-align: left; white-space: nowrap; position: sticky; left: 0; background: var(--surface); z-index: 2; min-width: 170px;
+    text-align: left; white-space: normal; position: sticky; left: 0; background: var(--surface); z-index: 2;
+    width: 112px; max-width: 112px; min-width: 112px; font-size: 0.74rem; line-height: 1.25; word-break: break-word;
   }
   table.access-matrix thead th { position: sticky; top: 0; background: var(--surface); z-index: 3; vertical-align: top; min-width: 128px; }
-  table.access-matrix thead th.corner { z-index: 4; }
+  table.access-matrix thead th.corner { z-index: 4; vertical-align: bottom; }
+  @media (max-width: 420px) {
+    table.access-matrix th.corner, table.access-matrix td.page-label { width: 86px; max-width: 86px; min-width: 86px; font-size: 0.7rem; padding: 7px 6px; }
+  }
   table.access-matrix td.cell { text-align: center; vertical-align: middle; }
   .mgr-col-name { font-weight: 600; font-size: 0.84rem; }
   .mgr-col-sub { font-size: 0.68rem; color: var(--ink-soft); margin-top: 2px; font-weight: 400; text-transform: none; letter-spacing: normal; }
