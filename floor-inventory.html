@@ -116,6 +116,7 @@
   <div class="card">
     <div class="hint" style="margin-bottom:10px;" id="floor-formula-hint">Usage = Beginning + Addition − Ending Count, once you enter the Ending Count.</div>
     <input type="text" id="item-search" placeholder="Search items…" style="margin-bottom:10px;">
+    <div class="hint" id="item-count" style="margin-bottom:10px;"></div>
     <div id="item-list"></div>
     <div class="hint" id="item-search-empty" hidden>No items match "<span id="item-search-term"></span>".</div>
     <div class="hint" id="item-list-empty" hidden>No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear.</div>
@@ -557,6 +558,10 @@ function renderItemList() {
   } else {
     searchEmptyHint.hidden = true;
   }
+  const countEl = document.getElementById("item-count");
+  countEl.textContent = term
+    ? `Showing ${visibleItems.length} of ${state.items.length} item${state.items.length === 1 ? "" : "s"}`
+    : `${state.items.length} item${state.items.length === 1 ? "" : "s"}`;
   visibleItems.forEach(it => {
     const beginning = Number(it.period.beginning_qty) || 0;
     const expected = beginning + it.added - (isKitchen ? it.doughUsage : 0);
