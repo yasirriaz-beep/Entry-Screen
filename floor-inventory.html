@@ -309,10 +309,22 @@ async function loadFloor() {
   // a leftover open period here — that's exactly the "same item on two floors" bug. An item
   // with no floor_category yet (never assigned) still shows wherever it already has activity,
   // same as before, until someone assigns it.
+  //
+  // Also drop anything that isn't an active product at all. state.allProducts only ever
+  // holds active=true rows, so a retired/merged product has no entry here — it used to slip
+  // through as "(unknown item)" because issuedIds pulls EVERY daily_issues row ever sent to
+  // this floor with no date bound, so a product retired months ago still counted as
+  // "has activity" forever. Worse, since it has no entry in state.allProducts, closing out
+  // its lingering floor_stock_periods row didn't help either — this same block let it right
+  // back into `ids` on the next load, and the open-a-fresh-period logic below just opened a
+  // brand new one for it every time. A retired product should simply stop being counted on
+  // any floor, full stop.
   const prodMapForFilter = {};
   state.allProducts.forEach(p => { prodMapForFilter[p.id] = p; });
   ids = ids.filter(id => {
-    const fc = prodMapForFilter[id] && prodMapForFilter[id].floor_category;
+    const p = prodMapForFilter[id];
+    if (!p) return false;
+    const fc = p.floor_category;
     return !fc || fc === floor;
   });
 
