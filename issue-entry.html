@@ -178,6 +178,7 @@
           <option value="FOH">FOH only</option>
           <option value="BAR">Bakery and Bar only</option>
           <option value="DEL">Delivery only</option>
+          <option value="BEV">Beverages only</option>
         </select>
       </div>
     </div>
@@ -208,7 +209,8 @@ const DESTS = [
   { key: "BOH", label: "BOH Issue", cls: "i-boh" },
   { key: "FOH", label: "FOH Issue", cls: "i-foh" },
   { key: "BAR", label: "Bakery and Bar Issue", cls: "i-bar" },
-  { key: "DEL", label: "Delivery Issue", cls: "i-del" }
+  { key: "DEL", label: "Delivery Issue", cls: "i-del" },
+  { key: "BEV", label: "Beverages Issue", cls: "i-bev" }
 ];
 
 let state = {
@@ -640,7 +642,7 @@ async function loadTodayList() {
   } catch (e) { emptyHint.hidden = false; }
 }
 
-const DEST_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery and Bar", DEL: "Delivery" };
+const DEST_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery and Bar", DEL: "Delivery", BEV: "Beverages" };
 
 async function printIssueReport() {
   const date = document.getElementById("f-date").value || todayStr();

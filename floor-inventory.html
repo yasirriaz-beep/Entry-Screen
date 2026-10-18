@@ -102,6 +102,7 @@
     <button type="button" class="tab-btn" data-floor="FOH">FOH</button>
     <button type="button" class="tab-btn" data-floor="BAR">Bakery and Bar</button>
     <button type="button" class="tab-btn" data-floor="DEL">Delivery</button>
+    <button type="button" class="tab-btn" data-floor="BEV">Beverages</button>
   </div>
 
   <div class="card" id="kitchen-shift-card">
@@ -139,8 +140,8 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "floor_inventory";
 const EPOCH = "2000-01-01T00:00:00.000Z";
-const FLOORS = ["KITCHEN", "BOH", "FOH", "BAR", "DEL"];
-const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery and Bar", DEL: "Delivery" };
+const FLOORS = ["KITCHEN", "BOH", "FOH", "BAR", "DEL", "BEV"];
+const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery and Bar", DEL: "Delivery", BEV: "Beverages" };
 // Floor inventory is for items that actually get issued/consumed day to day and need a
 // physical recount — real COGS plus the consumables that ride along with it (packaging,
 // cleaning supplies). Equipment/smallwares (scales, cutting boards, pouches), marketing
