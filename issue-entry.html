@@ -165,6 +165,25 @@
     <div id="today-list"></div>
     <div class="hint" id="today-empty" hidden>Nothing issued yet today.</div>
   </div>
+
+  <div class="card">
+    <div class="step-label">Print Report / Print karke Kitchen ko dein</div>
+    <div class="filter-row" style="margin-bottom:10px;">
+      <div>
+        <label>Floor</label>
+        <select id="print-dest">
+          <option value="">All floors</option>
+          <option value="KITCHEN">Kitchen only</option>
+          <option value="BOH">BOH only</option>
+          <option value="FOH">FOH only</option>
+          <option value="BAR">Bar only</option>
+          <option value="DEL">Delivery only</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" class="btn-ghost" id="btn-print-report" style="width:100%;">🖨️ Print Issue Report</button>
+    <div class="hint">Printable summary of everything issued on the selected date above, grouped by floor — print it and hand the Kitchen copy to the kitchen. / Upar wali date ke liye jo bhi issue hua uski printable summary, floor ke hisab se — print karke Kitchen copy kitchen ko de dein.</div>
+  </div>
 </div>
 
 <div class="sticky-save" id="sticky-save">
@@ -615,6 +634,101 @@ async function loadTodayList() {
     });
   } catch (e) { emptyHint.hidden = false; }
 }
+
+const DEST_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bar", DEL: "Delivery" };
+
+async function printIssueReport() {
+  const date = document.getElementById("f-date").value || todayStr();
+  const destFilter = document.getElementById("print-dest").value; // "" = all floors
+  const btn = document.getElementById("btn-print-report");
+  btn.disabled = true;
+  btn.textContent = "Loading…";
+  let rows = [];
+  try {
+    let path = `daily_issues?location_id=eq.${LOCATION_ID}&issue_date=eq.${date}&select=qty,issued_to,amount,rate,products(name,code,unit,category)&order=issued_to.asc`;
+    if (destFilter) path += `&issued_to=eq.${destFilter}`;
+    rows = await sb(path);
+  } catch (e) { rows = []; }
+  btn.disabled = false;
+  btn.textContent = "🖨️ Print Issue Report";
+
+  if (!rows.length) { alert("Nothing issued on this date for that floor yet."); return; }
+
+  // Group by destination, then by category within each destination.
+  const byDest = {};
+  rows.forEach(r => {
+    byDest[r.issued_to] = byDest[r.issued_to] || [];
+    byDest[r.issued_to].push(r);
+  });
+  const destOrder = DESTS.map(d => d.key).filter(k => byDest[k]);
+
+  const dateLabel = new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const genAt = new Date().toLocaleString();
+
+  let sections = "";
+  destOrder.forEach(destKey => {
+    const items = byDest[destKey].slice().sort((a, b) => {
+      const ca = (a.products?.category || "").localeCompare(b.products?.category || "");
+      if (ca) return ca;
+      return (a.products?.name || "").localeCompare(b.products?.name || "");
+    });
+    let totalAmt = 0;
+    const lines = items.map((r, i) => {
+      totalAmt += Number(r.amount) || 0;
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${r.products?.name || "Item"}${r.products?.code ? ` <span class="code">(${r.products.code})</span>` : ""}</td>
+        <td class="num">${fmtQty(r.qty)}</td>
+        <td>${r.products?.unit || ""}</td>
+      </tr>`;
+    }).join("");
+    sections += `
+      <div class="dest-section">
+        <h2>${DEST_LABELS[destKey] || destKey} <span class="count">(${items.length} items)</span></h2>
+        <table>
+          <thead><tr><th>#</th><th>Item</th><th class="num">Qty</th><th>Unit</th></tr></thead>
+          <tbody>${lines}</tbody>
+        </table>
+      </div>`;
+  });
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Issue Report ${date}</title>
+<style>
+  body { font-family: 'Libre Franklin', Arial, sans-serif; color: #2a2420; margin: 24px; }
+  h1 { font-size: 1.3rem; margin: 0 0 2px; }
+  .sub { color: #6f655a; font-size: 0.85rem; margin-bottom: 18px; }
+  .dest-section { margin-bottom: 22px; page-break-inside: avoid; }
+  .dest-section h2 { font-size: 1.05rem; border-bottom: 2px solid #2a2420; padding-bottom: 4px; margin-bottom: 8px; }
+  .dest-section h2 .count { font-weight: 400; font-size: 0.8rem; color: #6f655a; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid #ddd; }
+  th.num, td.num { text-align: right; }
+  .code { color: #6f655a; font-size: 0.78rem; }
+  .sign-row { display: flex; justify-content: space-between; margin-top: 40px; font-size: 0.85rem; }
+  .sign-row div { width: 45%; border-top: 1px solid #2a2420; padding-top: 4px; }
+  .foot { margin-top: 24px; font-size: 0.72rem; color: #6f655a; }
+  @media print { body { margin: 10mm; } }
+</style></head>
+<body>
+  <h1>C-5 Issue Report — ${DEST_LABELS[destFilter] || "All Floors"}</h1>
+  <div class="sub">${dateLabel} · Issued by: ${state.userName || ""}</div>
+  ${sections}
+  <div class="sign-row">
+    <div>Store Man Signature</div>
+    <div>Received By (Kitchen/Floor) Signature</div>
+  </div>
+  <div class="foot">Generated ${genAt} · C-5 Issue Entry</div>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) { alert("Please allow pop-ups to print the report."); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.onload = () => { w.focus(); w.print(); };
+}
+document.getElementById("btn-print-report").addEventListener("click", printIssueReport);
 
 // Store Man's own pending-tasks banner — same checklist the Owner Dashboard surfaces,
 // scoped to this location, since there's no per-person login here.
