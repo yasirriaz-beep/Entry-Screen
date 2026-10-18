@@ -269,7 +269,7 @@ function setFloor(floor) {
 
 async function loadProductsOnce() {
   if (state.allProducts.length) return;
-  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate,category&order=name`);
+  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate,category,floor_count_excluded&order=name`);
 }
 
 async function loadFloor() {
@@ -352,6 +352,11 @@ async function loadFloor() {
     // non-consumable categories even if they were once issued to a floor or got a
     // floor_category tagged against them by mistake (e.g. the bulk categories import).
     if (!TRACKABLE_CATEGORIES.has(p.category)) return false;
+    // A manual, reversible "skip this on the floor count page for now" flag — e.g. a
+    // negligible-value item the owner doesn't want cluttering the list even though it's
+    // a real COGS item. Flip products.floor_count_excluded back off (Manage Item or a
+    // direct note to Claude) whenever it should show again. Added 2026-10-18.
+    if (p.floor_count_excluded) return false;
     return true;
   });
 
@@ -504,6 +509,7 @@ function renderAddItemPicker(existingIds) {
     !existing.has(p.id)
     && (!p.floor_category || p.floor_category === state.floor)
     && TRACKABLE_CATEGORIES.has(p.category)
+    && !p.floor_count_excluded
   );
   box.innerHTML = `
     <label>Add an item to this floor's list</label>
