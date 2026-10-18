@@ -115,7 +115,9 @@
 
   <div class="card">
     <div class="hint" style="margin-bottom:10px;" id="floor-formula-hint">Usage = Beginning + Addition − Ending Count, once you enter the Ending Count.</div>
+    <input type="text" id="item-search" placeholder="Search items…" style="margin-bottom:10px;">
     <div id="item-list"></div>
+    <div class="hint" id="item-search-empty" hidden>No items match "<span id="item-search-term"></span>".</div>
     <div class="hint" id="item-list-empty" hidden>No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear.</div>
     <div class="field" id="add-item-box" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"></div>
   </div>
@@ -150,7 +152,8 @@ let state = {
                     // an existing override back to the auto-computed figure
   parByProduct: {}, // product_id -> floor_par_levels row for the current floor
   recipe: [],      // dough_recipe_items rows, read-only here (see loadDoughRecipe below)
-  allProducts: []
+  allProducts: [],
+  itemSearch: ""   // current text in the item search box — filters state.items client-side
 };
 
 async function sb(path, opts = {}) {
@@ -236,12 +239,18 @@ document.getElementById("btn-back").addEventListener("click", backToNames);
 
 document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => setFloor(btn.dataset.floor)));
 document.getElementById("f-shift").addEventListener("change", (e) => { state.shift = e.target.value; if (state.floor === "KITCHEN") loadFloor(); });
+document.getElementById("item-search").addEventListener("input", (e) => {
+  state.itemSearch = e.target.value;
+  renderItemList();
+});
 
 function setFloor(floor) {
   state.floor = floor;
   state.dirty = {};
   state.dirtyPar = {};
   state.dirtyReorderOverride = {};
+  state.itemSearch = "";
+  document.getElementById("item-search").value = "";
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.floor === floor));
   document.getElementById("kitchen-shift-card").hidden = floor !== "KITCHEN";
   document.getElementById("dough-log-hint").hidden = floor !== "KITCHEN";
@@ -508,7 +517,16 @@ function renderItemList() {
   list.innerHTML = "";
   const isKitchen = state.floor === "KITCHEN";
   const canMove = state.userRole === "store_man" || state.userRole === "director";
-  state.items.forEach(it => {
+  const term = state.itemSearch.trim().toLowerCase();
+  const visibleItems = term ? state.items.filter(it => it.name.toLowerCase().includes(term)) : state.items;
+  const searchEmptyHint = document.getElementById("item-search-empty");
+  if (term && !visibleItems.length) {
+    document.getElementById("item-search-term").textContent = state.itemSearch.trim();
+    searchEmptyHint.hidden = false;
+  } else {
+    searchEmptyHint.hidden = true;
+  }
+  visibleItems.forEach(it => {
     const beginning = Number(it.period.beginning_qty) || 0;
     const expected = beginning + it.added - (isKitchen ? it.doughUsage : 0);
     const dirtyVal = state.dirty[it.id];
