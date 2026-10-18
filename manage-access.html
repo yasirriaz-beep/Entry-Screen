@@ -42,20 +42,27 @@
   .btn-sm { padding: 8px 12px; font-size: 0.82rem; border-radius: 8px; width: auto; }
   [hidden] { display: none !important; }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
-  .mgr-row { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; background: var(--field-bg); }
-  .mgr-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .mgr-title { font-weight: 600; }
-  .mgr-sub { font-size: 0.8rem; color: var(--ink-soft); }
-  .pill-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; display: inline-block; }
   .pill-ok { background: var(--ok-bg); color: var(--ok); }
   .pill-warn { background: var(--warn-bg); color: var(--warn); }
-  .access-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-  .access-chip { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 0.82rem; cursor: pointer; background: var(--surface); }
-  .access-chip.granted { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
-  .chip-label { cursor: pointer; }
-  .view-only-toggle { font-size: 0.7rem; margin-left: 8px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
-  .view-only-toggle.on { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
-  .mgr-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .matrix-card { padding: 12px; }
+  .matrix-scroll { overflow-x: auto; margin: 0 -12px; padding: 0 12px; }
+  table.access-matrix { border-collapse: collapse; width: max-content; min-width: 100%; }
+  table.access-matrix th, table.access-matrix td { border: 1px solid var(--border); padding: 7px 9px; font-size: 0.78rem; }
+  table.access-matrix th.corner, table.access-matrix td.page-label {
+    text-align: left; white-space: nowrap; position: sticky; left: 0; background: var(--surface); z-index: 2; min-width: 170px;
+  }
+  table.access-matrix thead th { position: sticky; top: 0; background: var(--surface); z-index: 3; vertical-align: top; min-width: 128px; }
+  table.access-matrix thead th.corner { z-index: 4; }
+  table.access-matrix td.cell { text-align: center; vertical-align: middle; }
+  .mgr-col-name { font-weight: 600; font-size: 0.84rem; }
+  .mgr-col-sub { font-size: 0.68rem; color: var(--ink-soft); margin-top: 2px; font-weight: 400; text-transform: none; letter-spacing: normal; }
+  .mgr-col-badge { margin-top: 6px; }
+  .mgr-col-actions { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .btn-xs { padding: 5px 6px; font-size: 0.65rem; border-radius: 6px; width: 100%; }
+  .access-check { width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent); }
+  .view-toggle { display: block; margin: 5px auto 0; border: none; background: transparent; cursor: pointer; font-size: 0.82rem; padding: 0; color: var(--ink-soft); line-height: 1; }
+  .view-toggle.on { color: var(--warn); }
   .banner { border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; margin-bottom: 14px; line-height: 1.4; }
   .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
   .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
@@ -126,7 +133,10 @@
     <button class="btn-primary" id="btn-add-manager">Add Manager</button>
   </div>
 
-  <div id="mgr-list"></div>
+  <div class="card matrix-card" id="mgr-card">
+    <div class="mgr-sub" style="margin-bottom:10px; font-weight:600; text-transform:uppercase; font-size:0.78rem; letter-spacing:0.02em; color:var(--ink-soft);">Access Matrix — pages down the side, people across the top</div>
+    <div id="mgr-list"></div>
+  </div>
 </div>
 <script src="session.js"></script>
 <script>
@@ -277,63 +287,75 @@ function renderManagers() {
     list.innerHTML = '<div class="hint">No managers added yet.</div>';
     return;
   }
-  state.managers.forEach(m => {
-    const row = document.createElement("div");
-    row.className = "mgr-row";
-    const accessChips = PAGE_KEYS.map(pk => {
+
+  const headCells = state.managers.map(m => `
+    <th data-manager="${m.id}">
+      <div class="mgr-col-name">${m.name}</div>
+      <div class="mgr-col-sub">acts as ${m.app_user_name} (${m.role})</div>
+      <div class="mgr-col-sub">code: ${m.login_code ? `<strong>${m.login_code}</strong>` : "none set"}</div>
+      <div class="mgr-col-badge"><span class="pill-badge ${m.has_pin ? "pill-ok" : "pill-warn"}">${m.has_pin ? "PIN set" : "No PIN"}</span></div>
+      <div class="mgr-col-actions">
+        <button type="button" class="btn-ghost btn-xs mgr-set-pin" data-manager="${m.id}">${m.has_pin ? "Change PIN" : "Set PIN"}</button>
+        <button type="button" class="btn-ghost btn-xs mgr-set-code" data-manager="${m.id}">${m.login_code ? "Change Code" : "Set Code"}</button>
+        <button type="button" class="btn-ghost btn-xs mgr-toggle-active" data-manager="${m.id}">${m.active ? "Deactivate" : "Reactivate"}</button>
+      </div>
+    </th>`).join("");
+
+  const bodyRows = PAGE_KEYS.map(pk => {
+    const cells = state.managers.map(m => {
       const entry = m.page_access[pk.key];
       const granted = !!(entry && entry.granted);
       const viewOnly = !!(entry && entry.view_only);
       const viewToggle = granted
-        ? `<span class="view-only-toggle ${viewOnly ? "on" : ""}" data-manager="${m.id}" data-page="${pk.key}" data-view-only="${viewOnly}" title="${viewOnly ? "View only - click to allow editing" : "Can edit - click to make view only"}">${viewOnly ? "👁 view only" : "edit"}</span>`
+        ? `<button type="button" class="view-toggle ${viewOnly ? "on" : ""}" data-manager="${m.id}" data-page="${pk.key}" data-view-only="${viewOnly}" title="${viewOnly ? "View only — click to allow editing" : "Can edit — click to make view only"}">${viewOnly ? "👁" : "✎"}</button>`
         : "";
-      return `<div class="access-chip ${granted ? "granted" : ""}" data-manager="${m.id}" data-page="${pk.key}" data-granted="${granted}">
-        <span class="chip-label">${granted ? "✓ " : ""}${pk.label}</span>${viewToggle}
-      </div>`;
+      return `<td class="cell">
+        <input type="checkbox" class="access-check" data-manager="${m.id}" data-page="${pk.key}" ${granted ? "checked" : ""}>
+        ${viewToggle}
+      </td>`;
     }).join("");
-    row.innerHTML = `
-      <div class="mgr-top">
-        <div>
-          <span class="mgr-title">${m.name}</span>
-          <div class="mgr-sub">acts as ${m.app_user_name} (${m.role}) &middot; login code: ${m.login_code ? `<strong>${m.login_code}</strong>` : "<em>none set</em>"}</div>
-        </div>
-        <span class="pill-badge ${m.has_pin ? "pill-ok" : "pill-warn"}">${m.has_pin ? "PIN set" : "No PIN yet"}</span>
-      </div>
-      <div class="access-grid">${accessChips}</div>
-      <div class="mgr-actions">
-        <button type="button" class="btn-ghost btn-sm mgr-set-pin">${m.has_pin ? "Change PIN" : "Set PIN"}</button>
-        <button type="button" class="btn-ghost btn-sm mgr-set-code">${m.login_code ? "Change Code" : "Set Code"}</button>
-        <button type="button" class="btn-ghost btn-sm mgr-toggle-active">${m.active ? "Deactivate" : "Reactivate"}</button>
-      </div>
-    `;
-    row.querySelectorAll(".access-chip").forEach(chip => {
-      chip.querySelector(".chip-label").addEventListener("click", () => toggleAccess(chip));
-    });
-    row.querySelectorAll(".view-only-toggle").forEach(toggle => {
-      toggle.addEventListener("click", (e) => { e.stopPropagation(); toggleViewOnly(toggle); });
-    });
-    row.querySelector(".mgr-set-pin").addEventListener("click", () => setPin(m));
-    row.querySelector(".mgr-set-code").addEventListener("click", () => setCode(m));
-    row.querySelector(".mgr-toggle-active").addEventListener("click", () => toggleActive(m));
-    list.appendChild(row);
+    return `<tr><td class="page-label">${pk.label}</td>${cells}</tr>`;
+  }).join("");
+
+  const scrollWrap = document.createElement("div");
+  scrollWrap.className = "matrix-scroll";
+  scrollWrap.innerHTML = `
+    <table class="access-matrix">
+      <thead><tr><th class="corner">Page</th>${headCells}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>`;
+  list.appendChild(scrollWrap);
+
+  list.querySelectorAll(".access-check").forEach(cb => {
+    cb.addEventListener("change", () => toggleAccess(cb));
+  });
+  list.querySelectorAll(".view-toggle").forEach(toggle => {
+    toggle.addEventListener("click", (e) => { e.stopPropagation(); toggleViewOnly(toggle); });
+  });
+  list.querySelectorAll(".mgr-set-pin").forEach(btn => {
+    btn.addEventListener("click", () => { const m = state.managers.find(x => x.id === btn.dataset.manager); if (m) setPin(m); });
+  });
+  list.querySelectorAll(".mgr-set-code").forEach(btn => {
+    btn.addEventListener("click", () => { const m = state.managers.find(x => x.id === btn.dataset.manager); if (m) setCode(m); });
+  });
+  list.querySelectorAll(".mgr-toggle-active").forEach(btn => {
+    btn.addEventListener("click", () => { const m = state.managers.find(x => x.id === btn.dataset.manager); if (m) toggleActive(m); });
   });
 }
 
-async function toggleAccess(chip) {
-  const managerId = chip.dataset.manager;
-  const page = chip.dataset.page;
-  const currentlyGranted = chip.dataset.granted === "true";
-  const next = !currentlyGranted;
-  const viewOnlyToggle = chip.querySelector(".view-only-toggle");
-  const currentViewOnly = viewOnlyToggle ? viewOnlyToggle.dataset.viewOnly === "true" : false;
-  chip.style.opacity = "0.5";
+async function toggleAccess(checkbox) {
+  const managerId = checkbox.dataset.manager;
+  const page = checkbox.dataset.page;
+  const next = checkbox.checked;
+  checkbox.disabled = true;
   try {
     const acting = AppSession.get();
-    await sbRpc("admin_set_page_access_v3", { p_owner_pin: state.ownerPin, p_acting_manager_id: acting ? acting.managerId : null, p_manager_id: managerId, p_page_key: page, p_granted: next, p_view_only: next ? currentViewOnly : false });
+    await sbRpc("admin_set_page_access_v3", { p_owner_pin: state.ownerPin, p_acting_manager_id: acting ? acting.managerId : null, p_manager_id: managerId, p_page_key: page, p_granted: next, p_view_only: false });
     await refreshManagers();
   } catch (e) {
     alert("Couldn't update access: " + e.message);
-    chip.style.opacity = "1";
+    checkbox.checked = !next;
+    checkbox.disabled = false;
   }
 }
 
