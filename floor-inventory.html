@@ -269,7 +269,7 @@ function setFloor(floor) {
 
 async function loadProductsOnce() {
   if (state.allProducts.length) return;
-  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate,category,floor_count_excluded&order=name`);
+  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate,category,floor_count_excluded,floor_sort_priority&order=name`);
 }
 
 async function loadFloor() {
@@ -468,7 +468,8 @@ async function loadFloor() {
     const reorderOverride = parRow && parRow.reorder_override_qty != null ? Number(parRow.reorder_override_qty) : null;
     const rate = Number(prod.current_rate) || 0;
     const beginningQty = Number(period.beginning_qty) || 0;
-    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate, beginningQty });
+    const sortPriority = prod.floor_sort_priority != null ? Number(prod.floor_sort_priority) : null;
+    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate, beginningQty, sortPriority });
   }
   // Kitchen only: only show an item if Store actually issued it (Addition > 0) or it
   // carried a beginning balance over from a prior day/shift's Ending Count — not just
@@ -486,8 +487,18 @@ async function loadFloor() {
   emptyHint.hidden = true;
   // Most expensive first (cheese, chicken, etc. for Kitchen) so the manager counts the
   // highest-value items first — falls back to name order for items with the same (or no)
-  // rate on file. Changed 2026-10-18, per the owner.
-  visible.sort((a, b) => (b.rate - a.rate) || a.name.localeCompare(b.name));
+  // rate on file. Changed 2026-10-18, per the owner. An item with a floor_sort_priority
+  // set (products.floor_sort_priority, e.g. "pin Tikka/Fajita Toppings right under
+  // Cheese") jumps the rate ordering entirely and sorts by that number first, lowest
+  // first — a manual pin, not a price fact. Added 2026-10-18.
+  visible.sort((a, b) => {
+    if (a.sortPriority != null || b.sortPriority != null) {
+      const ap = a.sortPriority != null ? a.sortPriority : Infinity;
+      const bp = b.sortPriority != null ? b.sortPriority : Infinity;
+      if (ap !== bp) return ap - bp;
+    }
+    return (b.rate - a.rate) || a.name.localeCompare(b.name);
+  });
   state.items = visible;
   renderItemList();
   renderAddItemPicker(ids);
