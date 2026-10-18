@@ -119,11 +119,13 @@
     <div class="row2 field">
       <div>
         <label>Category</label>
-        <input type="text" id="f-category">
+        <select id="f-category"></select>
+        <input type="text" id="f-category-new" placeholder="New category name" style="margin-top:6px;" hidden>
       </div>
       <div>
         <label>Subcategory</label>
-        <input type="text" id="f-subcategory">
+        <select id="f-subcategory"></select>
+        <input type="text" id="f-subcategory-new" placeholder="New subcategory name" style="margin-top:6px;" hidden>
       </div>
     </div>
     <div class="row2 field">
@@ -245,7 +247,11 @@ const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery 
 const params = new URLSearchParams(location.search);
 const PRODUCT_ID = params.get("id");
 
-let state = { userId: null, userName: null, managerId: null, product: null, vendors: [], openPeriods: [] };
+let state = {
+  userId: null, userName: null, managerId: null, product: null, vendors: [], openPeriods: [],
+  categories: [], // distinct existing products.category values, for the Category dropdown
+  subcategoriesByCategory: {} // category -> distinct existing subcategory values under it
+};
 
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -333,12 +339,27 @@ function fmtMoney(n) { const v = Number(n) || 0; return Math.round(v).toLocaleSt
 function fmtQty(n) { const v = Number(n) || 0; return (Math.round(v * 100) / 100).toLocaleString(); }
 
 async function loadAll() {
-  const [products, vendors] = await Promise.all([
+  const [products, vendors, allCatRows] = await Promise.all([
     sb(`products?id=eq.${PRODUCT_ID}&select=*`),
-    sb(`vendors?active=eq.true&select=id,name&order=name`)
+    sb(`vendors?active=eq.true&select=id,name&order=name`),
+    // Distinct category/subcategory pairs across every active item, so the dropdowns below
+    // offer what's already in use instead of free text drifting into near-duplicates
+    // (e.g. "Cakes" vs "cake" vs "Cake "). Small table (under 600 rows) — fine to pull in full
+    // and dedupe client-side rather than needing a Postgres view just for this.
+    sb(`products?active=eq.true&select=category,subcategory&limit=100000`)
   ]);
   state.product = products && products[0];
   state.vendors = vendors || [];
+  state.categories = [...new Set((allCatRows || []).map(r => r.category).filter(Boolean))].sort();
+  state.subcategoriesByCategory = {};
+  (allCatRows || []).forEach(r => {
+    if (!r.category || !r.subcategory) return;
+    const set = state.subcategoriesByCategory[r.category] || (state.subcategoriesByCategory[r.category] = new Set());
+    set.add(r.subcategory);
+  });
+  Object.keys(state.subcategoriesByCategory).forEach(c => {
+    state.subcategoriesByCategory[c] = [...state.subcategoriesByCategory[c]].sort();
+  });
   if (!state.product) {
     document.getElementById("panel-main").hidden = true;
     document.getElementById("no-id-msg").hidden = false;
@@ -346,10 +367,53 @@ async function loadAll() {
     return;
   }
   renderBasics();
+  renderCategorySelect();
+  renderSubcategorySelect();
   renderFloorPills();
   renderVendorSelect();
   await Promise.all([checkDuplicateFloors(), loadRateHistory(), loadUsageAndWastage()]);
 }
+
+// Category/Subcategory: dropdowns of what's already in use, plus "+ Add new…" which reveals
+// a plain text box. Flagged by the owner 2026-10-18 — free-text inputs here were letting
+// near-duplicate categories pile up (e.g. different casing/spelling of the same thing).
+function renderCategorySelect() {
+  const sel = document.getElementById("f-category");
+  const current = state.product.category || "";
+  const options = [...state.categories];
+  if (current && !options.includes(current)) options.push(current); // keep an odd existing value selectable, not silently dropped
+  sel.innerHTML = `<option value="">— select —</option>` +
+    options.map(c => `<option value="${c}" ${c === current ? "selected" : ""}>${c}</option>`).join("") +
+    `<option value="__new__">+ Add new category…</option>`;
+  const newBox = document.getElementById("f-category-new");
+  newBox.hidden = true;
+  newBox.value = "";
+}
+function renderSubcategorySelect() {
+  const sel = document.getElementById("f-subcategory");
+  const current = state.product.subcategory || "";
+  const category = document.getElementById("f-category").value;
+  const options = category && category !== "__new__" ? (state.subcategoriesByCategory[category] || []).slice() : [];
+  if (current && !options.includes(current)) options.push(current);
+  sel.innerHTML = `<option value="">— none —</option>` +
+    options.map(s => `<option value="${s}" ${s === current ? "selected" : ""}>${s}</option>`).join("") +
+    `<option value="__new__">+ Add new subcategory…</option>`;
+  const newBox = document.getElementById("f-subcategory-new");
+  newBox.hidden = true;
+  newBox.value = "";
+}
+document.getElementById("f-category").addEventListener("change", (e) => {
+  document.getElementById("f-category-new").hidden = e.target.value !== "__new__";
+  if (e.target.value !== "__new__") document.getElementById("f-category-new").value = "";
+  // Subcategory options depend on which category is picked — e.g. picking a brand-new
+  // category means there's no history yet, so Subcategory falls back to "Add new" only.
+  state.product.subcategory = ""; // starting a new category resets any previously-selected subcategory
+  renderSubcategorySelect();
+});
+document.getElementById("f-subcategory").addEventListener("change", (e) => {
+  document.getElementById("f-subcategory-new").hidden = e.target.value !== "__new__";
+  if (e.target.value !== "__new__") document.getElementById("f-subcategory-new").value = "";
+});
 
 function renderBasics() {
   const p = state.product;
@@ -357,13 +421,12 @@ function renderBasics() {
   document.getElementById("item-sub").textContent = `${p.code || "no code"} · ${p.unit || "no unit"}${p.active ? "" : " · RETIRED"}`;
   document.getElementById("f-name").value = p.name || "";
   document.getElementById("f-code").value = p.code || "";
-  document.getElementById("f-category").value = p.category || "";
-  document.getElementById("f-subcategory").value = p.subcategory || "";
   document.getElementById("f-unit").value = p.unit || "";
   document.getElementById("f-rate").value = p.current_rate != null ? p.current_rate : "";
   document.getElementById("f-last-rate").value = p.last_rate != null ? `PKR ${fmtMoney(p.last_rate)}` : "—";
   document.getElementById("rate-updated-hint").textContent = p.rate_updated_at
-    ? `Rate last updated ${new Date(p.rate_updated_at).toLocaleDateString()}` : "";
+    ? `Rate last updated ${new Date(p.rate_updated_at).toLocaleDateString()}`
+    : "Auto-fills from the previous Current Rate once it changes (here or via Goods Receipt) — nothing to type here, and a brand-new item has no earlier rate yet, so this stays \"—\" until the rate changes once.";
   document.getElementById("f-cost-type").value = p.cost_type || "uncategorized";
   document.getElementById("f-is-bar").checked = !!p.is_bar_item;
   document.getElementById("f-min-stock").value = p.min_stock_level != null ? p.min_stock_level : "";
@@ -557,11 +620,18 @@ document.getElementById("btn-save").addEventListener("click", async () => {
   if (!name) return alert("Name can't be empty.");
   if (!unit) return alert("Unit can't be empty.");
 
+  const catSel = document.getElementById("f-category").value;
+  const category = catSel === "__new__" ? document.getElementById("f-category-new").value.trim() : catSel;
+  if (catSel === "__new__" && !category) return alert("Type the new category's name, or pick an existing one.");
+  const subcatSel = document.getElementById("f-subcategory").value;
+  const subcategory = subcatSel === "__new__" ? document.getElementById("f-subcategory-new").value.trim() : subcatSel;
+  if (subcatSel === "__new__" && !subcategory) return alert("Type the new subcategory's name, or pick an existing one (or leave it blank).");
+
   const payload = {
     name,
     code: document.getElementById("f-code").value.trim() || null,
-    category: document.getElementById("f-category").value.trim() || null,
-    subcategory: document.getElementById("f-subcategory").value.trim() || null,
+    category: category || null,
+    subcategory: subcategory || null,
     unit,
     current_rate: parseFloat(document.getElementById("f-rate").value) || null,
     floor_category: p.floor_category || null,

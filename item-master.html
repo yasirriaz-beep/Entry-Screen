@@ -116,7 +116,8 @@
     <div class="row2 field">
       <div>
         <label>Category</label>
-        <input type="text" id="n-category" placeholder="e.g. Produce">
+        <select id="n-category"></select>
+        <input type="text" id="n-category-new" placeholder="New category name" style="margin-top:6px;" hidden>
       </div>
       <div>
         <label>Unit</label>
@@ -336,10 +337,31 @@ document.getElementById("n-unit").addEventListener("change", (e) => {
   document.getElementById("n-unit-other").hidden = e.target.value !== "OTHER";
 });
 
+// Category: dropdown of categories already in use, plus "+ Add new…" which reveals a plain
+// text box — same fix as Manage Item, so free text can't drift into near-duplicate
+// categories. Sourced from state.products, already fetched by loadItems() below.
+function renderCategorySelect() {
+  const sel = document.getElementById("n-category");
+  const prevValue = sel.value && sel.value !== "__new__" ? sel.value : "";
+  const categories = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">— select —</option>` +
+    categories.map(c => `<option value="${c}">${c}</option>`).join("") +
+    `<option value="__new__">+ Add new category…</option>`;
+  if (prevValue && categories.includes(prevValue)) sel.value = prevValue;
+}
+document.getElementById("n-category").addEventListener("change", (e) => {
+  document.getElementById("n-category-new").hidden = e.target.value !== "__new__";
+  if (e.target.value !== "__new__") document.getElementById("n-category-new").value = "";
+});
+
 async function addItem() {
   const code = document.getElementById("n-code").value.trim();
   const name = document.getElementById("n-name").value.trim();
-  const category = document.getElementById("n-category").value.trim() || null;
+  const catSel = document.getElementById("n-category").value;
+  if (catSel === "__new__" && !document.getElementById("n-category-new").value.trim()) {
+    return alert("Type the new category's name, or pick an existing one.");
+  }
+  const category = (catSel === "__new__" ? document.getElementById("n-category-new").value.trim() : catSel) || null;
   const unitSel = document.getElementById("n-unit").value;
   const unit = unitSel === "OTHER" ? (document.getElementById("n-unit-other").value.trim() || null) : unitSel;
   const rate = parseFloat(document.getElementById("n-rate").value) || null;
@@ -362,6 +384,8 @@ async function addItem() {
     document.getElementById("n-code").value = "";
     document.getElementById("n-name").value = "";
     document.getElementById("n-category").value = "";
+    document.getElementById("n-category-new").value = "";
+    document.getElementById("n-category-new").hidden = true;
     document.getElementById("n-rate").value = "";
     document.getElementById("n-unit").value = "KG";
     document.getElementById("n-unit-other").hidden = true;
@@ -387,6 +411,7 @@ async function loadItems() {
     state.products = await sb(`products?select=id,code,name,category,unit,current_rate,active&order=name${filter}`);
   } catch (e) { state.products = []; }
   renderItemList();
+  renderCategorySelect();
 }
 
 function renderItemList() {
