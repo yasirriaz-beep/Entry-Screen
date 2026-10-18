@@ -80,7 +80,7 @@
 <a class="btn-ghost" href="item-master.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit; width:auto;">← Item Master</a>
 
 <div id="step-name" class="card">
-  <div class="hint" style="margin-bottom:8px;">Who are you?</div>
+  <div class="hint" style="margin-bottom:8px;">Who are you? / Aap kaun hain?</div>
   <form id="login-form" autocomplete="on">
     <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
     <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
@@ -91,6 +91,7 @@
 
 <div id="no-id-msg" class="card" hidden>
   <div class="hint">No item selected — go back to Item Master and pick one to manage.</div>
+  <div class="hint" style="margin-top:4px; font-style:italic;">Koi item select nahi — Item Master par wapas jayein aur manage karne ke liye aik item chunein.</div>
 </div>
 
 <div id="panel-main" hidden>
@@ -104,6 +105,7 @@
 
   <div class="card">
     <h2>Basic Info</h2>
+    <div class="hint" style="margin-bottom:10px;">Item ka naam, code, category aur rate yahan se theek karein.</div>
     <div class="row2 field">
       <div>
         <label>Name</label>
@@ -140,11 +142,13 @@
   <div class="card">
     <h2>Floor Category</h2>
     <div class="hint" style="margin-bottom:10px;">Which floor this item is counted on in Floor Inventory. One floor only — this is what stops the same item showing up under two floors at once.</div>
+    <div class="hint" style="margin-bottom:10px; font-style:italic;">Yeh item Floor Inventory mein kis floor par count hota hai, wo select karein. Sirf aik floor — isi se yeh item do floors par aik sath nahi dikhega.</div>
     <div class="floor-pills" id="floor-pills"></div>
   </div>
 
   <div class="card">
     <h2>COGS &amp; Costing</h2>
+    <div class="hint" style="margin-bottom:10px;">Cost Type batata hai ke yeh item food cost (COGS) mein shamil hoga ya nahi.</div>
     <div class="row2 field">
       <div>
         <label>Cost Type</label>
@@ -166,6 +170,7 @@
 
   <div class="card">
     <h2>MOQ / Reorder</h2>
+    <div class="hint" style="margin-bottom:10px;">Minimum stock, reorder quantity aur lead time set karein taake reorder waqt par ho.</div>
     <div class="row3 row2 field">
       <div>
         <label>Min Stock Level</label>
@@ -188,6 +193,7 @@
 
   <div class="card">
     <h2>Vendor</h2>
+    <div class="hint" style="margin-bottom:10px;">Is item ka asal vendor select karein — jahan se yeh zyada tar khareeda jata hai.</div>
     <div class="field">
       <label>Preferred Vendor</label>
       <select id="f-vendor"><option value="">— none set —</option></select>
@@ -197,6 +203,7 @@
 
   <div class="card">
     <h2>Usage &amp; Stock Snapshot</h2>
+    <div class="hint" style="margin-bottom:10px;">Pichle 6 mahine ka average istemal, zaya (wastage), aur akhri physical count yahan dikhta hai.</div>
     <div class="stat-grid" id="usage-stats"></div>
     <div class="scroll-x">
       <table class="hist-tbl" id="usage-tbl"><thead><tr><th>Month</th><th class="num">Issued to floors</th><th class="num">Wastage</th></tr></thead><tbody></tbody></table>
@@ -214,6 +221,7 @@
   <div class="card">
     <h2>Status</h2>
     <div class="hint" style="margin-bottom:10px;" id="active-status-hint"></div>
+    <div class="hint" style="margin-bottom:10px; font-style:italic;" id="active-status-hint-ur"></div>
     <button type="button" class="btn-sm" id="btn-toggle-active" style="width:100%;"></button>
   </div>
 
@@ -364,10 +372,14 @@ function renderBasics() {
   document.getElementById("f-avg-usage").value = p.avg_daily_usage != null ? p.avg_daily_usage : "";
 
   const activeHint = document.getElementById("active-status-hint");
+  const activeHintUr = document.getElementById("active-status-hint-ur");
   const toggleBtn = document.getElementById("btn-toggle-active");
   activeHint.textContent = p.active
     ? "This item is active and shows up for new entries everywhere."
     : "This item is retired — it stays in history but won't show up for new entries.";
+  activeHintUr.textContent = p.active
+    ? "Yeh item active hai aur har jagah naye entries ke liye dikhega."
+    : "Yeh item retire ho chuka hai — history mein rahega lekin naye entries ke liye nahi dikhega.";
   toggleBtn.textContent = p.active ? "Retire Item" : "Restore Item";
   toggleBtn.className = "btn-sm " + (p.active ? "btn-outline-err" : "btn-outline-ok");
   toggleBtn.onclick = () => toggleActive();
