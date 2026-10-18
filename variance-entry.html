@@ -59,6 +59,14 @@
   .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
   .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
 
+  .dough-row { display: grid; grid-template-columns: 1fr 90px; gap: 8px; align-items: end; margin-bottom: 8px; }
+  .dough-row .remove-ing { background: transparent; border: 1px solid var(--border); color: var(--err); padding: 10px; }
+  table.recipe-tbl { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  table.recipe-tbl th, table.recipe-tbl td { border-bottom: 1px solid var(--border); padding: 6px 4px; text-align: left; }
+  table.recipe-tbl td.num { text-align: right; }
+  .output-row { display: grid; grid-template-columns: 1fr 90px; gap: 8px; margin-bottom: 8px; }
+  .pill-btn { display: inline-block; background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 8px 14px; font-size: 0.82rem; cursor: pointer; font-weight: 600; }
+
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .login-field + .login-field { margin-top: 10px; }
@@ -103,6 +111,31 @@
   </div>
 
   <a href="variance-items.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Manage Item List</a>
+
+  <div class="card" id="dough-card">
+    <h2 style="font-family:'Zilla Slab',Georgia,serif; font-size:1.15rem; margin:0 0 10px;">Dough Batch Log</h2>
+    <div class="hint" style="margin-bottom:10px;">Moved here from Floor Inventory for now. Logging a batch auto-deducts the recipe's ingredients from Kitchen's floor stock for the current period — the deduction still shows on Floor Inventory's Kitchen tab as "Dough Batch Usage".</div>
+    <label>Batches Made</label>
+    <input type="number" id="db-batches" step="any" min="0" placeholder="e.g. 3">
+    <div style="margin-top:10px;">
+      <label>Pizza Sizes Made From This Batch</label>
+      <div id="db-outputs"></div>
+      <span class="pill-btn" id="db-add-output">+ Add size</span>
+    </div>
+    <button class="btn-primary" id="db-save" style="margin-top:14px;">Log Dough Batch</button>
+    <div class="hint" id="db-status" style="margin-top:8px;"></div>
+
+    <div id="recipe-admin" style="margin-top:20px; border-top:1px solid var(--border); padding-top:14px;" hidden>
+      <div class="step-label">Dough Recipe (per batch) — director only</div>
+      <div id="recipe-rows"></div>
+      <div class="dough-row" style="margin-top:6px;">
+        <select id="recipe-new-product"><option value="">Add ingredient…</option></select>
+        <input type="number" id="recipe-new-qty" step="any" placeholder="qty/batch">
+      </div>
+      <button class="btn-ghost" id="recipe-add-btn" type="button">Add Ingredient</button>
+    </div>
+  </div>
+
   <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 </div>
 
@@ -120,7 +153,8 @@ const PAGE_KEY = "variance_entry";
 let state = {
   userId: null, userName: null, userRole: null, managerId: null, dept: "drinks",
   items: [], entries: {}, // variance_item_id -> entry row for the chosen date
-  dirty: {} // variance_item_id -> {added_qty} or {closing_qty, discard_qty} depending on role
+  dirty: {}, // variance_item_id -> {added_qty} or {closing_qty, discard_qty} depending on role
+  allProducts: [], recipe: [] // for the Dough Batch Log card, moved here from Floor Inventory
 };
 
 async function sb(path, opts = {}) {
@@ -223,7 +257,9 @@ function afterLogin(userId, name, managerId, role) {
   document.getElementById("step-name").hidden = true;
   document.getElementById("panel-main").hidden = false;
   document.getElementById("f-date").value = todayStr();
+  document.getElementById("recipe-admin").hidden = role !== "director";
   loadAll();
+  loadProductsOnce().then(loadDoughRecipe);
 }
 
 function backToNames() {
@@ -402,6 +438,86 @@ async function saveAllEntries() {
   if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
 }
 document.getElementById("btn-save-all").addEventListener("click", saveAllEntries);
+
+/* ---------- Dough Batch Log (moved here from Floor Inventory 2026-10-18) ---------- */
+async function loadProductsOnce() {
+  if (state.allProducts.length) return;
+  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit&order=name`);
+  const sel = document.getElementById("recipe-new-product");
+  sel.innerHTML = `<option value="">Add ingredient…</option>` + state.allProducts.map(p => `<option value="${p.id}">${p.name} (${p.unit})</option>`).join("");
+}
+async function loadDoughRecipe() {
+  try {
+    const rows = await sb(`dough_recipe_items?location_id=eq.${LOCATION_ID}&active=eq.true&select=*`);
+    const prodMap = {}; state.allProducts.forEach(p => { prodMap[p.id] = p; });
+    state.recipe = rows.map(r => ({ ...r, _name: prodMap[r.product_id]?.name || "(item)", _unit: prodMap[r.product_id]?.unit || "" }));
+  } catch (e) { state.recipe = []; }
+  renderRecipe();
+}
+function renderRecipe() {
+  const box = document.getElementById("recipe-rows");
+  if (!state.recipe.length) { box.innerHTML = `<div class="hint">No recipe set yet — add ingredients below (e.g. Pizza Flour, Dough Blend, Oil) with the exact quantity used per batch.</div>`; return; }
+  box.innerHTML = `<table class="recipe-tbl"><tr><th>Ingredient</th><th>Qty / batch</th><th>Unit</th></tr>` +
+    state.recipe.map(r => `<tr><td>${r._name}</td><td class="num">${fmtQty(r.qty_per_batch)}</td><td>${r._unit}</td></tr>`).join("") +
+    `</table>`;
+}
+document.getElementById("recipe-add-btn").addEventListener("click", async () => {
+  const pid = document.getElementById("recipe-new-product").value;
+  const qty = parseFloat(document.getElementById("recipe-new-qty").value);
+  if (!pid || isNaN(qty) || qty <= 0) { alert("Pick an ingredient and a quantity per batch."); return; }
+  try {
+    await sb(`dough_recipe_items`, {
+      method: "POST", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ location_id: LOCATION_ID, product_id: pid, qty_per_batch: qty, created_by: state.userId })
+    });
+    document.getElementById("recipe-new-product").value = "";
+    document.getElementById("recipe-new-qty").value = "";
+    await loadDoughRecipe();
+  } catch (e) { alert("Could not add ingredient: " + e.message); }
+});
+
+function addOutputRow(label = "", qty = "") {
+  const box = document.getElementById("db-outputs");
+  const row = document.createElement("div");
+  row.className = "output-row";
+  row.innerHTML = `<input type="text" class="o-label" placeholder="e.g. Medium" value="${label}"><input type="number" class="o-qty" step="any" placeholder="qty" value="${qty}">`;
+  box.appendChild(row);
+}
+document.getElementById("db-add-output").addEventListener("click", () => addOutputRow());
+addOutputRow();
+
+document.getElementById("db-save").addEventListener("click", async () => {
+  const statusEl = document.getElementById("db-status");
+  const batches = parseFloat(document.getElementById("db-batches").value);
+  if (isNaN(batches) || batches <= 0) { statusEl.textContent = "Enter how many batches were made."; return; }
+  if (!state.recipe.length) { statusEl.textContent = "No dough recipe set up yet — ask the director to add ingredients above first."; return; }
+  const outputs = [...document.querySelectorAll("#db-outputs .output-row")].map(r => ({
+    label: r.querySelector(".o-label").value.trim(),
+    qty: parseFloat(r.querySelector(".o-qty").value)
+  })).filter(o => o.label && !isNaN(o.qty) && o.qty > 0);
+
+  statusEl.textContent = "Saving…";
+  try {
+    const created = await sb(`dough_batches`, {
+      method: "POST", headers: { "Prefer": "return=representation" },
+      body: JSON.stringify({
+        location_id: LOCATION_ID, batch_date: todayStr(),
+        batches_made: batches, entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+      })
+    });
+    const batchId = created && created[0] && created[0].id;
+    for (const o of outputs) {
+      await sb(`dough_batch_outputs`, {
+        method: "POST", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ dough_batch_id: batchId, size_label: o.label, qty: o.qty })
+      });
+    }
+    statusEl.textContent = "Logged. Kitchen floor stock will reflect the deduction on Floor Inventory.";
+    document.getElementById("db-batches").value = "";
+    document.getElementById("db-outputs").innerHTML = "";
+    addOutputRow();
+  } catch (e) { statusEl.textContent = "Could not save: " + e.message; }
+});
 
 const existing = AppSession.get();
 if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
