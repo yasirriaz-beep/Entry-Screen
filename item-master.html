@@ -52,6 +52,8 @@
   .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
   .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .suggest-box { background: var(--ok-bg); border: 1px solid var(--ok); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-bottom: 10px; color: var(--ink); }
+  .suggest-apply { color: var(--ok); font-weight: 600; text-decoration: underline; cursor: pointer; }
   .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
   .item-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
   .item-row .item-top { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; }
@@ -113,6 +115,7 @@
         <input type="text" id="n-name" placeholder="Item name">
       </div>
     </div>
+    <div class="suggest-box" id="n-suggest-hint" hidden></div>
     <div class="row2 field">
       <div>
         <label>Category</label>
@@ -353,6 +356,52 @@ document.getElementById("n-category").addEventListener("change", (e) => {
   document.getElementById("n-category-new").hidden = e.target.value !== "__new__";
   if (e.target.value !== "__new__") document.getElementById("n-category-new").value = "";
 });
+
+// Category suggestion — as the name is typed, find the most similar existing item's
+// Category and offer it as a one-tap suggestion. This is plain word-overlap matching
+// against the items already in the system, not a live AI call (the site is static, no
+// model wired in) — but it does the same job: steer staff toward reusing an existing
+// category instead of typing a near-duplicate. Added 2026-10-18 at the owner's request.
+function tokenizeName(s) { return (s || "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 1); }
+function nameMatchScore(a, b) {
+  const tokA = tokenizeName(a), tokB = tokenizeName(b);
+  if (!tokA.length || !tokB.length) return 0;
+  const shared = tokA.filter(t => tokB.includes(t)).length;
+  let score = shared / tokA.length;
+  const upA = a.toUpperCase().trim(), upB = b.toUpperCase().trim();
+  if (upA && upB && (upA.includes(upB) || upB.includes(upA))) score += 0.3;
+  return score;
+}
+function suggestCategoryForName(name) {
+  if (tokenizeName(name).length < 1) return null;
+  let best = null, bestScore = 0;
+  state.products.forEach(p => {
+    if (!p.category || p.name === name) return;
+    const score = nameMatchScore(name, p.name);
+    if (score > bestScore) { bestScore = score; best = p; }
+  });
+  if (!best || bestScore < 0.34) return null; // weak/no match — say nothing rather than guess
+  return { category: best.category, matchName: best.name };
+}
+function renderNameSuggestion() {
+  const name = document.getElementById("n-name").value.trim();
+  const hint = document.getElementById("n-suggest-hint");
+  const sug = name.length >= 3 ? suggestCategoryForName(name) : null;
+  if (!sug) { hint.hidden = true; return; }
+  hint.hidden = false;
+  hint.innerHTML = `Suggestion: "${sug.matchName}" is similar — its Category is <b>${sug.category}</b>. <span class="suggest-apply" id="n-suggest-apply">Use this</span>`;
+  document.getElementById("n-suggest-apply").addEventListener("click", () => {
+    const sel = document.getElementById("n-category");
+    if ([...sel.options].some(o => o.value === sug.category)) {
+      sel.value = sug.category;
+    } else {
+      sel.value = "__new__";
+      document.getElementById("n-category-new").hidden = false;
+      document.getElementById("n-category-new").value = sug.category;
+    }
+  });
+}
+document.getElementById("n-name").addEventListener("input", renderNameSuggestion);
 
 async function addItem() {
   const code = document.getElementById("n-code").value.trim();

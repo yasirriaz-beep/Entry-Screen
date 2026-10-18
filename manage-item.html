@@ -50,6 +50,8 @@
   .btn-outline-warn { background: transparent; border: 1px solid var(--warn); color: var(--warn); }
   [hidden] { display: none !important; }
   .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .suggest-box { background: var(--ok-bg); border: 1px solid var(--ok); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-bottom: 10px; color: var(--ink); }
+  .suggest-apply { color: var(--ok); font-weight: 600; text-decoration: underline; cursor: pointer; margin-left: 6px; }
   .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-left: 6px; background: var(--err-bg); color: var(--err); }
   .banner { border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; margin-bottom: 14px; line-height: 1.4; }
   .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
@@ -116,6 +118,7 @@
         <input type="text" id="f-code">
       </div>
     </div>
+    <div class="suggest-box" id="f-suggest-hint" hidden></div>
     <div class="row2 field">
       <div>
         <label>Category</label>
@@ -250,7 +253,8 @@ const PRODUCT_ID = params.get("id");
 let state = {
   userId: null, userName: null, managerId: null, product: null, vendors: [], openPeriods: [],
   categories: [], // distinct existing products.category values, for the Category dropdown
-  subcategoriesByCategory: {} // category -> distinct existing subcategory values under it
+  subcategoriesByCategory: {}, // category -> distinct existing subcategory values under it
+  allCatRows: [] // every active item's name/category/subcategory/cost_type/floor_category, for the suggestion box
 };
 
 async function sb(path, opts = {}) {
@@ -342,17 +346,18 @@ async function loadAll() {
   const [products, vendors, allCatRows] = await Promise.all([
     sb(`products?id=eq.${PRODUCT_ID}&select=*`),
     sb(`vendors?active=eq.true&select=id,name&order=name`),
-    // Distinct category/subcategory pairs across every active item, so the dropdowns below
-    // offer what's already in use instead of free text drifting into near-duplicates
-    // (e.g. "Cakes" vs "cake" vs "Cake "). Small table (under 600 rows) — fine to pull in full
-    // and dedupe client-side rather than needing a Postgres view just for this.
-    sb(`products?active=eq.true&select=category,subcategory&limit=100000`)
+    // Every active item's name/category/subcategory/cost_type/floor_category — doubles as the
+    // source for the Category/Subcategory dropdowns below AND for the "similar item" suggestion
+    // box further down. Small table (under 600 rows) — fine to pull in full and work with
+    // client-side rather than needing a Postgres view just for this.
+    sb(`products?active=eq.true&select=id,name,category,subcategory,cost_type,floor_category&limit=100000`)
   ]);
   state.product = products && products[0];
   state.vendors = vendors || [];
-  state.categories = [...new Set((allCatRows || []).map(r => r.category).filter(Boolean))].sort();
+  state.allCatRows = allCatRows || [];
+  state.categories = [...new Set(state.allCatRows.map(r => r.category).filter(Boolean))].sort();
   state.subcategoriesByCategory = {};
-  (allCatRows || []).forEach(r => {
+  state.allCatRows.forEach(r => {
     if (!r.category || !r.subcategory) return;
     const set = state.subcategoriesByCategory[r.category] || (state.subcategoriesByCategory[r.category] = new Set());
     set.add(r.subcategory);
@@ -371,8 +376,82 @@ async function loadAll() {
   renderSubcategorySelect();
   renderFloorPills();
   renderVendorSelect();
+  renderSuggestion();
   await Promise.all([checkDuplicateFloors(), loadRateHistory(), loadUsageAndWastage()]);
 }
+
+// Suggestion box — as staff work through incomplete items, offer Category/Subcategory/Cost
+// Type/Floor based on the most similar already-completed item's name (plain word-overlap
+// matching against every active item's name, not a live AI call — the site is static with
+// no model wired in — but it does the same job of steering staff toward consistent, reused
+// values). Added 2026-10-18 at the owner's request, for the item-completion pass.
+function tokenizeName(s) { return (s || "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 1); }
+function nameMatchScore(a, b) {
+  const tokA = tokenizeName(a), tokB = tokenizeName(b);
+  if (!tokA.length || !tokB.length) return 0;
+  const shared = tokA.filter(t => tokB.includes(t)).length;
+  let score = shared / tokA.length;
+  const upA = a.toUpperCase().trim(), upB = b.toUpperCase().trim();
+  if (upA && upB && (upA.includes(upB) || upB.includes(upA))) score += 0.3;
+  return score;
+}
+const COST_TYPE_LABELS = { food_cost: "Food Cost (COGS)", non_convertible: "Non-Convertible", uncategorized: "Uncategorized" };
+function renderSuggestion() {
+  const hint = document.getElementById("f-suggest-hint");
+  const p = state.product;
+  if (!p) { hint.hidden = true; return; }
+  const nameNow = document.getElementById("f-name").value.trim() || p.name || "";
+  if (tokenizeName(nameNow).length < 1) { hint.hidden = true; return; }
+
+  let best = null, bestScore = 0;
+  state.allCatRows.forEach(r => {
+    if (r.id === p.id) return;
+    const score = nameMatchScore(nameNow, r.name);
+    if (score > bestScore) { bestScore = score; best = r; }
+  });
+  if (!best || bestScore < 0.34) { hint.hidden = true; return; } // weak/no match — say nothing rather than guess
+
+  // Only suggest fields this item hasn't already been given — don't pester an item that's
+  // already complete just because a similar item exists.
+  const sug = [];
+  if (!p.category && best.category) sug.push({ field: "category", label: "Category", value: best.category, display: best.category });
+  if (!p.subcategory && best.subcategory) sug.push({ field: "subcategory", label: "Subcategory", value: best.subcategory, display: best.subcategory });
+  if ((!p.cost_type || p.cost_type === "uncategorized") && best.cost_type) sug.push({ field: "cost_type", label: "Cost Type", value: best.cost_type, display: COST_TYPE_LABELS[best.cost_type] || best.cost_type });
+  if (!p.floor_category && best.floor_category) sug.push({ field: "floor_category", label: "Floor", value: best.floor_category, display: FLOOR_LABELS[best.floor_category] || best.floor_category });
+  if (!sug.length) { hint.hidden = true; return; }
+
+  hint.hidden = false;
+  hint.innerHTML = `Suggestion: based on similar item "${best.name}" — ` +
+    sug.map(s => `${s.label} = <b>${s.display}</b>`).join(", ") +
+    `<span class="suggest-apply" id="f-suggest-apply">Apply suggested</span>`;
+  document.getElementById("f-suggest-apply").addEventListener("click", () => applySuggestion(sug));
+}
+function applySuggestion(sug) {
+  sug.forEach(s => {
+    if (s.field === "category") {
+      const sel = document.getElementById("f-category");
+      if ([...sel.options].some(o => o.value === s.value)) { sel.value = s.value; }
+      else { sel.value = "__new__"; document.getElementById("f-category-new").hidden = false; document.getElementById("f-category-new").value = s.value; }
+      state.product.subcategory = "";
+      renderSubcategorySelect();
+    }
+  });
+  sug.forEach(s => {
+    if (s.field === "subcategory") {
+      const sel = document.getElementById("f-subcategory");
+      if ([...sel.options].some(o => o.value === s.value)) { sel.value = s.value; }
+      else { sel.value = "__new__"; document.getElementById("f-subcategory-new").hidden = false; document.getElementById("f-subcategory-new").value = s.value; }
+    } else if (s.field === "cost_type") {
+      document.getElementById("f-cost-type").value = s.value;
+    } else if (s.field === "floor_category") {
+      state.product.floor_category = s.value;
+      renderFloorPills();
+      checkDuplicateFloors();
+    }
+  });
+  document.getElementById("f-suggest-hint").hidden = true;
+}
+document.getElementById("f-name").addEventListener("input", renderSuggestion);
 
 // Category/Subcategory: dropdowns of what's already in use, plus "+ Add new…" which reveals
 // a plain text box. Flagged by the owner 2026-10-18 — free-text inputs here were letting
