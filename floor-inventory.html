@@ -665,7 +665,7 @@ async function moveItemToFloor(item, toFloor) {
     // drop an item with nowhere to land until someone issues stock to it again.
     await sb(`products?id=eq.${item.id}`, {
       method: "PATCH", headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify({ floor_category: toFloor })
+      body: JSON.stringify({ floor_category: toFloor, updated_by: state.userId, updated_at: new Date().toISOString() })
     });
     const destOpen = await sb(`floor_stock_periods?product_id=eq.${item.id}&location_id=eq.${LOCATION_ID}&floor=eq.${toFloor}&period_end_at=is.null&select=id`);
     if (!destOpen || !destOpen.length) {
