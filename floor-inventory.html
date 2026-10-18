@@ -319,9 +319,9 @@ async function loadFloor() {
     trackedIds = rows.map(r => r.product_id);
   } catch (e) { trackedIds = []; }
   // Bar has little to no issuance history yet, so without this it would stay
-  // permanently empty until Store issues something there — items tagged on
-  // the Bar Items page (bar-items.html) show up here too, ready to count,
-  // even before any issuance exists.
+  // permanently empty until Store issues something there — items tagged as a
+  // Bar item on Manage Item (manage-item.html) show up here too, ready to
+  // count, even before any issuance exists.
   const barTaggedIds = floor === "BAR" ? state.allProducts.filter(p => p.is_bar_item).map(p => p.id) : [];
 
   // Par levels (desired floor stock) are a standing setting, independent of any one
