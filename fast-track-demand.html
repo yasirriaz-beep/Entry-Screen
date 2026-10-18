@@ -189,9 +189,13 @@
 <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 
 <div class="card" style="margin-top:16px;">
-  <div class="step-label">Today's Fast-Track Orders</div>
+  <div class="step-label" id="today-list-label">Today's Fast-Track Orders</div>
+  <div class="field" style="margin-bottom:10px;">
+    <label>Date</label>
+    <input type="date" id="f-list-date">
+  </div>
   <div id="today-list"></div>
-  <div class="hint" id="today-empty" hidden>Nothing sent yet today.</div>
+  <div class="hint" id="today-empty" hidden>Nothing sent that day.</div>
 </div>
 
 </div>
@@ -318,7 +322,9 @@ function afterLogin(userId, name, managerId, role) {
   document.getElementById("step-success").hidden = true;
   document.getElementById("main-panel").hidden = false;
   loadVendors().then(() => { if (state.vendors.length) selectVendor(state.vendors[0].id); });
-  loadTodayList();
+  const dateInput = document.getElementById("f-list-date");
+  if (!dateInput.value) dateInput.value = todayStr();
+  loadTodayList(dateInput.value);
 }
 
 function backToNames() {
@@ -519,12 +525,22 @@ document.getElementById("btn-copy-summary").addEventListener("click", async () =
   setTimeout(() => { btn.textContent = "Copy as Text"; }, 1800);
 });
 
-async function loadTodayList() {
+async function loadTodayList(forDate) {
+  const dateStr = forDate || todayStr();
   const list = document.getElementById("today-list");
   const emptyHint = document.getElementById("today-empty");
+  const label = document.getElementById("today-list-label");
+  label.textContent = dateStr === todayStr() ? "Today's Fast-Track Orders" : `Fast-Track Orders — ${dateStr}`;
+  emptyHint.textContent = "Nothing sent that day.";
   try {
+    // ordered_at is a plain UTC timestamp while the business day is tracked in Asia/Karachi,
+    // so the window is the full calendar day that date covers rather than a UTC midnight slice.
+    const startIso = `${dateStr}T00:00:00`;
+    const nextDate = new Date(`${dateStr}T00:00:00Z`);
+    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+    const endIso = nextDate.toISOString().slice(0, 19);
     const rows = await sb(
-      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${todayStr()}T00:00:00&select=id,qty_requested,unit,status,ordered_at,received_qty,products(name,code),vendors(name,fast_track)&order=ordered_at.desc`
+      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${startIso}&ordered_at=lt.${endIso}&select=id,qty_requested,unit,status,ordered_at,received_qty,products(name,code),vendors(name,fast_track)&order=ordered_at.desc`
     );
     const filtered = rows.filter(r => r.vendors && r.vendors.fast_track && r.status !== "Cancelled");
     list.innerHTML = "";
@@ -543,9 +559,13 @@ async function loadTodayList() {
     });
   } catch (e) {
     emptyHint.hidden = false;
-    emptyHint.textContent = "Couldn't load today's list: " + e.message;
+    emptyHint.textContent = "Couldn't load that day's list: " + e.message;
   }
 }
+
+document.getElementById("f-list-date").addEventListener("change", (e) => {
+  loadTodayList(e.target.value || todayStr());
+});
 
 async function submitOrder() {
   const ids = Object.keys(state.qty);
@@ -640,7 +660,7 @@ document.getElementById("btn-success-ok").addEventListener("click", () => {
   document.getElementById("f-notes").value = "";
   document.getElementById("summary-card").hidden = true;
   if (state.vendorId) selectVendor(state.vendorId);
-  loadTodayList();
+  loadTodayList(document.getElementById("f-list-date").value || todayStr());
 });
 
 const existing = AppSession.get();
