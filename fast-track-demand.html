@@ -80,6 +80,12 @@
   .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
   .badge-ordered { background: var(--warn-bg); color: var(--warn); }
   .badge-received { background: var(--ok-bg); color: var(--ok); }
+  .badge-confirmed { background: var(--field-bg); color: var(--accent); border: 1px solid var(--accent); }
+  .confirm-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  .confirm-row input { width: 90px; flex: 0 0 90px; padding: 8px 8px; font-size: 0.88rem; }
+  .confirm-row button { flex: 0 0 auto; padding: 8px 12px; font-size: 0.82rem; background: var(--accent); color: var(--accent-ink); }
+  .confirm-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .confirm-hint { font-size: 0.72rem; color: var(--ink-soft); margin-top: 4px; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
   .tab-btn { flex: 1 1 40%; background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; font-weight: 600; cursor: pointer; color: var(--ink); font-size: 0.9rem; }
@@ -145,6 +151,8 @@
   <b>Tareeqa (Instructions in Roman Urdu)</b>
   Yeh page sirf un items ke liye hai jo raat ko count hone ke baad seedha bakery/grill ko phone per order kiye jate hain aur subah store khulne se pehle delivery ho jate hain — iss waqt store person aur Zeeshan duty per nahi hote, isliye normal Authorize step yahan skip ho jata hai, sirf un vendors ke liye jo owner ne "fast-track" mark kiye hain. Oopar vendor chunein (Bakery ya Grill), neeche har item ke saamne jitni quantity bakery/grill ko phone per batai hai wahi likh dein — baqi items khali chor dein. Jab sab likh lein to neeche "Send Pre-Authorized Order" button dabayen, sab items ek saath order ban jayenge. Subah jo bhi store khole, Goods Receipt page per inhe receive kar sakta hai, aur Zeeshan apni normal duty per aa kar vendor ka payment credit/running account se clear karega.
 </div>
+
+<button class="btn-ghost" id="btn-vegetable-ordering" type="button" style="margin-bottom:14px;">🥬 Vegetable Ordering</button>
 
 <div class="banner banner-warn">
   This skips the director Authorize step — only because the owner has pre-flagged this vendor as fast-track (overnight perishable, no time for prior sign-off). It's still fully logged: who ordered it, when, and why. Use it only for genuinely time-boxed overnight items, not as a shortcut for ordinary purchases.
@@ -540,7 +548,7 @@ async function loadTodayList(forDate) {
     nextDate.setUTCDate(nextDate.getUTCDate() + 1);
     const endIso = nextDate.toISOString().slice(0, 19);
     const rows = await sb(
-      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${startIso}&ordered_at=lt.${endIso}&select=id,qty_requested,unit,status,ordered_at,received_qty,products(name,code),vendors(name,fast_track)&order=ordered_at.desc`
+      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${startIso}&ordered_at=lt.${endIso}&select=id,qty_requested,unit,status,ordered_at,received_qty,confirmed_received_qty,confirmed_received_at,products(name,code),vendors(name,fast_track)&order=ordered_at.desc`
     );
     const filtered = rows.filter(r => r.vendors && r.vendors.fast_track && r.status !== "Cancelled");
     list.innerHTML = "";
@@ -549,13 +557,33 @@ async function loadTodayList(forDate) {
     filtered.forEach(r => {
       const card = document.createElement("div");
       card.className = "po-card";
-      const badge = r.status === "Received"
-        ? `<span class="badge badge-received">Received${r.received_qty != null ? " — " + r.received_qty + " " + (r.unit || "") : ""}</span>`
-        : `<span class="badge badge-ordered">Awaiting receipt</span>`;
+      let badge, confirmBlock = "";
+      if (r.status === "Received") {
+        badge = `<span class="badge badge-received">Received${r.received_qty != null ? " — " + r.received_qty + " " + (r.unit || "") : ""}</span>`;
+      } else if (r.confirmed_received_qty != null) {
+        badge = `<span class="badge badge-confirmed">Confirmed received — ${r.confirmed_received_qty} ${r.unit || ""}</span>`;
+        confirmBlock = `
+          <div class="confirm-hint">Confirmed by you earlier — still needs the actual Goods Receipt entry (rate, vendor account) from whoever opens the store.</div>
+          <div class="confirm-row">
+            <input type="number" step="any" min="0" class="confirm-qty-input" data-po="${r.id}" value="${r.confirmed_received_qty}">
+            <button type="button" class="btn-confirm-receipt" data-po="${r.id}" data-requested="${r.qty_requested}" data-unit="${r.unit || ""}">Update confirmation</button>
+          </div>`;
+      } else {
+        badge = `<span class="badge badge-ordered">Awaiting receipt</span>`;
+        confirmBlock = `
+          <div class="confirm-row">
+            <input type="number" step="any" min="0" class="confirm-qty-input" data-po="${r.id}" placeholder="${r.qty_requested}">
+            <button type="button" class="btn-confirm-receipt" data-po="${r.id}" data-requested="${r.qty_requested}" data-unit="${r.unit || ""}">Confirm Received</button>
+          </div>`;
+      }
       card.innerHTML = `
         <div class="po-title">${r.products?.name || "Item"} ${badge}</div>
-        <div class="po-sub">${r.vendors?.name || "Vendor"} — ordered ${r.qty_requested} ${r.unit || r.products?.unit || ""} at ${new Date(r.ordered_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}</div>`;
+        <div class="po-sub">${r.vendors?.name || "Vendor"} — ordered ${r.qty_requested} ${r.unit || r.products?.unit || ""} at ${new Date(r.ordered_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})}</div>
+        ${confirmBlock}`;
       list.appendChild(card);
+    });
+    list.querySelectorAll(".btn-confirm-receipt").forEach(btn => {
+      btn.addEventListener("click", () => confirmReceipt(btn, forDate));
     });
   } catch (e) {
     emptyHint.hidden = false;
@@ -565,6 +593,43 @@ async function loadTodayList(forDate) {
 
 document.getElementById("f-list-date").addEventListener("change", (e) => {
   loadTodayList(e.target.value || todayStr());
+});
+
+// Lightweight physical confirmation only — writes confirmed_received_qty/at/by, never
+// touches status or received_qty. Those stay for the real Goods Receipt entry (rate, the
+// actual purchases row, vendor account), done later by whoever opens the store (Zeeshan/
+// Store Person). This just lets whichever Shift Manager is on site overnight/early morning
+// record "yes, this many actually showed up" without handing them full Goods Receipt access
+// to every vendor's rates and vendor payments — see anon_fast_track_confirm_receipt RLS
+// policy, which only allows this on an Ordered fast-track PO. Added 2026-10-18.
+async function confirmReceipt(btn, forDate) {
+  const poId = btn.dataset.po;
+  const row = btn.closest(".po-card");
+  const input = row.querySelector(`.confirm-qty-input[data-po="${poId}"]`);
+  const val = parseFloat(input.value);
+  if (isNaN(val) || val < 0) { alert("Enter the quantity actually received."); return; }
+  btn.disabled = true;
+  try {
+    await sb(`purchase_orders?id=eq.${poId}&status=eq.Ordered`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        confirmed_received_qty: val,
+        confirmed_received_at: new Date().toISOString(),
+        confirmed_received_by_user_id: state.userId
+      })
+    });
+    loadTodayList(forDate);
+  } catch (e) {
+    alert("Couldn't save confirmation: " + e.message);
+    btn.disabled = false;
+  }
+}
+
+// Placeholder only — details to come later. Keeps the button visible to staff now so they
+// know it's coming, without building the ordering flow itself yet. Added 2026-10-18.
+document.getElementById("btn-vegetable-ordering").addEventListener("click", () => {
+  alert("Vegetable Ordering is coming soon — not set up yet.");
 });
 
 async function submitOrder() {
