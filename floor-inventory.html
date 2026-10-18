@@ -145,10 +145,14 @@ const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery 
 // Floor inventory is for items that actually get issued/consumed day to day and need a
 // physical recount — real COGS plus the consumables that ride along with it (packaging,
 // cleaning supplies). Equipment/smallwares (scales, cutting boards, pouches), marketing
-// materials, stationery, uniforms, party/decor, vehicle equipment, fuel, and the "Bar"
-// product category (distinct from the Bakery-and-Bar floor tab) are assets/supplies that
-// don't need a daily count here. Decided with the owner 2026-10-18.
-const TRACKABLE_CATEGORIES = new Set(["Food & Beverage", "Packaging & Paper", "Packaging & Paper - Bar", "Cleaning & Sanitation Supplies"]);
+// materials, stationery, uniforms, party/decor, vehicle equipment, and fuel are
+// assets/supplies that don't need a daily count here. Decided with the owner 2026-10-18.
+// The "Bar" product category (distinct from the Bakery-and-Bar floor tab) was originally
+// excluded here too on the assumption it was more of the same equipment/supplies — it
+// isn't. Checked against the live data 2026-10-18: all 97 "Bar"-category items are real
+// COGS (cakes, bakery/desserts, bar syrups, dairy, frozen desserts, tea/coffee, ice), so
+// leaving it out was silently hiding every cake and dessert from the Bar floor. Added back.
+const TRACKABLE_CATEGORIES = new Set(["Food & Beverage", "Bar", "Packaging & Paper", "Packaging & Paper - Bar", "Cleaning & Sanitation Supplies"]);
 
 let state = {
   userId: null, userName: null, userRole: null, managerId: null,
