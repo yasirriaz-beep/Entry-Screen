@@ -261,7 +261,7 @@ function setFloor(floor) {
 
 async function loadProductsOnce() {
   if (state.allProducts.length) return;
-  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate&order=name`);
+  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate,category&order=name`);
 }
 
 async function loadFloor() {
@@ -339,7 +339,15 @@ async function loadFloor() {
     const p = prodMapForFilter[id];
     if (!p) return false;
     const fc = p.floor_category;
-    return !fc || fc === floor;
+    if (fc && fc !== floor) return false;
+    // Floor inventory is for COGS (Food & Beverage) items only — what actually gets
+    // issued and consumed day to day. Equipment/smallwares (scales, cutting boards,
+    // pouches), packaging, marketing materials, uniforms etc. are assets or supplies
+    // that don't need a daily physical count here, even if they were once issued to a
+    // floor or got a floor_category tagged against them by mistake (e.g. from the bulk
+    // categories import). Added 2026-10-18, per the owner.
+    if (p.category !== "Food & Beverage") return false;
+    return true;
   });
 
   if (!ids.length) {
@@ -472,7 +480,11 @@ function renderAddItemPicker(existingIds) {
   // floor) or ones already assigned to this exact floor. An item assigned to another
   // floor doesn't show at all — reassigning it is a Manage Item decision, not something
   // to do from the count screen, so the same item can't end up open on two floors again.
-  const options = state.allProducts.filter(p => !existing.has(p.id) && (!p.floor_category || p.floor_category === state.floor));
+  const options = state.allProducts.filter(p =>
+    !existing.has(p.id)
+    && (!p.floor_category || p.floor_category === state.floor)
+    && p.category === "Food & Beverage"
+  );
   box.innerHTML = `
     <label>Add an item to this floor's list</label>
     <select id="add-item-select">
