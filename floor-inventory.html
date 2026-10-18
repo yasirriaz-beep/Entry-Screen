@@ -380,10 +380,46 @@ async function loadFloor() {
   const latestByProduct = {};
   periodRows.forEach(r => { if (!latestByProduct[r.product_id]) latestByProduct[r.product_id] = r; });
 
-  // Open a fresh period for any item whose latest period is missing or closed —
-  // as a single bulk insert instead of one POST per item.
+  // Across all 6 floors: only show an item in the default list if it's had real
+  // activity recently — store issuance to this floor in the last 7 days (including
+  // today), or its counting period itself was touched in the last 7 days (covers an
+  // item with no issuance that was just manually brought back via "Add an item"
+  // below, or counted without any Store issuance behind it). Everything else is
+  // "dormant" — tagged for this floor, or with a par level or an open period sitting
+  // there, but with no recent activity — and is hidden from the default list to keep
+  // it clean. A dormant item never disappears for good: it's always offered in the
+  // "Add an item" picker below so the manager can bring it back on demand. Changed
+  // 2026-10-18 from a Kitchen-only rule to all floors, per the owner.
+  //
+  // This MUST be decided from latestByProduct as fetched above, before the
+  // auto-open-a-fresh-period step just below runs — that step creates a brand-new
+  // row (updated_at = now) for any tagged item that doesn't already have an open
+  // period, which is most dormant items. Checking recency after that step would make
+  // every dormant item look "just touched" on every single load and never actually
+  // hide. Found via a screenshot showing 80 untouched BOH items all still listed.
+  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const recentIssuedIds = new Set(issuedRows.filter(r => r.created_at >= cutoffIso).map(r => r.product_id));
+  const visibleIds = ids.filter(id => {
+    if (recentIssuedIds.has(id)) return true;
+    const latest = latestByProduct[id];
+    return !!(latest && latest.updated_at && latest.updated_at >= cutoffIso);
+  });
+
+  if (!visibleIds.length) {
+    list.innerHTML = "";
+    emptyHint.textContent = `No items on ${FLOOR_LABELS[floor] || floor} have had store issuance today or in the past 7 days — items with no recent activity are hidden here to keep the list clean. Add one below to bring a dormant item back, or once Store issues something here via Issue Entry, it will reappear automatically.`;
+    emptyHint.hidden = false;
+    renderAddItemPicker(visibleIds);
+    return;
+  }
+  emptyHint.hidden = true;
+
+  // Open a fresh period for any VISIBLE item whose latest period is missing or
+  // closed — as a single bulk insert instead of one POST per item. Restricted to
+  // visibleIds (not the full tagged/par/tracked `ids`) so a dormant item never gets
+  // a period auto-opened just because it was loaded — see the dormancy note above.
   const toOpen = [];
-  ids.forEach(id => {
+  visibleIds.forEach(id => {
     const latest = latestByProduct[id];
     if (!latest || latest.period_end_at) {
       toOpen.push({
@@ -430,7 +466,7 @@ async function loadFloor() {
   // instead of one dough_batches query per product.
   let doughBatches = [];
   if (floor === "KITCHEN") {
-    const starts = ids.map(id => latestByProduct[id]?.period_start_at).filter(Boolean);
+    const starts = visibleIds.map(id => latestByProduct[id]?.period_start_at).filter(Boolean);
     const earliest = starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : null;
     if (earliest) {
       try {
@@ -448,9 +484,10 @@ async function loadFloor() {
   }
 
   // Live Addition (store issuance since period_start_at) per item — from the
-  // bulk fetch above, filtered client-side, no further network calls.
+  // bulk fetch above, filtered client-side, no further network calls. Only built
+  // for visibleIds — dormancy was already decided above.
   const items = [];
-  for (const id of ids) {
+  for (const id of visibleIds) {
     const period = latestByProduct[id];
     if (!period) continue;
     const prod = prodMap[id] || { name: "(unknown item)", unit: "" };
@@ -472,28 +509,7 @@ async function loadFloor() {
     const sortPriority = prod.floor_sort_priority != null ? Number(prod.floor_sort_priority) : null;
     items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate, beginningQty, sortPriority });
   }
-  // Across all 6 floors: only show an item in the default list if it's had real
-  // activity recently — store issuance to this floor in the last 7 days (including
-  // today), or its counting period itself was touched in the last 7 days (covers an
-  // item with no issuance that was just manually brought back via "Add an item"
-  // below, or counted without any Store issuance behind it). Everything else is
-  // "dormant" — tagged for this floor, or with a par level or an open period sitting
-  // there, but with no recent activity — and is hidden from the default list to keep
-  // it clean. A dormant item never disappears for good: it's always offered in the
-  // "Add an item" picker below so the manager can bring it back on demand. Changed
-  // 2026-10-18 from a Kitchen-only rule to all floors, per the owner.
-  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const recentIssuedIds = new Set(issuedRows.filter(r => r.created_at >= cutoffIso).map(r => r.product_id));
-  const visible = items.filter(it => recentIssuedIds.has(it.id) || (it.period.updated_at && it.period.updated_at >= cutoffIso));
-  const visibleIds = visible.map(it => it.id);
-  if (!visible.length) {
-    list.innerHTML = "";
-    emptyHint.textContent = `No items on ${FLOOR_LABELS[floor] || floor} have had store issuance today or in the past 7 days — items with no recent activity are hidden here to keep the list clean. Add one below to bring a dormant item back, or once Store issues something here via Issue Entry, it will reappear automatically.`;
-    emptyHint.hidden = false;
-    renderAddItemPicker(visibleIds);
-    return;
-  }
-  emptyHint.hidden = true;
+  const visible = items;
   // Most expensive first (cheese, chicken, etc. for Kitchen) so the manager counts the
   // highest-value items first — falls back to name order for items with the same (or no)
   // rate on file. Changed 2026-10-18, per the owner. An item with a floor_sort_priority
