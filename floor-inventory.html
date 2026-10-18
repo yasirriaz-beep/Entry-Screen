@@ -252,7 +252,7 @@ function setFloor(floor) {
 
 async function loadProductsOnce() {
   if (state.allProducts.length) return;
-  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category&order=name`);
+  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate&order=name`);
 }
 
 async function loadFloor() {
@@ -286,11 +286,15 @@ async function loadFloor() {
     const rows = await sb(`floor_stock_periods?floor=eq.${floor}&location_id=eq.${LOCATION_ID}&period_end_at=is.null&select=product_id`);
     trackedIds = rows.map(r => r.product_id);
   } catch (e) { trackedIds = []; }
-  // Bar has little to no issuance history yet, so without this it would stay
-  // permanently empty until Store issues something there — items tagged as a
-  // Bar item on Manage Item (manage-item.html) show up here too, ready to
-  // count, even before any issuance exists.
-  const barTaggedIds = floor === "BAR" ? state.allProducts.filter(p => p.is_bar_item).map(p => p.id) : [];
+  // An item tagged for this floor (products.floor_category, e.g. set in bulk from the
+  // owner's categories spreadsheet, or one-by-one on Manage Item) should show up here
+  // ready to count even before any issuance or par level exists — otherwise a freshly
+  // tagged item just silently never appears until Store happens to issue it first.
+  // Bar items tagged via the older is_bar_item flag are included the same way. Expanded
+  // 2026-10-18 from a Bar-only fallback to cover every floor, per the owner.
+  const floorTaggedIds = state.allProducts
+    .filter(p => p.floor_category === floor || (floor === "BAR" && p.is_bar_item))
+    .map(p => p.id);
 
   // Par levels (desired floor stock) are a standing setting, independent of any one
   // counting period — an item that's had a par set once should keep showing up here to
@@ -303,7 +307,7 @@ async function loadFloor() {
   parRows.forEach(r => { state.parByProduct[r.product_id] = r; });
   const parTaggedIds = parRows.map(r => r.product_id);
 
-  let ids = [...new Set([...issuedIds, ...trackedIds, ...barTaggedIds, ...parTaggedIds])];
+  let ids = [...new Set([...issuedIds, ...trackedIds, ...floorTaggedIds, ...parTaggedIds])];
 
   // An item belongs to exactly one floor (products.floor_category, set from Manage Item).
   // Drop anything explicitly assigned to a different floor, even if it has old issuance or
@@ -331,9 +335,7 @@ async function loadFloor() {
 
   if (!ids.length) {
     list.innerHTML = "";
-    emptyHint.textContent = floor === "BAR"
-      ? "No Bakery and Bar items yet — tag an item's Floor Category as Bar from its Manage Item screen (Item Master → Manage), or once Store issues something here via Issue Entry, it will appear."
-      : "No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear, or add one below to set its par level.";
+    emptyHint.textContent = `No items tagged for ${FLOOR_LABELS[floor] || floor} yet — tag an item's Floor Category from its Manage Item screen (Item Master → Manage), or once Store issues something here via Issue Entry, it will appear, or add one below to set its par level.`;
     emptyHint.hidden = false;
     renderAddItemPicker(ids);
     return;
@@ -437,9 +439,13 @@ async function loadFloor() {
     const isDoughIngredient = floor === "KITCHEN" && state.recipe.some(r => r.product_id === id);
     const parRow = state.parByProduct[id];
     const reorderOverride = parRow && parRow.reorder_override_qty != null ? Number(parRow.reorder_override_qty) : null;
-    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride });
+    const rate = Number(prod.current_rate) || 0;
+    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate });
   }
-  items.sort((a, b) => a.name.localeCompare(b.name));
+  // Most expensive first (cheese, chicken, etc. for Kitchen) so the manager counts the
+  // highest-value items first — falls back to name order for items with the same (or no)
+  // rate on file. Changed 2026-10-18, per the owner.
+  items.sort((a, b) => (b.rate - a.rate) || a.name.localeCompare(b.name));
   state.items = items;
   renderItemList();
   renderAddItemPicker(ids);
