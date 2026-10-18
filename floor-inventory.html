@@ -472,17 +472,25 @@ async function loadFloor() {
     const sortPriority = prod.floor_sort_priority != null ? Number(prod.floor_sort_priority) : null;
     items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate, beginningQty, sortPriority });
   }
-  // Kitchen only: only show an item if Store actually issued it (Addition > 0) or it
-  // carried a beginning balance over from a prior day/shift's Ending Count — not just
-  // because it's tagged for Kitchen or has a par level sitting there with zero activity.
-  // That tagged/par-level fallback still applies to the other floors. Added 2026-10-18,
-  // per the owner.
-  const visible = floor === "KITCHEN" ? items.filter(it => it.added > 0 || it.beginningQty > 0) : items;
-  if (floor === "KITCHEN" && !visible.length) {
+  // Across all 6 floors: only show an item in the default list if it's had real
+  // activity recently — store issuance to this floor in the last 7 days (including
+  // today), or its counting period itself was touched in the last 7 days (covers an
+  // item with no issuance that was just manually brought back via "Add an item"
+  // below, or counted without any Store issuance behind it). Everything else is
+  // "dormant" — tagged for this floor, or with a par level or an open period sitting
+  // there, but with no recent activity — and is hidden from the default list to keep
+  // it clean. A dormant item never disappears for good: it's always offered in the
+  // "Add an item" picker below so the manager can bring it back on demand. Changed
+  // 2026-10-18 from a Kitchen-only rule to all floors, per the owner.
+  const cutoffIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const recentIssuedIds = new Set(issuedRows.filter(r => r.created_at >= cutoffIso).map(r => r.product_id));
+  const visible = items.filter(it => recentIssuedIds.has(it.id) || (it.period.updated_at && it.period.updated_at >= cutoffIso));
+  const visibleIds = visible.map(it => it.id);
+  if (!visible.length) {
     list.innerHTML = "";
-    emptyHint.textContent = "No Kitchen items have activity yet today — once Store issues something here via Issue Entry, or an item carries a beginning balance in from the last shift, it will appear.";
+    emptyHint.textContent = `No items on ${FLOOR_LABELS[floor] || floor} have had store issuance today or in the past 7 days — items with no recent activity are hidden here to keep the list clean. Add one below to bring a dormant item back, or once Store issues something here via Issue Entry, it will reappear automatically.`;
     emptyHint.hidden = false;
-    renderAddItemPicker(ids);
+    renderAddItemPicker(visibleIds);
     return;
   }
   emptyHint.hidden = true;
@@ -502,13 +510,17 @@ async function loadFloor() {
   });
   state.items = visible;
   renderItemList();
-  renderAddItemPicker(ids);
+  renderAddItemPicker(visibleIds);
 }
 
 // Lets whoever's counting add any product to this floor's list before it's ever been
 // issued here — otherwise a brand-new par-level item (e.g. from a paper par sheet) has
-// nowhere to go until Store happens to issue it first. Picking one opens a fresh period
-// (beginning 0) so it's immediately ready to par and/or count. Added 2026-10-18.
+// nowhere to go until Store happens to issue it first, and a dormant item (tagged here
+// but hidden from the default list for lack of recent activity — see loadFloor) has a
+// way back. Added 2026-10-18; broadened 2026-10-18 to cover dormant items too, per the
+// owner ("drop down is not showing all the items to add" — it used to exclude every
+// tagged item, dormant or not, since it was handed the full tagged-id list rather than
+// just the ones currently visible).
 function renderAddItemPicker(existingIds) {
   const box = document.getElementById("add-item-box");
   if (!box) return;
@@ -540,15 +552,31 @@ function renderAddItemPicker(existingIds) {
     if (!productId) return;
     const prod = state.allProducts.find(p => p.id === productId);
     try {
-      await sb(`floor_stock_periods`, {
-        method: "POST", headers: { "Prefer": "return=minimal" },
-        body: JSON.stringify({
-          location_id: LOCATION_ID, floor: state.floor, product_id: productId,
-          period_label: state.floor === "KITCHEN" ? `${todayStr()} ${state.shift}` : todayStr(),
-          period_start_at: EPOCH, beginning_qty: 0,
-          entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
-        })
-      });
+      // A dormant item (tagged/par-leveled for this floor but hidden for lack of recent
+      // activity) may already have an open period sitting there with a real carried-over
+      // beginning balance — reuse it by just touching updated_at, rather than blindly
+      // opening a second, duplicate period at beginning 0 that would throw that balance
+      // away. Only truly new items get a fresh period.
+      let openRows = [];
+      try {
+        openRows = await sb(`floor_stock_periods?product_id=eq.${productId}&location_id=eq.${LOCATION_ID}&floor=eq.${state.floor}&period_end_at=is.null&select=id`);
+      } catch (e) { openRows = []; }
+      if (openRows && openRows.length) {
+        await sb(`floor_stock_periods?id=eq.${openRows[0].id}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({ updated_at: new Date().toISOString() })
+        });
+      } else {
+        await sb(`floor_stock_periods`, {
+          method: "POST", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({
+            location_id: LOCATION_ID, floor: state.floor, product_id: productId,
+            period_label: state.floor === "KITCHEN" ? `${todayStr()} ${state.shift}` : todayStr(),
+            period_start_at: EPOCH, beginning_qty: 0,
+            entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+          })
+        });
+      }
       // Lock the floor assignment in the first time an unassigned item is placed, so it
       // can't quietly get added to a second floor later. Also clears floor_count_excluded
       // — deliberately picking an item from this list is exactly the "manager wants to
