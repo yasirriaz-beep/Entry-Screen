@@ -363,7 +363,7 @@ function panelInnerHTML(shift, label){
         <div class="field" style="margin:14px 0 0;border-top:1px solid var(--border);padding-top:12px">
           <label style="margin-bottom:2px">Note Breakdown of the Packet</label>
           <p class="ur">Jo bundle custodian ko dena hai uske notes gin kar yahan tadaad likhen &mdash; "Custodian ko Diya" khud ban jayega isi se</p>
-          <p class="muted" style="margin:2px 0 0;font-size:.76rem">Doesn't need to include any JazzCash amount &mdash; that's added on top automatically. This is what sets "Custodian ko Diya" above &mdash; it's no longer typed by hand.</p>
+          <p class="muted" style="margin:2px 0 0;font-size:.76rem">This is what sets "Custodian ko Diya" above &mdash; it's the sum of these notes, nothing else, and it's no longer typed by hand.</p>
           <div class="denom-grid" id="denomGrid_${s}">
             ${DENOMINATIONS.map(d => `
             <div class="denom-row">
@@ -482,8 +482,8 @@ function wireShift(shift){
     });
   }
   // "Custodian ko Diya" is no longer typed directly (the input is disabled) — it's always
-  // computed from the note breakdown below plus the JazzCash portions, so there is no
-  // listener on it. Changed 2026-10-17, per the owner.
+  // computed from the note breakdown below, so there is no listener on it.
+  // Changed 2026-10-17, per the owner.
   document.getElementById(fid("varianceReason", shift)).addEventListener("input", () => recalcTotals());
 
   // Denomination breakdown — every note-qty box and the Coins/Other box recompute the
@@ -547,9 +547,9 @@ function cashAvailableTotal(shift){
 
 function recalcCashRecon(shift){
   const st = state[shift];
-  // "Custodian ko Diya" is computed from the note breakdown + JazzCash portions, not typed —
-  // refresh it first so everything below (handover variance, expected closing, short/over)
-  // reads the current figure, not a stale one from before this input changed.
+  // "Custodian ko Diya" is computed from the note breakdown alone, not typed — refresh it
+  // first so everything below (handover variance, expected closing, short/over) reads the
+  // current figure, not a stale one from before this input changed.
   recalcDenomination(shift);
   const cashSales = cashSalesTotal(shift);
   const cashAvailable = cashAvailableTotal(shift);
@@ -576,18 +576,8 @@ function recalcCashRecon(shift){
   const custodianEntered = document.getElementById("custodianAmount_" + shift).value !== "";
   const actualHandover = nS("custodianAmount", shift); // positive = custodian took cash out; negative = custodian topped the till up
 
-  // "Custodian ko Diya" (actualHandover) includes today's JazzCash sales portion on top of
-  // the counted notes (see recalcCustodianAmount/jazzcashPortionTotal) — that portion was
-  // never physical cash sitting in the till, so it has to be added to the formula-expected
-  // figure too before comparing, or every shift with JazzCash sales would show a false
-  // "excess" equal to the whole JazzCash amount instead of the real (usually tiny) count
-  // variance. jazzcashCollected is already folded into cashAvailable/autoHandover above, so
-  // only jazzcashAmount (today's own sales) needs adding here. Fixed 2026-10-18.
-  const jazzcashSalesOnly = nS("jazzcashAmount", shift);
-  const autoHandoverFull = autoHandover + jazzcashSalesOnly;
-
   const handoverNote = document.getElementById("handoverVarianceNote_" + shift);
-  const handoverDiff = Math.round(actualHandover - autoHandoverFull);
+  const handoverDiff = Math.round(actualHandover - autoHandover);
   st.handoverDiff = custodianEntered ? handoverDiff : 0; // rolled up into Whole Day Totals' "Excess cash handed over" line
   if (!custodianEntered) {
     handoverNote.style.color = "";
@@ -606,10 +596,7 @@ function recalcCashRecon(shift){
   }
 
   // What should physically be left in the till once the actual handover has been taken out.
-  // Subtracts only the CASH portion of the handover — the JazzCash sales riding along in
-  // actualHandover never passed through the till, so it can't be subtracted from it.
-  const cashOnlyHandover = actualHandover - jazzcashSalesOnly;
-  const expectedClosing = st.openingCashTill + cashAvailable - st.tillCashExpenses - cashOnlyHandover;
+  const expectedClosing = st.openingCashTill + cashAvailable - st.tillCashExpenses - actualHandover;
   const closingEntered = document.getElementById("closingCash_" + shift).value !== "";
   const closing = nS("closingCash", shift);
   const closingNote = document.getElementById("closingVarianceNote_" + shift);
@@ -669,31 +656,23 @@ function recalcCashRecon(shift){
 // Changed the same day (still 2026-10-17) to drive the handover total directly instead of
 // being typed twice and cross-checked — one real count instead of a number plus a count that
 // has to agree with it.
-// "Custodian ko Diya" minus whatever portion of it isn't physical cash in the first place —
-// the JazzCash/wallet slice of today's own sales (jazzcashAmount) and, for Evening, JazzCash
-// Collected from Morning. Neither has to show up as counted notes, so the breakdown only
-// has to add up to what's left after both are taken out. Added 2026-10-17, per the owner.
-// JazzCash portions that ride along with the handover without being physical notes — today's
-// own JazzCash sales, and for Evening, JazzCash Collected from Morning.
-function jazzcashPortionTotal(shift){
-  const jazzcashPortion = nS("jazzcashAmount", shift);
-  const collectedEl = document.getElementById(fid("jazzcashCollected", shift));
-  const jazzcashCollected = collectedEl ? (parseFloat(collectedEl.value) || 0) : 0;
-  return jazzcashPortion + jazzcashCollected;
-}
+// "Custodian ko Diya" is ALWAYS just the sum of the denomination entries below — nothing
+// else gets added on top. The breakdown is the expanded/itemized form of the handover
+// amount, not a separate figure with JazzCash folded in. Simplified 2026-10-18, per the
+// owner — an earlier version of this also added the JazzCash sales/collected portions on
+// top of the notes, which made the auto-generated expected-handover comparison show a false
+// "excess" equal to the JazzCash amount; removed rather than patched further.
 
-// Sets "Custodian ko Diya" from the counted notes (denomTotal) plus the JazzCash portions —
-// the field itself is disabled, this is the only thing that writes to it. Falls back to a
-// shift's historical custodian_cash_amount only when it was saved before this breakdown
-// existed (no denomination detail on file) and nothing has been counted here yet — see
+// Sets "Custodian ko Diya" from the counted notes (denomTotal) — the field itself is
+// disabled, this is the only thing that writes to it. Falls back to a shift's historical
+// custodian_cash_amount only when it was saved before this breakdown existed (no
+// denomination detail on file) and nothing has been counted here yet — see
 // loadShiftEntry. Once real notes are entered, the real count always wins.
 function recalcCustodianAmount(shift, denomTotal){
   const st = state[shift];
-  const jazzcash = jazzcashPortionTotal(shift);
-  const computed = denomTotal + jazzcash;
-  const hasActivity = denomTotal > 0 || jazzcash > 0;
+  const hasActivity = denomTotal > 0;
   st.usingLegacyCustodianAmount = !hasActivity && !!st.legacyCustodianAmount;
-  const total = st.usingLegacyCustodianAmount ? st.legacyCustodianAmount : computed;
+  const total = st.usingLegacyCustodianAmount ? st.legacyCustodianAmount : denomTotal;
   const el = document.getElementById(fid("custodianAmount", shift));
   el.value = (hasActivity || st.usingLegacyCustodianAmount) ? Math.round(total) : "";
   return total;
@@ -713,13 +692,9 @@ function recalcDenomination(shift){
 
   const custodianTotal = recalcCustodianAmount(shift, total);
   const note = document.getElementById(`denomVarianceNote_${shift}`);
-  const jazzcash = jazzcashPortionTotal(shift);
   if (state[shift].usingLegacyCustodianAmount) {
     note.style.color = "var(--danger)";
     note.textContent = `This shift's handover (PKR ${Math.round(custodianTotal).toLocaleString()}) was saved before notes were counted on this page — count the packet below before saving again.`;
-  } else if (jazzcash > 1) {
-    note.style.color = "";
-    note.textContent = `+ PKR ${Math.round(jazzcash).toLocaleString()} JazzCash portion added automatically = PKR ${Math.round(custodianTotal).toLocaleString()} handed to custodian.`;
   } else {
     note.style.color = "";
     note.textContent = "";
