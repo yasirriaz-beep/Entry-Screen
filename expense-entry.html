@@ -270,24 +270,6 @@
       <div id="rgm-approval-done" class="banner banner-ok" style="margin-top:8px;" hidden></div>
     </div>
 
-    <div id="block-item" class="field" hidden>
-      <label>Item Code / Name</label>
-      <input type="text" id="f-item-search" placeholder="Start typing an item name...">
-      <select id="f-item-select" style="margin-top:6px;"></select>
-      <div class="hint" id="item-hint"></div>
-    </div>
-
-    <div class="row2 field">
-      <div>
-        <label>Qty</label>
-        <input type="number" id="f-qty" step="any" placeholder="0">
-      </div>
-      <div>
-        <label>Rate (PKR)</label>
-        <input type="number" id="f-rate" step="any" placeholder="0">
-      </div>
-    </div>
-
     <div class="field" id="block-amount-direct">
       <label>Amount (PKR)</label>
       <input type="number" id="f-amount" step="any" placeholder="0">
@@ -380,15 +362,20 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "expense_entry";
 
+// "Inventory Purchase" removed 2026-10-18 — stock purchases now go exclusively through
+// Goods Receipt, which actually updates inventory quantities (this category never did; it
+// wrote straight to `expenses` with no matching `purchases` row, so anything logged under it
+// increased cost but never increased tracked stock, surfacing later as unexplained shrinkage).
+// Historical rows already saved under that category still display/edit fine on Expense Edit
+// (it falls back to a "(retired)" option for a category no longer in this active list).
 const CATEGORIES = [
-  "Inventory Purchase","Director Draw","Payroll/Employee Charge","Payable Payment",
+  "Director Draw","Payroll/Employee Charge","Payable Payment",
   "Food","Packaging","Cleaning & Sanitation","Party & Decor","Stationery & Office Supplies",
   "Marketing","Uniform & Apparel","Equipment & Smallwares","Vehicle & Delivery Maintenance",
   "Fuel & Gas","Payroll","Utilities (Electricity/Water)","Distribution Cost","Delivery Charges",
   "Interstore Transfers","Employee Meals & Medical","Charge to Restaurant","Repairs & Maintenance",
   "Government Charges & Taxes","Food Panda Commission","Miscellaneous","Donation"
 ];
-const ITEM_CODE_CATEGORY = "Inventory Purchase";
 const CHARGED_TO_CATEGORIES = ["Director Draw"];
 const EMPLOYEE_ADVANCE_CATEGORIES = ["Payroll"];
 
@@ -828,45 +815,8 @@ async function loadEmployees() {
   } catch (e) { /* non-fatal */ }
 }
 
-async function loadProducts() {
-  try {
-    state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
-  } catch (e) { state.products = []; }
-}
-
-function populateItemSelect(filterText) {
-  const sel = document.getElementById("f-item-select");
-  const ft = (filterText || "").trim().toUpperCase();
-  const matches = ft
-    ? state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft))
-    : state.products.slice(0, 40);
-  sel.innerHTML = '<option value="">— pick an item —</option>' +
-    matches.slice(0, 60).map(p => `<option value="${p.id}">${p.code || "?"} — ${p.name}</option>`).join("");
-}
-
-function onItemSelected() {
-  const sel = document.getElementById("f-item-select");
-  const p = state.products.find(x => x.id === sel.value);
-  if (p) {
-    document.getElementById("f-rate").value = p.current_rate || "";
-    document.getElementById("item-hint").textContent = `Unit: ${p.unit || "—"} · Last rate on file: PKR ${p.current_rate || 0}`;
-  } else {
-    document.getElementById("item-hint").textContent = "";
-  }
-  recalcAmount();
-}
-
 function recalcAmount() {
-  const cat = document.getElementById("f-category").value;
-  let amount = 0;
-  if (cat === ITEM_CODE_CATEGORY) {
-    const qty = parseFloat(document.getElementById("f-qty").value) || 0;
-    const rate = parseFloat(document.getElementById("f-rate").value) || 0;
-    amount = qty * rate;
-    document.getElementById("f-amount").value = amount ? amount.toFixed(2) : "";
-  } else {
-    amount = parseFloat(document.getElementById("f-amount").value) || 0;
-  }
+  const amount = parseFloat(document.getElementById("f-amount").value) || 0;
   document.getElementById("total-display").textContent =
     "PKR " + amount.toLocaleString("en-PK", { maximumFractionDigits: 2 });
   return amount;
@@ -874,12 +824,8 @@ function recalcAmount() {
 
 function onCategoryChange() {
   const cat = document.getElementById("f-category").value;
-  const isItem = cat === ITEM_CODE_CATEGORY;
-  document.getElementById("block-item").hidden = !isItem;
-  document.getElementById("block-amount-direct").hidden = isItem;
   document.getElementById("block-charged-to").hidden = !CHARGED_TO_CATEGORIES.includes(cat);
   document.getElementById("block-employee").hidden = !EMPLOYEE_ADVANCE_CATEGORIES.includes(cat);
-  if (isItem) populateItemSelect("");
   populateSubcategorySelect(cat);
   updateRgmApprovalBlock(cat);
   resetAiBanner();
@@ -942,9 +888,6 @@ async function runCheckAndMaybeSave() {
   if (!document.getElementById("f-detail").value.trim()) {
     document.getElementById("f-detail").focus();
     return alert("Add a short description before saving.");
-  }
-  if (cat === ITEM_CODE_CATEGORY && !document.getElementById("f-item-select").value) {
-    return alert("Pick an item for an Inventory Purchase.");
   }
   if (EMPLOYEE_ADVANCE_CATEGORIES.includes(cat) && !document.getElementById("f-employee").value) {
     return alert("Pick which employee this advance is for.");
@@ -1100,14 +1043,6 @@ async function saveExpense({ status, reason }) {
     rgm_approved_at: state.rgmApproval ? state.rgmApproval.approvedAt : null
   };
 
-  if (cat === ITEM_CODE_CATEGORY) {
-    const itemSel = document.getElementById("f-item-select");
-    const p = state.products.find(x => x.id === itemSel.value);
-    payload.product_id = itemSel.value || null;
-    payload.qty = parseFloat(document.getElementById("f-qty").value) || null;
-    payload.rate = parseFloat(document.getElementById("f-rate").value) || null;
-    payload.unit = p ? p.unit : null;
-  }
   if (CHARGED_TO_CATEGORIES.includes(cat)) {
     payload.charged_to = chargedTo;
   }
@@ -1142,8 +1077,6 @@ function resetForm() {
   document.getElementById("f-date").value = todayStr();
   document.getElementById("f-shift").value = defaultShift();
   document.getElementById("f-category").selectedIndex = 0;
-  document.getElementById("f-qty").value = "";
-  document.getElementById("f-rate").value = "";
   document.getElementById("f-amount").value = "";
   document.getElementById("f-vendor").selectedIndex = 0;
   document.getElementById("f-payment-method").value = "cash";
@@ -1152,7 +1085,6 @@ function resetForm() {
   document.getElementById("f-charged-to").value = "";
   document.getElementById("f-employee").selectedIndex = 0;
   document.getElementById("f-detail").value = "";
-  document.getElementById("f-item-search").value = "";
   document.getElementById("f-receipt-photo").value = "";
   document.getElementById("receipt-status").textContent = "";
   state.receiptPhotoPath = null;
@@ -1164,11 +1096,7 @@ function resetForm() {
 
 document.getElementById("f-category").addEventListener("change", onCategoryChange);
 document.getElementById("f-payment-method").addEventListener("change", onPaymentMethodChange);
-document.getElementById("f-qty").addEventListener("input", recalcAmount);
-document.getElementById("f-rate").addEventListener("input", recalcAmount);
 document.getElementById("f-amount").addEventListener("input", recalcAmount);
-document.getElementById("f-item-search").addEventListener("input", (e) => populateItemSelect(e.target.value));
-document.getElementById("f-item-select").addEventListener("change", onItemSelected);
 document.getElementById("btn-check").addEventListener("click", runCheckAndMaybeSave);
 document.getElementById("btn-back").addEventListener("click", () => {
   document.getElementById("step-form").hidden = true;
@@ -1177,7 +1105,7 @@ document.getElementById("btn-back").addEventListener("click", () => {
 document.getElementById("btn-another").addEventListener("click", resetForm);
 
 // Any field edit after a flag invalidates the previous check result.
-["f-category","f-qty","f-rate","f-amount","f-vendor","f-date","f-shift","f-employee"].forEach(id => {
+["f-category","f-amount","f-vendor","f-date","f-shift","f-employee"].forEach(id => {
   document.getElementById(id).addEventListener("input", () => {
     if (state.pendingFlags.length) resetAiBanner();
   });
@@ -1193,7 +1121,6 @@ if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
   AppSession.applyAccessLock(existing, PAGE_KEY);
 }
 loadVendors();
-loadProducts();
 loadEmployees();
 </script>
 </body>
