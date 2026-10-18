@@ -101,7 +101,7 @@
     (Addition wo maal hai jo Issue Entry se is floor ko bheja gaya). Aap ko sirf "Ending Count" mein woh number likhna hai
     jo aap ne physically count kiya hai is floor par. Kitchen mein shift (Morning/Evening) bhi chunein — nayi shift shuru
     karne se purani shift band ho jati hai aur uska Ending Count agli shift ki Beginning ban jata hai.
-    Jab sab floors ka Ending Count likh lein to neeche "Save Ending Counts" button dabayen.
+    Jab sab floors ka Ending Count likh lein to neeche "Save Changes" button dabayen. Par Qty (desired floor stock) bhi yahin set ho sakti hai — ek dafa set karne ke baad Issue Entry khud reorder qty suggest karega.
   </div>
   <div class="tabs">
     <button type="button" class="tab-btn active" data-floor="KITCHEN">Kitchen</button>
@@ -124,6 +124,7 @@
     <div class="hint" style="margin-bottom:10px;" id="floor-formula-hint">Expected = Beginning + Addition. Ending Count is what you physically count.</div>
     <div id="item-list"></div>
     <div class="hint" id="item-list-empty" hidden>No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear.</div>
+    <div class="field" id="add-item-box" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"></div>
   </div>
 
   <div class="card" id="dough-card">
@@ -154,7 +155,7 @@
 </div>
 
 <div class="sticky-save" id="sticky-save">
-  <button class="btn-primary" id="btn-save-all" type="button" disabled>Save Ending Counts (<span id="dirty-count">0</span>)</button>
+  <button class="btn-primary" id="btn-save-all" type="button" disabled>Save Changes (<span id="dirty-count">0</span>)</button>
 </div>
 
 <script src="session.js"></script>
@@ -170,8 +171,11 @@ const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bar", D
 let state = {
   userId: null, userName: null, userRole: null, managerId: null,
   floor: "KITCHEN", shift: "Morning",
-  items: [],       // {id, name, unit, period, addedLive, doughUsageLive}
+  items: [],       // {id, name, unit, period, addedLive, doughUsageLive, par}
   dirty: {},       // product_id -> ending_qty
+  dirtyPar: {},    // product_id -> par_qty (desired floor stock — what Issue Entry's
+                    // suggestion is computed from once this is saved)
+  parByProduct: {}, // product_id -> floor_par_levels row for the current floor
   recipe: [],      // dough_recipe_items rows (joined product name/unit)
   allProducts: [],
   doughOutputs: []
@@ -265,6 +269,7 @@ document.getElementById("f-shift").addEventListener("change", (e) => { state.shi
 function setFloor(floor) {
   state.floor = floor;
   state.dirty = {};
+  state.dirtyPar = {};
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.floor === floor));
   document.getElementById("kitchen-shift-card").hidden = floor !== "KITCHEN";
   document.getElementById("dough-card").hidden = floor !== "KITCHEN";
@@ -318,14 +323,27 @@ async function loadFloor() {
   // the Bar Items page (bar-items.html) show up here too, ready to count,
   // even before any issuance exists.
   const barTaggedIds = floor === "BAR" ? state.allProducts.filter(p => p.is_bar_item).map(p => p.id) : [];
-  const ids = [...new Set([...issuedIds, ...trackedIds, ...barTaggedIds])];
+
+  // Par levels (desired floor stock) are a standing setting, independent of any one
+  // counting period — an item that's had a par set once should keep showing up here to
+  // recount against, even across a stretch with zero issuance. Added 2026-10-18.
+  let parRows = [];
+  try {
+    parRows = await sb(`floor_par_levels?floor=eq.${floor}&location_id=eq.${LOCATION_ID}&select=*`);
+  } catch (e) { parRows = []; }
+  state.parByProduct = {};
+  parRows.forEach(r => { state.parByProduct[r.product_id] = r; });
+  const parTaggedIds = parRows.map(r => r.product_id);
+
+  const ids = [...new Set([...issuedIds, ...trackedIds, ...barTaggedIds, ...parTaggedIds])];
 
   if (!ids.length) {
     list.innerHTML = "";
     emptyHint.textContent = floor === "BAR"
       ? "No Bar items yet — tag items on the Bar Items page, or once Store issues something here via Issue Entry, it will appear."
-      : "No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear.";
+      : "No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear, or add one below to set its par level.";
     emptyHint.hidden = false;
+    renderAddItemPicker(ids);
     return;
   }
   emptyHint.hidden = true;
@@ -418,11 +436,46 @@ async function loadFloor() {
       .filter(r => r.created_at >= period.period_start_at)
       .reduce((s, r) => s + (Number(r.qty) || 0), 0);
     const doughUsage = floor === "KITCHEN" ? doughUsageSince(id, period.period_start_at) : 0;
-    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage });
+    const parRow = state.parByProduct[id];
+    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, par: parRow ? Number(parRow.par_qty) : null });
   }
   items.sort((a, b) => a.name.localeCompare(b.name));
   state.items = items;
   renderItemList();
+  renderAddItemPicker(ids);
+}
+
+// Lets whoever's counting add any product to this floor's list before it's ever been
+// issued here — otherwise a brand-new par-level item (e.g. from a paper par sheet) has
+// nowhere to go until Store happens to issue it first. Picking one opens a fresh period
+// (beginning 0) so it's immediately ready to par and/or count. Added 2026-10-18.
+function renderAddItemPicker(existingIds) {
+  const box = document.getElementById("add-item-box");
+  if (!box) return;
+  const existing = new Set(existingIds);
+  const options = state.allProducts.filter(p => !existing.has(p.id));
+  box.innerHTML = `
+    <label>Add an item to this floor's list</label>
+    <select id="add-item-select">
+      <option value="">Search/select a product…</option>
+      ${options.map(p => `<option value="${p.id}">${p.name} (${p.unit})</option>`).join("")}
+    </select>`;
+  document.getElementById("add-item-select").addEventListener("change", async (e) => {
+    const productId = e.target.value;
+    if (!productId) return;
+    try {
+      await sb(`floor_stock_periods`, {
+        method: "POST", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          location_id: LOCATION_ID, floor: state.floor, product_id: productId,
+          period_label: state.floor === "KITCHEN" ? `${todayStr()} ${state.shift}` : todayStr(),
+          period_start_at: EPOCH, beginning_qty: 0,
+          entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+        })
+      });
+      await loadFloor();
+    } catch (err) { alert("Couldn't add: " + err.message); }
+  });
 }
 
 function fieldHtml(label, value, note) {
@@ -442,6 +495,17 @@ function renderItemList() {
     const showEnding = dirtyVal != null ? dirtyVal : enteredEnding;
     const variance = showEnding !== "" ? (Number(showEnding) - expected) : null;
 
+    // Par Qty is the desired floor stock (e.g. from the kitchen's paper par sheet) —
+    // a standing target, not tied to this counting period. Reorder is what Issue
+    // Entry's suggestion is computed from once this is saved: par minus whichever
+    // on-floor figure is freshest (the night's Ending Count once counted, Expected
+    // otherwise). Added 2026-10-18, per the owner.
+    const dirtyParVal = state.dirtyPar[it.id];
+    const enteredPar = it.par != null ? it.par : "";
+    const showPar = dirtyParVal != null ? dirtyParVal : enteredPar;
+    const onFloorForReorder = showEnding !== "" ? Number(showEnding) : expected;
+    const reorder = showPar !== "" ? Math.max(0, Math.round((Number(showPar) - onFloorForReorder) * 100) / 100) : null;
+
     const block = document.createElement("div");
     block.className = "item-block";
     block.innerHTML = `
@@ -455,6 +519,10 @@ function renderItemList() {
         ${isKitchen ? fieldHtml("Dough Used", fmtQty(it.doughUsage)) : ""}
         ${fieldHtml("Expected", fmtQty(expected))}
         <div><label>Ending Count</label><input type="number" step="any" class="f-ending" value="${showEnding}" placeholder="count"></div>
+      </div>
+      <div class="grid-fields" style="margin-top:8px;grid-template-columns:1fr 1fr;">
+        <div><label>Par Qty (desired)</label><input type="number" step="any" class="f-par" value="${showPar}" placeholder="not set"></div>
+        <div><label>Reorder for Store</label><input type="text" class="f-reorder" value="${reorder != null ? fmtQty(reorder) : "—"}" disabled></div>
       </div>
       ${canMove ? `
       <div class="move-row">
@@ -474,13 +542,31 @@ function renderItemList() {
       });
     }
     const endingInput = block.querySelector(".f-ending");
+    const parInput = block.querySelector(".f-par");
+    const reorderDisplay = block.querySelector(".f-reorder");
     const varTag = block.querySelector(".var-tag");
     if (state.dirty[it.id] != null) endingInput.classList.add("dirty");
+    if (state.dirtyPar[it.id] != null) parInput.classList.add("dirty");
+    function refreshReorder() {
+      const parNow = parInput.value === "" ? null : parseFloat(parInput.value);
+      const endingNow = endingInput.value === "" ? null : parseFloat(endingInput.value);
+      const onFloorNow = endingNow != null && !isNaN(endingNow) ? endingNow : expected;
+      const r = (parNow != null && !isNaN(parNow)) ? Math.max(0, Math.round((parNow - onFloorNow) * 100) / 100) : null;
+      reorderDisplay.value = r != null ? fmtQty(r) : "—";
+    }
     endingInput.addEventListener("input", () => {
       const v = parseFloat(endingInput.value);
       state.dirty[it.id] = isNaN(v) ? "" : v;
       endingInput.classList.add("dirty");
       varTag.textContent = !isNaN(v) ? `Var: ${fmtQty(v - expected)}` : "";
+      refreshReorder();
+      updateSaveBar();
+    });
+    parInput.addEventListener("input", () => {
+      const v = parseFloat(parInput.value);
+      state.dirtyPar[it.id] = isNaN(v) ? "" : v;
+      parInput.classList.add("dirty");
+      refreshReorder();
       updateSaveBar();
     });
     list.appendChild(block);
@@ -516,13 +602,15 @@ function updateSaveBar() {
   // Stays on screen always (just disabled at 0) so it's never mistaken for
   // missing — fully hiding it looked, to someone who hadn't typed anything
   // yet, like there was no way to save at all.
-  const count = Object.keys(state.dirty).length;
+  const count = Object.keys(state.dirty).length + Object.keys(state.dirtyPar).length;
   document.getElementById("dirty-count").textContent = count;
   document.getElementById("btn-save-all").disabled = count === 0;
 }
 
 async function saveAllEntries() {
-  const ids = Object.keys(state.dirty);
+  const endingIds = Object.keys(state.dirty);
+  const parIds = Object.keys(state.dirtyPar);
+  const ids = [...new Set([...endingIds, ...parIds])];
   if (!ids.length) return;
   const btn = document.getElementById("btn-save-all");
   btn.disabled = true;
@@ -531,16 +619,31 @@ async function saveAllEntries() {
     const item = state.items.find(i => i.id === id);
     if (!item) continue;
     const endingVal = state.dirty[id];
-    if (endingVal === "" || endingVal == null) continue;
+    const parVal = state.dirtyPar[id];
     try {
-      await sb(`floor_stock_periods?id=eq.${item.period.id}`, {
-        method: "PATCH", headers: { "Prefer": "return=minimal" },
-        body: JSON.stringify({
-          ending_qty: endingVal, added_qty: item.added, dough_usage_qty: item.doughUsage,
-          period_end_at: new Date().toISOString(),
-          closed_by_user_id: state.userId, closed_by_manager_id: state.managerId
-        })
-      });
+      if (endingVal !== "" && endingVal != null) {
+        await sb(`floor_stock_periods?id=eq.${item.period.id}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({
+            ending_qty: endingVal, added_qty: item.added, dough_usage_qty: item.doughUsage,
+            period_end_at: new Date().toISOString(),
+            closed_by_user_id: state.userId, closed_by_manager_id: state.managerId
+          })
+        });
+      }
+      if (parVal !== "" && parVal != null) {
+        // Par Qty is a standing target, not tied to a period — upserted on (location,
+        // floor, product) instead of patched by row id, since there may not be one yet.
+        await sb(`floor_par_levels?on_conflict=location_id,floor,product_id`, {
+          method: "POST",
+          headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify({
+            location_id: LOCATION_ID, floor: state.floor, product_id: id, par_qty: parVal,
+            updated_by_user_id: state.userId, updated_by_manager_id: state.managerId,
+            updated_at: new Date().toISOString()
+          })
+        });
+      }
       done++;
     } catch (e) { failed++; }
     btn.textContent = `Saving ${done + failed}/${ids.length}…`;
@@ -548,9 +651,10 @@ async function saveAllEntries() {
   // Restore the dirty-count span inside the button — a plain textContent
   // reset here destroys it, and the next updateSaveBar() call throws trying
   // to find it, leaving the button stuck looking broken/missing.
-  btn.innerHTML = `Save Ending Counts (<span id="dirty-count">0</span>)`;
+  btn.innerHTML = `Save Changes (<span id="dirty-count">0</span>)`;
   btn.disabled = true;
   state.dirty = {};
+  state.dirtyPar = {};
   updateSaveBar();
   await loadFloor();
   if (failed) alert(`${done} saved, ${failed} failed — try those again.`);

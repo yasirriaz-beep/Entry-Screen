@@ -53,6 +53,9 @@
   .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
   .item-row input { padding: 7px 8px; font-size: 0.85rem; text-align: right; }
   .item-row input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  /* Firm par-level reorder suggestion (vs. the rough average placeholder otherwise shown) */
+  .item-row input.par-sugg::placeholder { color: var(--ok); font-weight: 700; opacity: 1; }
+  .item-row input.par-sugg:not(.dirty) { border-color: var(--ok); }
   .expected-val, .num-val { font-size: 0.8rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
   .num-val.end-val { color: var(--ink); font-weight: 600; }
   .col-header { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px 84px; gap: 6px; font-size: 0.65rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
@@ -191,8 +194,13 @@ const DESTS = [
 let state = {
   userId: null, userName: null, managerId: null, userRole: null,
   products: [], purchases: [], issues: [], snapshots: [],
-  floorPeriods: [], // open floor_stock_periods rows, used only for the demand-suggestion hint
-  suggestions: {}, // product_id -> { KITCHEN: qty, BOH: qty, ... } advisory "replenish to par" estimate
+  floorPeriods: [], // open floor_stock_periods rows, used for the demand-suggestion hint
+  parLevels: {}, // "productId|floor" -> par_qty, set on Floor Inventory (floor_par_levels)
+  suggestions: {}, // product_id -> { KITCHEN: qty, BOH: qty, ... } suggested replenishment —
+                    // exact (par minus what's on the floor) where a par level is set,
+                    // otherwise a rough average-based estimate
+  suggestionIsPar: {}, // product_id -> { KITCHEN: true, ... } which suggestions above are
+                        // the firm par-based figure, vs. the rough average
   historyDays: {}, // floor -> distinct days of daily_issues history observed (for future UI use)
   existing: {}, // product_id -> today's existing daily_issues rows, by destination
   dirty: {} // product_id -> { KITCHEN: qty, BOH: qty, ... }
@@ -335,6 +343,14 @@ async function loadAll() {
     // suggested-demand hint below, one bulk fetch for every floor/item.
     state.floorPeriods = await sb(`floor_stock_periods?location_id=eq.${LOCATION_ID}&period_end_at=is.null&select=product_id,floor,beginning_qty,period_start_at`);
   } catch (e) { state.floorPeriods = []; }
+  try {
+    // Par levels set on Floor Inventory (the desired floor stock, e.g. from a paper par
+    // sheet) — where one exists, it overrides the rough average estimate below with the
+    // exact reorder-to-par figure. Added 2026-10-18.
+    const parRows = await sb(`floor_par_levels?location_id=eq.${LOCATION_ID}&select=product_id,floor,par_qty`);
+    state.parLevels = {};
+    (parRows || []).forEach(r => { state.parLevels[`${r.product_id}|${r.floor}`] = Number(r.par_qty) || 0; });
+  } catch (e) { state.parLevels = {}; }
 
   const cats = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
   const sel = document.getElementById("filter-category");
@@ -348,17 +364,20 @@ async function loadAll() {
   loadTodayList();
 }
 
-// Suggested demand — "replenish to par": par is roughly one typical day's
-// usage for that floor (trailing average over however many days we actually
-// have data for), minus whatever's already on the floor right now (from the
-// same floor_stock_periods balance Floor Inventory itself shows). Purely
-// advisory: shown as a faint placeholder inside each blank box, never
-// written into state.dirty, so nothing is ever auto-filled or auto-saved —
-// the store man decides what to actually type. With only a handful of days
-// of history so far these numbers will be rough; they quietly get more
-// reliable as more days of real issuance accumulate.
+// Suggested demand — "replenish to par". Two sources, in priority order:
+//   1. A par level set on Floor Inventory (floor_par_levels) — the exact desired floor
+//      stock (e.g. from a paper par sheet). Reorder = that par minus whatever's on the
+//      floor right now. Firm, not an estimate — used whenever it's set, even for an item
+//      with zero issuance history yet (a brand-new par item). Added 2026-10-18.
+//   2. Otherwise, the old rough average: one typical day's usage for that floor (trailing
+//      average over however many days we actually have data for), minus what's on the
+//      floor. Quietly gets more reliable as more days of real issuance accumulate.
+// Either way this is purely advisory: shown as a faint placeholder inside each blank box,
+// never written into state.dirty, so nothing is ever auto-filled or auto-saved — the
+// store man decides what to actually type and confirms the real count.
 function computeSuggestions() {
   state.suggestions = {}; // product_id -> { KITCHEN: qty, BOH: qty, ... }
+  state.suggestionIsPar = {}; // product_id -> { KITCHEN: true, ... }
   state.historyDays = {}; // floor -> distinct days observed, for the disclaimer
 
   const floorDays = {};
@@ -376,27 +395,41 @@ function computeSuggestions() {
   const periodByKey = {}; // "productId|floor" -> latest open period
   state.floorPeriods.forEach(p => { periodByKey[`${p.product_id}|${p.floor}`] = p; });
 
+  function onFloorNow(productId, floorKey) {
+    const period = periodByKey[`${productId}|${floorKey}`];
+    if (!period) return 0;
+    let onFloor = Number(period.beginning_qty) || 0;
+    onFloor += state.issues
+      .filter(i => i.product_id === productId && i.issued_to === floorKey && i.created_at >= period.period_start_at)
+      .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+    return onFloor;
+  }
+
+  const setSuggestion = (productId, floorKey, qty, isPar) => {
+    if (qty < 1) return;
+    state.suggestions[productId] = state.suggestions[productId] || {};
+    state.suggestions[productId][floorKey] = qty;
+    if (isPar) {
+      state.suggestionIsPar[productId] = state.suggestionIsPar[productId] || {};
+      state.suggestionIsPar[productId][floorKey] = true;
+    }
+  };
+
   state.products.forEach(p => {
     DESTS.forEach(d => {
       const key = `${p.id}|${d.key}`;
+      const parQty = state.parLevels[key];
+      if (parQty != null) {
+        const suggested = Math.round((parQty - onFloorNow(p.id, d.key)) * 100) / 100;
+        setSuggestion(p.id, d.key, suggested, true);
+        return; // firm par figure wins — don't fall through to the average
+      }
       const days = floorDays[d.key].size;
       if (!days) return;
       const avgDaily = (totalsByKey[key] || 0) / days;
       if (avgDaily < 0.01) return;
-
-      const period = periodByKey[key];
-      let onFloor = 0;
-      if (period) {
-        onFloor = Number(period.beginning_qty) || 0;
-        onFloor += state.issues
-          .filter(i => i.product_id === p.id && i.issued_to === d.key && i.created_at >= period.period_start_at)
-          .reduce((s, i) => s + (Number(i.qty) || 0), 0);
-      }
-      const suggested = Math.round((avgDaily - onFloor) * 100) / 100;
-      if (suggested >= 1) {
-        state.suggestions[p.id] = state.suggestions[p.id] || {};
-        state.suggestions[p.id][d.key] = suggested;
-      }
+      const suggested = Math.round((avgDaily - onFloorNow(p.id, d.key)) * 100) / 100;
+      setSuggestion(p.id, d.key, suggested, false);
     });
   });
 }
@@ -477,11 +510,16 @@ function renderItemList() {
     const row = document.createElement("div");
     row.className = "item-row";
     const suggRow = (state.suggestions && state.suggestions[p.id]) || {};
+    const parRow = (state.suggestionIsPar && state.suggestionIsPar[p.id]) || {};
     const destCells = DESTS.map(d => {
       const v = dirtyRow[d.key] != null ? dirtyRow[d.key] : "";
       const sugg = suggRow[d.key];
       const ph = sugg != null ? fmtQty(sugg) : "—";
-      return `<input type="number" class="${d.cls}" step="any" value="${v}" placeholder="${ph}">`;
+      // A par-based suggestion is a firm target (par minus what's on the floor), not a
+      // rough average — marked with .par-sugg so it reads differently at a glance.
+      const parCls = parRow[d.key] ? " par-sugg" : "";
+      const title = parRow[d.key] ? `Par level reorder — fill to the Kitchen par qty` : "";
+      return `<input type="number" class="${d.cls}${parCls}" step="any" value="${v}" placeholder="${ph}" title="${title}">`;
     }).join("");
     row.innerHTML = `
       <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>

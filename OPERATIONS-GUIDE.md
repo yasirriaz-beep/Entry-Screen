@@ -18,6 +18,7 @@ don't have to reverse-engineer it from the code.
 | Authorize a purchase demand only (standalone page) | `po-authorize.html` | Anyone granted the "Purchase Order — Authorize" page in Manage Access |
 | Record goods received from a vendor | `goods-receipt.html` | Store man |
 | Record stock issued to kitchen/floor/delivery | `issue-entry.html` | Store man |
+| Count floor stock (kitchen/BOH/FOH/bar/delivery) and set par levels | `floor-inventory.html` | Kitchen manager / shift manager / director |
 | Pay a vendor | `vendor-payment.html` | Zeeshan |
 | Daily cash safe reconciliation | `cash-reconciliation.html` | Cash custodian |
 | Attendance | `attendance-entry.html` | — |
@@ -717,6 +718,37 @@ quantities.
   `vendor-payment.html` — that's vendor-level accounts payable (what's owed in total,
   including stock already consumed); this is specifically the payable portion of what's
   still sitting in inventory right now.
+
+---
+
+## 5D. Floor Par Levels — kitchen's desired floor stock, auto reorder (added Oct 18, 2026)
+
+Previously the kitchen manager kept a paper "par sheet" (desired quantity of each
+ingredient/packaging/supply item to have on hand) and, after counting what's actually on
+the floor at night, hand-wrote the shortfall as a demand order for the store person to read
+and re-key. This digitizes that sheet so the shortfall computes itself.
+
+- **`floor-inventory.html`** — where the kitchen manager already counts the night's Ending
+  Count — now also has a **Par Qty (desired)** field next to it, per item per floor. This is
+  a standing target (`floor_par_levels` table, one row per location/floor/product), not tied
+  to any one counting period — set it once, it stays until changed. A read-only **Reorder for
+  Store** field right next to it shows `max(0, Par Qty − on-floor now)` live, using the Ending
+  Count once it's typed, or the Expected figure before that.
+- **Setting a par for an item that's never been issued to this floor yet** (a brand-new par
+  item straight off a paper sheet): use the **"Add an item to this floor's list"** picker at
+  the bottom of the item list — it opens a fresh tracking period (beginning 0) for any
+  product, so it's immediately ready to par and count, without waiting for Store to issue it
+  first.
+- Par Qty saves together with Ending Count under the same **Save Changes** button — no
+  separate save step.
+- **`issue-entry.html`**'s per-floor suggestion (the faint placeholder number in each blank
+  box — still never auto-filled, store man always types the real amount) now uses the par
+  figure whenever one is set, shown in **green/bold** to mark it as a firm reorder target
+  rather than the old rough trailing-average estimate. Items with no par level set keep the
+  old average-based placeholder unchanged.
+- Scope: one combined par list per floor (no separate "supplies" vs. "ingredients" split) —
+  matches how Floor Inventory already treats each floor (Kitchen, BOH, FOH, Bar, Delivery) as
+  one list.
 
 ---
 
