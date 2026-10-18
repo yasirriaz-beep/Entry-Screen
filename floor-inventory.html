@@ -762,7 +762,16 @@ async function saveAllEntries() {
   state.dirtyPar = {};
   state.dirtyReorderOverride = {};
   updateSaveBar();
+  // loadFloor() briefly collapses #item-list down to a one-line "Loading…" hint while it
+  // re-fetches, which shrinks the page height out from under the browser's current scroll
+  // position and snaps it to the top — then the full list comes back and it looks like Save
+  // dumped you back up top, away from the line you were on. Pin the scroll position across
+  // that reload and restore it (twice: once right after the DOM is back, and once more a
+  // frame later, since images/webfonts finishing layout can nudge it again).
+  const scrollY = window.scrollY;
   await loadFloor();
+  window.scrollTo(0, scrollY);
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
   if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
 }
 document.getElementById("btn-save-all").addEventListener("click", saveAllEntries);
