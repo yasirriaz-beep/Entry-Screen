@@ -819,7 +819,7 @@ async function loadFloorVariance() {
   let products = [];
   try { products = await sb(`products?id=in.(${prodIds.join(",")})&select=id,name,unit`); } catch (e) { products = []; }
   const prodMap = {}; products.forEach(p => { prodMap[p.id] = p; });
-  const floorLabel = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bar", DEL: "Delivery" };
+  const floorLabel = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery and Bar", DEL: "Delivery" };
 
   const rows = periods.map(p => {
     const expected = (Number(p.beginning_qty) || 0) + (Number(p.added_qty) || 0) - (Number(p.dough_usage_qty) || 0);

@@ -176,7 +176,7 @@
           <option value="KITCHEN">Kitchen only</option>
           <option value="BOH">BOH only</option>
           <option value="FOH">FOH only</option>
-          <option value="BAR">Bar only</option>
+          <option value="BAR">Bakery and Bar only</option>
           <option value="DEL">Delivery only</option>
         </select>
       </div>
@@ -197,16 +197,17 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "issue_entry";
 
-// Matches Floor Inventory's FLOORS exactly (Kitchen/BOH/FOH/Bar/Delivery) —
-// Bar was dropped from here at first since it had zero historical issues at
-// C-5, but that left Floor Inventory's Bar tab with no way to ever
-// receive stock through this page. Keeping the two in lockstep even if Bar
-// stays empty in practice.
+// Matches Floor Inventory's FLOORS exactly (Kitchen/BOH/FOH/Bakery and Bar/Delivery) —
+// "BAR" now covers Bakery and Bar as a combined section (cakes/bakery items
+// were tagged floor_category='BAR' alongside the original bar-consumable
+// items). Bar was dropped from here at first since it had zero historical
+// issues at C-5, but that left Floor Inventory's Bar tab with no way to ever
+// receive stock through this page. Keeping the two in lockstep.
 const DESTS = [
   { key: "KITCHEN", label: "Kitchen Issue", cls: "i-kitchen" },
   { key: "BOH", label: "BOH Issue", cls: "i-boh" },
   { key: "FOH", label: "FOH Issue", cls: "i-foh" },
-  { key: "BAR", label: "Bar Issue", cls: "i-bar" },
+  { key: "BAR", label: "Bakery and Bar Issue", cls: "i-bar" },
   { key: "DEL", label: "Delivery Issue", cls: "i-del" }
 ];
 
@@ -639,7 +640,7 @@ async function loadTodayList() {
   } catch (e) { emptyHint.hidden = false; }
 }
 
-const DEST_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bar", DEL: "Delivery" };
+const DEST_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery and Bar", DEL: "Delivery" };
 
 async function printIssueReport() {
   const date = document.getElementById("f-date").value || todayStr();

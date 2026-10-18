@@ -107,7 +107,7 @@
     <button type="button" class="tab-btn active" data-floor="KITCHEN">Kitchen</button>
     <button type="button" class="tab-btn" data-floor="BOH">BOH</button>
     <button type="button" class="tab-btn" data-floor="FOH">FOH</button>
-    <button type="button" class="tab-btn" data-floor="BAR">Bar</button>
+    <button type="button" class="tab-btn" data-floor="BAR">Bakery and Bar</button>
     <button type="button" class="tab-btn" data-floor="DEL">Delivery</button>
   </div>
 
@@ -166,7 +166,7 @@ const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "floor_inventory";
 const EPOCH = "2000-01-01T00:00:00.000Z";
 const FLOORS = ["KITCHEN", "BOH", "FOH", "BAR", "DEL"];
-const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bar", DEL: "Delivery" };
+const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery and Bar", DEL: "Delivery" };
 
 let state = {
   userId: null, userName: null, userRole: null, managerId: null,
@@ -352,7 +352,7 @@ async function loadFloor() {
   if (!ids.length) {
     list.innerHTML = "";
     emptyHint.textContent = floor === "BAR"
-      ? "No Bar items yet — tag an item as a Bar item from its Manage Item screen (Item Master → Manage), or once Store issues something here via Issue Entry, it will appear."
+      ? "No Bakery and Bar items yet — tag an item's Floor Category as Bar from its Manage Item screen (Item Master → Manage), or once Store issues something here via Issue Entry, it will appear."
       : "No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear, or add one below to set its par level.";
     emptyHint.hidden = false;
     renderAddItemPicker(ids);
