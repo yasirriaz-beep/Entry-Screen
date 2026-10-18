@@ -146,6 +146,8 @@ let state = {
   dirty: {},       // product_id -> ending_qty
   dirtyPar: {},    // product_id -> par_qty (desired floor stock — what Issue Entry's
                     // suggestion is computed from once this is saved)
+  dirtyReorderOverride: {}, // product_id -> manual Reorder for Store value, or "" to clear
+                    // an existing override back to the auto-computed figure
   parByProduct: {}, // product_id -> floor_par_levels row for the current floor
   recipe: [],      // dough_recipe_items rows, read-only here (see loadDoughRecipe below)
   allProducts: []
@@ -239,6 +241,7 @@ function setFloor(floor) {
   state.floor = floor;
   state.dirty = {};
   state.dirtyPar = {};
+  state.dirtyReorderOverride = {};
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.floor === floor));
   document.getElementById("kitchen-shift-card").hidden = floor !== "KITCHEN";
   document.getElementById("dough-log-hint").hidden = floor !== "KITCHEN";
@@ -435,7 +438,8 @@ async function loadFloor() {
     // literally everything.
     const isDoughIngredient = floor === "KITCHEN" && state.recipe.some(r => r.product_id === id);
     const parRow = state.parByProduct[id];
-    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null });
+    const reorderOverride = parRow && parRow.reorder_override_qty != null ? Number(parRow.reorder_override_qty) : null;
+    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride });
   }
   items.sort((a, b) => a.name.localeCompare(b.name));
   state.items = items;
@@ -517,7 +521,18 @@ function renderItemList() {
     const enteredPar = it.par != null ? it.par : "";
     const showPar = dirtyParVal != null ? dirtyParVal : enteredPar;
     const onFloorForReorder = showEnding !== "" ? Number(showEnding) : expected;
-    const reorder = showPar !== "" ? Math.max(0, Math.round((Number(showPar) - onFloorForReorder) * 100) / 100) : null;
+    const reorderComputed = showPar !== "" ? Math.max(0, Math.round((Number(showPar) - onFloorForReorder) * 100) / 100) : null;
+
+    // Reorder for Store is auto-computed (par minus on-floor) and locked by default — a
+    // hard number the kitchen manager can't fat-finger. Checking "Override" unlocks it for
+    // a one-off manual figure (e.g. "store should send double, there's a private event
+    // tonight"), saved against this item/floor until unchecked again. Added 2026-10-18.
+    const dirtyOverrideVal = state.dirtyReorderOverride[it.id];
+    const hasOverride = dirtyOverrideVal != null
+      ? dirtyOverrideVal !== ""
+      : it.reorderOverride != null;
+    const showOverrideVal = dirtyOverrideVal != null ? dirtyOverrideVal : (it.reorderOverride != null ? it.reorderOverride : "");
+    const reorder = hasOverride && showOverrideVal !== "" ? Number(showOverrideVal) : reorderComputed;
 
     const block = document.createElement("div");
     block.className = "item-block";
@@ -535,7 +550,14 @@ function renderItemList() {
       </div>
       <div class="grid-fields" style="margin-top:8px;grid-template-columns:1fr 1fr;">
         <div><label>Par Qty (desired)</label><input type="number" step="any" class="f-par" value="${showPar}" placeholder="not set"></div>
-        <div><label>Reorder for Store</label><input type="text" class="f-reorder" value="${reorder != null ? fmtQty(reorder) : "—"}" disabled></div>
+        <div>
+          <label>Reorder for Store
+            <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:0.78rem;">
+              <input type="checkbox" class="f-reorder-override-chk" style="width:auto;display:inline-block;vertical-align:middle;margin:0 3px 0 8px;" ${hasOverride ? "checked" : ""}>override
+            </span>
+          </label>
+          <input type="${hasOverride ? "number" : "text"}" step="any" class="f-reorder" value="${hasOverride ? (showOverrideVal === "" ? "" : showOverrideVal) : (reorder != null ? fmtQty(reorder) : "—")}" ${hasOverride ? "" : "disabled"}>
+        </div>
       </div>
       ${canMove ? `
       <div class="move-row">
@@ -557,10 +579,13 @@ function renderItemList() {
     const endingInput = block.querySelector(".f-ending");
     const parInput = block.querySelector(".f-par");
     const reorderDisplay = block.querySelector(".f-reorder");
+    const overrideChk = block.querySelector(".f-reorder-override-chk");
     const varTag = block.querySelector(".var-tag");
     if (state.dirty[it.id] != null) endingInput.classList.add("dirty");
     if (state.dirtyPar[it.id] != null) parInput.classList.add("dirty");
+    if (dirtyOverrideVal != null) reorderDisplay.classList.add("dirty");
     function refreshReorder() {
+      if (overrideChk.checked) return; // manual value — leave whatever's typed alone
       const parNow = parInput.value === "" ? null : parseFloat(parInput.value);
       const endingNow = endingInput.value === "" ? null : parseFloat(endingInput.value);
       const onFloorNow = endingNow != null && !isNaN(endingNow) ? endingNow : expected;
@@ -580,6 +605,34 @@ function renderItemList() {
       state.dirtyPar[it.id] = isNaN(v) ? "" : v;
       parInput.classList.add("dirty");
       refreshReorder();
+      updateSaveBar();
+    });
+    overrideChk.addEventListener("change", () => {
+      if (overrideChk.checked) {
+        // Unlock it, starting from whatever the auto-computed figure currently shows, so
+        // the kitchen manager is editing from a sane number rather than a blank box.
+        reorderDisplay.type = "number";
+        reorderDisplay.step = "any";
+        reorderDisplay.disabled = false;
+        const startVal = reorderDisplay.value === "—" || reorderDisplay.value === "" ? "" : reorderDisplay.value;
+        reorderDisplay.value = startVal;
+        state.dirtyReorderOverride[it.id] = startVal === "" ? "" : parseFloat(startVal);
+      } else {
+        // Lock it back and clear any saved override for this item/floor — Reorder goes
+        // back to being a hard, auto-computed number again.
+        reorderDisplay.type = "text";
+        reorderDisplay.disabled = true;
+        state.dirtyReorderOverride[it.id] = "";
+        refreshReorder();
+      }
+      reorderDisplay.classList.add("dirty");
+      updateSaveBar();
+    });
+    reorderDisplay.addEventListener("input", () => {
+      if (!overrideChk.checked) return;
+      const v = parseFloat(reorderDisplay.value);
+      state.dirtyReorderOverride[it.id] = isNaN(v) ? "" : v;
+      reorderDisplay.classList.add("dirty");
       updateSaveBar();
     });
     list.appendChild(block);
@@ -634,7 +687,7 @@ function updateSaveBar() {
   // Stays on screen always (just disabled at 0) so it's never mistaken for
   // missing — fully hiding it looked, to someone who hadn't typed anything
   // yet, like there was no way to save at all.
-  const count = Object.keys(state.dirty).length + Object.keys(state.dirtyPar).length;
+  const count = Object.keys(state.dirty).length + Object.keys(state.dirtyPar).length + Object.keys(state.dirtyReorderOverride).length;
   document.getElementById("dirty-count").textContent = count;
   document.getElementById("btn-save-all").disabled = count === 0;
 }
@@ -642,7 +695,8 @@ function updateSaveBar() {
 async function saveAllEntries() {
   const endingIds = Object.keys(state.dirty);
   const parIds = Object.keys(state.dirtyPar);
-  const ids = [...new Set([...endingIds, ...parIds])];
+  const overrideIds = Object.keys(state.dirtyReorderOverride);
+  const ids = [...new Set([...endingIds, ...parIds, ...overrideIds])];
   if (!ids.length) return;
   const btn = document.getElementById("btn-save-all");
   btn.disabled = true;
@@ -652,6 +706,7 @@ async function saveAllEntries() {
     if (!item) continue;
     const endingVal = state.dirty[id];
     const parVal = state.dirtyPar[id];
+    const overrideVal = state.dirtyReorderOverride[id];
     try {
       if (endingVal !== "" && endingVal != null) {
         await sb(`floor_stock_periods?id=eq.${item.period.id}`, {
@@ -663,17 +718,35 @@ async function saveAllEntries() {
           })
         });
       }
-      if (parVal !== "" && parVal != null) {
-        // Par Qty is a standing target, not tied to a period — upserted on (location,
-        // floor, product) instead of patched by row id, since there may not be one yet.
+      const hasParChange = parVal !== "" && parVal != null;
+      const hasOverrideChange = overrideVal !== undefined;
+      if (hasParChange || hasOverrideChange) {
+        // Par Qty and the Reorder override both live as a standing target per
+        // (location, floor, product) — upserted, not patched by row id, since there may
+        // not be one yet. Only the fields actually touched here are included, so an
+        // untouched par_qty (say, only the override checkbox was changed) is left alone
+        // on conflict rather than overwritten with nothing.
+        const body = {
+          location_id: LOCATION_ID, floor: state.floor, product_id: id,
+          updated_by_user_id: state.userId, updated_by_manager_id: state.managerId,
+          updated_at: new Date().toISOString()
+        };
+        if (hasParChange) body.par_qty = parVal;
+        if (hasOverrideChange) {
+          if (overrideVal === "" || overrideVal == null) {
+            body.reorder_override_qty = null;
+            body.reorder_override_at = null;
+            body.reorder_override_by_user_id = null;
+          } else {
+            body.reorder_override_qty = overrideVal;
+            body.reorder_override_at = new Date().toISOString();
+            body.reorder_override_by_user_id = state.userId;
+          }
+        }
         await sb(`floor_par_levels?on_conflict=location_id,floor,product_id`, {
           method: "POST",
           headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
-          body: JSON.stringify({
-            location_id: LOCATION_ID, floor: state.floor, product_id: id, par_qty: parVal,
-            updated_by_user_id: state.userId, updated_by_manager_id: state.managerId,
-            updated_at: new Date().toISOString()
-          })
+          body: JSON.stringify(body)
         });
       }
       done++;
@@ -687,6 +760,7 @@ async function saveAllEntries() {
   btn.disabled = true;
   state.dirty = {};
   state.dirtyPar = {};
+  state.dirtyReorderOverride = {};
   updateSaveBar();
   await loadFloor();
   if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
