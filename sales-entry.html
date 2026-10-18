@@ -576,8 +576,18 @@ function recalcCashRecon(shift){
   const custodianEntered = document.getElementById("custodianAmount_" + shift).value !== "";
   const actualHandover = nS("custodianAmount", shift); // positive = custodian took cash out; negative = custodian topped the till up
 
+  // "Custodian ko Diya" (actualHandover) includes today's JazzCash sales portion on top of
+  // the counted notes (see recalcCustodianAmount/jazzcashPortionTotal) — that portion was
+  // never physical cash sitting in the till, so it has to be added to the formula-expected
+  // figure too before comparing, or every shift with JazzCash sales would show a false
+  // "excess" equal to the whole JazzCash amount instead of the real (usually tiny) count
+  // variance. jazzcashCollected is already folded into cashAvailable/autoHandover above, so
+  // only jazzcashAmount (today's own sales) needs adding here. Fixed 2026-10-18.
+  const jazzcashSalesOnly = nS("jazzcashAmount", shift);
+  const autoHandoverFull = autoHandover + jazzcashSalesOnly;
+
   const handoverNote = document.getElementById("handoverVarianceNote_" + shift);
-  const handoverDiff = Math.round(actualHandover - autoHandover);
+  const handoverDiff = Math.round(actualHandover - autoHandoverFull);
   st.handoverDiff = custodianEntered ? handoverDiff : 0; // rolled up into Whole Day Totals' "Excess cash handed over" line
   if (!custodianEntered) {
     handoverNote.style.color = "";
@@ -596,7 +606,10 @@ function recalcCashRecon(shift){
   }
 
   // What should physically be left in the till once the actual handover has been taken out.
-  const expectedClosing = st.openingCashTill + cashAvailable - st.tillCashExpenses - actualHandover;
+  // Subtracts only the CASH portion of the handover — the JazzCash sales riding along in
+  // actualHandover never passed through the till, so it can't be subtracted from it.
+  const cashOnlyHandover = actualHandover - jazzcashSalesOnly;
+  const expectedClosing = st.openingCashTill + cashAvailable - st.tillCashExpenses - cashOnlyHandover;
   const closingEntered = document.getElementById("closingCash_" + shift).value !== "";
   const closing = nS("closingCash", shift);
   const closingNote = document.getElementById("closingVarianceNote_" + shift);
