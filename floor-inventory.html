@@ -352,7 +352,7 @@ async function loadFloor() {
   if (!ids.length) {
     list.innerHTML = "";
     emptyHint.textContent = floor === "BAR"
-      ? "No Bar items yet — tag items on the Bar Items page, or once Store issues something here via Issue Entry, it will appear."
+      ? "No Bar items yet — tag an item as a Bar item from its Manage Item screen (Item Master → Manage), or once Store issues something here via Issue Entry, it will appear."
       : "No items have been issued to this floor yet — once Store issues something here via Issue Entry, it will appear, or add one below to set its par level.";
     emptyHint.hidden = false;
     renderAddItemPicker(ids);

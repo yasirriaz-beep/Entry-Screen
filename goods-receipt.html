@@ -211,6 +211,12 @@
       <div class="hint" id="payment-method-hint">Cash here shows up as Cash Out on today's Cash Reconciliation — same as a cash vendor payment.</div>
     </div>
 
+    <div class="field" id="f-funded-safe2-wrap" hidden style="flex-direction:row; align-items:center; gap:8px;">
+      <input type="checkbox" id="f-funded-safe2" style="width:auto;">
+      <label for="f-funded-safe2" style="margin:0; text-transform:none; font-size:0.85rem; font-weight:400;">Cash was withdrawn from Safe 2 and deposited to make this transfer</label>
+    </div>
+    <div class="hint" id="f-funded-safe2-hint" hidden style="margin-top:-8px; margin-bottom:12px;">Check this if Zeeshan took the cash out of the safe himself — it'll count as a Safe 2 cash-out on Cash Reconciliation, the same as a cash advance. Leave unchecked if this came from the normal bank balance with no cash involved.</div>
+
     <div class="field">
       <label>Notes</label>
       <textarea id="f-notes" rows="2" placeholder="Optional — condition, shortage explanation, etc."></textarea>
@@ -643,6 +649,9 @@ function enterForm() {
   document.getElementById("block-payment-method").hidden = true;
   document.getElementById("block-advance-amount").hidden = true;
   document.getElementById("payment-status-hint").hidden = true;
+  document.getElementById("f-funded-safe2").checked = false;
+  document.getElementById("f-funded-safe2-wrap").hidden = true;
+  document.getElementById("f-funded-safe2-hint").hidden = true;
   document.getElementById("variance-hint").innerHTML = "";
   document.getElementById("f-receipt-photo").value = "";
   document.getElementById("scan-status").textContent = "Snap or upload a photo of the invoice/delivery note to pre-fill the fields below.";
@@ -823,6 +832,7 @@ async function saveReceipt() {
     }
 
     if (paymentStatus === "advance") {
+      const fundedFromSafe2 = paymentMethod === "bank" && document.getElementById("f-funded-safe2").checked;
       await sb("vendor_payments", {
         method: "POST",
         headers: { "Prefer": "return=minimal" },
@@ -833,6 +843,7 @@ async function saveReceipt() {
           amount: advanceAmount,
           payment_date: purchaseDate,
           method: paymentMethod,
+          funded_from_safe2: fundedFromSafe2,
           notes: `Advance paid at Goods Receipt${invNumber ? " (Inv# " + invNumber + ")" : ""}`,
           paid_by: state.userId,
           entered_by_manager_id: state.managerId
@@ -888,7 +899,27 @@ document.getElementById("f-payment-status").addEventListener("change", (e) => {
   document.getElementById("payment-method-hint").textContent = status === "advance"
     ? "The advance amount — cash here shows up as Cash Out on today's Cash Reconciliation, same as a cash vendor payment. The rest of this bill stays payable, same as On Credit."
     : "Cash here shows up as Cash Out on today's Cash Reconciliation — same as a cash vendor payment.";
+  updateFundedSafe2Visibility();
 });
+
+// Same "funded from Safe 2" parity as Vendor Payment — only meaningful for an Advance Paid
+// here (that's the only path on this page that posts a vendor_payments row), and only when
+// that advance is recorded as Bank Transfer rather than Cash (a plain cash advance is already
+// always a Safe 2 cash-out by definition, counted separately via method=eq.cash). Without this,
+// a bank-transfer advance actually funded by physically pulling cash from Safe 2 would never
+// show up in Cash Reconciliation's Cash Out, leaving Safe 2's physical count short with no
+// system-side explanation. Added 2026-10-18.
+function updateFundedSafe2Visibility() {
+  const status = document.getElementById("f-payment-status").value;
+  const method = document.getElementById("f-payment-method").value;
+  const wrap = document.getElementById("f-funded-safe2-wrap");
+  const hint = document.getElementById("f-funded-safe2-hint");
+  const show = status === "advance" && method === "bank";
+  wrap.hidden = !show;
+  hint.hidden = !show;
+  if (!show) document.getElementById("f-funded-safe2").checked = false;
+}
+document.getElementById("f-payment-method").addEventListener("change", updateFundedSafe2Visibility);
 document.getElementById("f-qty").addEventListener("input", recalcAmount);
 document.getElementById("f-rate").addEventListener("input", recalcAmount);
 document.getElementById("f-item-search").addEventListener("input", (e) => populateItemSelect(e.target.value));
