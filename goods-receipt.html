@@ -117,7 +117,7 @@
 
 <div class="urdu-box" id="urdu-box" hidden>
   <b>Tareeqa (Instructions in Roman Urdu)</b>
-  Yeh page tab istemal karen jab vendor say koi saman (stock) delivery ho kar aa jaye. Pehle batayen k yeh kisi Purchase Order (PO) per manga gaya tha ya nahi — agar PO per tha to list say wohi PO chunen, warna "No" wala option chunen aur item khud select karen. Qty Received aur Rate daalen, system khud Total nikal dega. Invoice/bill ki photo kheench kar upload kar sakte hain — kuch fields khud bhar jayen gi, magar check zaroor karen k sahi hain. Vendor, tareekh, aur Payment Status (On Credit / Paid Now / Advance) theek se bharen, phir "Save Receipt" per click karen. Agar koi entry ghalat ho jaye to "Received Today" list mein us entry k saamne "Void / correct this entry" per click kar k wajah likhen — entry ko mitaya nahi jata, sirf void (cancel) kiya jata hai taake record mehfooz rahe.
+  Yeh page tab istemal karen jab vendor say koi saman (stock) delivery ho kar aa jaye. Pehle batayen k yeh kisi Purchase Order (PO) per manga gaya tha ya nahi — agar PO per tha to list say wohi PO chunen, warna "No" wala option chunen aur item khud select karen. Qty Received aur Rate daalen, system khud Total nikal dega. Invoice/bill ki photo kheench kar upload kar sakte hain — kuch fields khud bhar jayen gi, magar check zaroor karen k sahi hain. Vendor, tareekh, aur Payment Status (On Credit / Paid Now / Advance) theek se bharen, phir "Save Receipt" per click karen. Agar koi entry ghalat ho jaye to "Received Today" list mein us entry k saamne "Void / correct this entry" per click kar k wajah likhen — entry ko mitaya nahi jata, sirf void (cancel) kiya jata hai taake record mehfooz rahe. Agar vendor ne poora order ek saath nahi bheja (kam maal aaya, baqi baad mein aana hai), to jitna aaj aaya hai utni hi qty likh kar save kar dein — PO band nahi hoga, baqi maal jab aayega to wohi PO list mein dobara dikhega, jitna reh gaya hai woh likha hoga.
 </div>
 
 <div id="step-mode" class="card" hidden>
@@ -516,6 +516,25 @@ async function loadOpenPOs() {
   try {
     state.pos = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=in.(Authorized,Ordered)&select=id,qty_requested,unit,status,advance_amount,products(id,name,code,unit,current_rate),vendors(id,name)&order=requested_at.desc`);
   } catch (e) { state.pos = []; }
+
+  // Partial receipts: a PO can now be received against more than once (a vendor delivers
+  // short and brings the rest later) — it stays status "Ordered" until the running total of
+  // non-voided purchases against it reaches qty_requested. Sum what's already come in so the
+  // picker and the variance check below compare against what's actually still outstanding,
+  // not the PO's original full quantity every time. Added 2026-10-18.
+  const poIds = state.pos.map(po => po.id);
+  let receivedByPo = {};
+  if (poIds.length) {
+    try {
+      const rows = await sb(`purchases?po_id=in.(${poIds.join(",")})&voided_at=is.null&select=po_id,qty`);
+      (rows || []).forEach(r => { receivedByPo[r.po_id] = (receivedByPo[r.po_id] || 0) + (Number(r.qty) || 0); });
+    } catch (e) { /* non-fatal — falls back to treating every PO as not-yet-received */ }
+  }
+  state.pos.forEach(po => {
+    po.receivedSoFar = Math.round((receivedByPo[po.id] || 0) * 100) / 100;
+    po.remaining = Math.round((((parseFloat(po.qty_requested) || 0) - po.receivedSoFar)) * 100) / 100;
+  });
+
   const list = document.getElementById("po-list");
   const emptyHint = document.getElementById("po-empty-hint");
   list.innerHTML = "";
@@ -531,9 +550,11 @@ async function loadOpenPOs() {
     const vend = po.vendors;
     const advanceTag = Number(po.advance_amount) > 0
       ? ` · <span style="color:var(--accent);font-weight:600;">Advance of PKR ${Math.round(po.advance_amount).toLocaleString()} already paid</span>` : "";
+    const partialTag = po.receivedSoFar > 0
+      ? ` · <span style="color:var(--warn);font-weight:600;">${po.receivedSoFar} already received — ${po.remaining} ${po.unit || prod?.unit || ""} remaining</span>` : "";
     card.innerHTML = `
       <div class="po-title">${prod ? prod.name : "Unknown item"}</div>
-      <div class="po-sub">${vend ? vend.name : "No vendor"} · Ordered ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${po.status}${advanceTag}</div>
+      <div class="po-sub">${vend ? vend.name : "No vendor"} · Ordered ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${po.status}${advanceTag}${partialTag}</div>
     `;
     card.onclick = () => selectPO(po, card);
     list.appendChild(card);
@@ -663,10 +684,13 @@ function enterForm() {
     const advanceLine = Number(po.advance_amount) > 0
       ? `<br>Advance of <strong>PKR ${Math.round(po.advance_amount).toLocaleString()}</strong> was already paid when this was ordered — it's already recorded as a vendor payment, so leave Payment Status as On Credit here and the vendor's balance will net correctly on its own.`
       : "";
+    const partialLine = po.receivedSoFar > 0
+      ? `<br><strong>${po.receivedSoFar} ${po.unit || po.products?.unit || ""} already received</strong> on an earlier visit — ${po.remaining} still outstanding on this PO.`
+      : "";
     document.getElementById("po-context-banner").innerHTML = `
       <div class="banner banner-ok">
         Receiving against PO: <strong>${po.products?.name || "item"}</strong> ·
-        Ordered ${po.qty_requested} ${po.unit || po.products?.unit || ""} from ${po.vendors?.name || "vendor"}${advanceLine}
+        Ordered ${po.qty_requested} ${po.unit || po.products?.unit || ""} from ${po.vendors?.name || "vendor"}${advanceLine}${partialLine}
       </div>`;
     if (po.products?.current_rate) document.getElementById("f-rate").value = po.products.current_rate;
     if (po.vendors?.id) document.getElementById("f-vendor").value = po.vendors.id;
@@ -707,12 +731,16 @@ function recalcAmount() {
   document.getElementById("total-display").textContent = "PKR " + amount.toLocaleString("en-PK", { maximumFractionDigits: 2 });
 
   if (state.mode === "po" && state.selectedPO) {
-    const requested = parseFloat(state.selectedPO.qty_requested) || 0;
+    // Compare against what's still outstanding on this PO, not its original full quantity —
+    // a second partial receipt matching exactly what's left shouldn't flag as a variance.
+    const po = state.selectedPO;
+    const requested = po.receivedSoFar > 0 ? po.remaining : (parseFloat(po.qty_requested) || 0);
     const hintEl = document.getElementById("variance-hint");
     if (qty > 0 && requested > 0 && qty !== requested) {
       const diff = qty - requested;
       const label = diff > 0 ? "more than" : "less than";
-      hintEl.innerHTML = `<div class="banner banner-warn">Received qty is ${Math.abs(diff)} ${label} what was ordered (${requested}). Double-check before saving.</div>`;
+      const basis = po.receivedSoFar > 0 ? "what's still outstanding" : "what was ordered";
+      hintEl.innerHTML = `<div class="banner banner-warn">Received qty is ${Math.abs(diff)} ${label} ${basis} (${requested}). If this is a short delivery and the rest is coming later, save it as-is — the remainder will stay outstanding on this PO.</div>`;
     } else {
       hintEl.innerHTML = "";
     }
@@ -747,9 +775,11 @@ async function saveReceipt() {
     unit = po.unit || po.products?.unit || null;
     poId = po.id;
     oldRate = po.products?.current_rate != null ? Number(po.products.current_rate) : null;
-    const requested = parseFloat(po.qty_requested) || 0;
+    const requested = po.receivedSoFar > 0 ? po.remaining : (parseFloat(po.qty_requested) || 0);
     if (requested > 0 && qty !== requested) {
-      variance = `Ordered ${requested}, received ${qty} (${po.unit || unit || ""})`;
+      variance = po.receivedSoFar > 0
+        ? `${po.remaining} still outstanding on this PO, received ${qty} (${po.unit || unit || ""})`
+        : `Ordered ${requested}, received ${qty} (${po.unit || unit || ""})`;
     }
   } else {
     const itemSel = document.getElementById("f-item-select");
@@ -818,16 +848,26 @@ async function saveReceipt() {
     }
 
     if (poId && purchaseId) {
+      // Partial receipt: this PO only closes out (status -> Received) once the running
+      // total of everything received against it reaches what was ordered. Short of that it
+      // stays "Ordered" so it keeps showing up here, ready to receive the rest later — see
+      // loadOpenPOs()'s receivedSoFar/remaining computation above. received_qty/
+      // linked_purchase_id still reflect this latest receipt for a quick glance; the actual
+      // running total always comes from summing purchases.qty where po_id = this PO.
+      const alreadyReceived = state.selectedPO ? (state.selectedPO.receivedSoFar || 0) : 0;
+      const totalRequested = state.selectedPO ? (parseFloat(state.selectedPO.qty_requested) || 0) : 0;
+      const isFullyReceived = (alreadyReceived + qty) >= (totalRequested - 0.01);
+      const patchBody = {
+        received_qty: qty,
+        received_at: new Date().toISOString(),
+        received_by_user_id: state.userId,
+        linked_purchase_id: purchaseId
+      };
+      if (isFullyReceived) patchBody.status = "Received";
       await sb(`purchase_orders?id=eq.${poId}`, {
         method: "PATCH",
         headers: { "Prefer": "return=minimal" },
-        body: JSON.stringify({
-          status: "Received",
-          received_qty: qty,
-          received_at: new Date().toISOString(),
-          received_by_user_id: state.userId,
-          linked_purchase_id: purchaseId
-        })
+        body: JSON.stringify(patchBody)
       });
     }
 
