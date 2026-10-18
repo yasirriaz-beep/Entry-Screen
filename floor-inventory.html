@@ -461,13 +461,28 @@ async function loadFloor() {
     const parRow = state.parByProduct[id];
     const reorderOverride = parRow && parRow.reorder_override_qty != null ? Number(parRow.reorder_override_qty) : null;
     const rate = Number(prod.current_rate) || 0;
-    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate });
+    const beginningQty = Number(period.beginning_qty) || 0;
+    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate, beginningQty });
   }
+  // Kitchen only: only show an item if Store actually issued it (Addition > 0) or it
+  // carried a beginning balance over from a prior day/shift's Ending Count — not just
+  // because it's tagged for Kitchen or has a par level sitting there with zero activity.
+  // That tagged/par-level fallback still applies to the other floors. Added 2026-10-18,
+  // per the owner.
+  const visible = floor === "KITCHEN" ? items.filter(it => it.added > 0 || it.beginningQty > 0) : items;
+  if (floor === "KITCHEN" && !visible.length) {
+    list.innerHTML = "";
+    emptyHint.textContent = "No Kitchen items have activity yet today — once Store issues something here via Issue Entry, or an item carries a beginning balance in from the last shift, it will appear.";
+    emptyHint.hidden = false;
+    renderAddItemPicker(ids);
+    return;
+  }
+  emptyHint.hidden = true;
   // Most expensive first (cheese, chicken, etc. for Kitchen) so the manager counts the
   // highest-value items first — falls back to name order for items with the same (or no)
   // rate on file. Changed 2026-10-18, per the owner.
-  items.sort((a, b) => (b.rate - a.rate) || a.name.localeCompare(b.name));
-  state.items = items;
+  visible.sort((a, b) => (b.rate - a.rate) || a.name.localeCompare(b.name));
+  state.items = visible;
   renderItemList();
   renderAddItemPicker(ids);
 }
