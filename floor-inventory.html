@@ -436,8 +436,15 @@ async function loadFloor() {
       .filter(r => r.created_at >= period.period_start_at)
       .reduce((s, r) => s + (Number(r.qty) || 0), 0);
     const doughUsage = floor === "KITCHEN" ? doughUsageSince(id, period.period_start_at) : 0;
+    // Dough Used only ever means anything for an item that's actually a dough recipe
+    // ingredient (e.g. flour) — it feeds that item's own Expected/variance math, the same
+    // way store issuance does for every item. Showing "0" for every other item regardless
+    // (chicken strips, sauces, packaging...) was just noise, not a real figure. Flagged by
+    // the owner 2026-10-18 — no dough recipe is even configured yet, so it was showing on
+    // literally everything.
+    const isDoughIngredient = floor === "KITCHEN" && state.recipe.some(r => r.product_id === id);
     const parRow = state.parByProduct[id];
-    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, par: parRow ? Number(parRow.par_qty) : null });
+    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null });
   }
   items.sort((a, b) => a.name.localeCompare(b.name));
   state.items = items;
@@ -513,10 +520,10 @@ function renderItemList() {
         <span>${it.name} <span class="hint" style="margin:0;">(${it.unit})</span></span>
         <span class="var-tag">${variance != null ? "Var: " + fmtQty(variance) : ""}</span>
       </div>
-      <div class="grid-fields ${isKitchen ? "kitchen" : ""}">
+      <div class="grid-fields ${it.isDoughIngredient ? "kitchen" : ""}">
         ${fieldHtml("Beginning", fmtQty(beginning))}
         ${fieldHtml("Addition", fmtQty(it.added))}
-        ${isKitchen ? fieldHtml("Dough Used", fmtQty(it.doughUsage)) : ""}
+        ${it.isDoughIngredient ? fieldHtml("Dough Used", fmtQty(it.doughUsage)) : ""}
         ${fieldHtml("Expected", fmtQty(expected))}
         <div><label>Ending Count</label><input type="number" step="any" class="f-ending" value="${showEnding}" placeholder="count"></div>
       </div>
