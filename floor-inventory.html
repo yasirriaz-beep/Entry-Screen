@@ -505,11 +505,14 @@ function renderAddItemPicker(existingIds) {
   // floor) or ones already assigned to this exact floor. An item assigned to another
   // floor doesn't show at all — reassigning it is a Manage Item decision, not something
   // to do from the count screen, so the same item can't end up open on two floors again.
+  // A floor_count_excluded item (e.g. a negligible-value item the owner wants off the
+  // default list) is still offered here — the manager can deliberately bring one back
+  // if they want to count it, even though it won't show up on its own. Changed
+  // 2026-10-18, per the owner.
   const options = state.allProducts.filter(p =>
     !existing.has(p.id)
     && (!p.floor_category || p.floor_category === state.floor)
     && TRACKABLE_CATEGORIES.has(p.category)
-    && !p.floor_count_excluded
   );
   box.innerHTML = `
     <label>Add an item to this floor's list</label>
@@ -533,13 +536,24 @@ function renderAddItemPicker(existingIds) {
         })
       });
       // Lock the floor assignment in the first time an unassigned item is placed, so it
-      // can't quietly get added to a second floor later.
-      if (prod && !prod.floor_category) {
+      // can't quietly get added to a second floor later. Also clears floor_count_excluded
+      // — deliberately picking an item from this list is exactly the "manager wants to
+      // count it after all" override for an item that was hidden by default. Updated
+      // 2026-10-18.
+      const patchBody = {};
+      if (prod && !prod.floor_category) patchBody.floor_category = state.floor;
+      if (prod && prod.floor_count_excluded) patchBody.floor_count_excluded = false;
+      if (Object.keys(patchBody).length) {
+        // updated_by is required on every products UPDATE — the scoped RLS policy for
+        // non-director roles checks it, and omitting it silently 403s for anyone but a
+        // director (bit us once before on the floor-move feature).
+        patchBody.updated_by = state.userId;
+        patchBody.updated_at = new Date().toISOString();
         await sb(`products?id=eq.${productId}`, {
           method: "PATCH", headers: { "Prefer": "return=minimal" },
-          body: JSON.stringify({ floor_category: state.floor })
+          body: JSON.stringify(patchBody)
         });
-        prod.floor_category = state.floor;
+        Object.assign(prod, patchBody);
       }
       await loadFloor();
     } catch (err) { alert("Couldn't add: " + err.message); }
