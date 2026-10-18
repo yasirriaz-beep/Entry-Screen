@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C-5 Manage Item</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 60px; max-width: 720px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.4rem; margin: 4px 0 2px; }
+  h2 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.05rem; margin: 0 0 12px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; line-height: 1.4; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 130px; }
+  .row3 > div { flex: 1; min-width: 100px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  .btn-outline-err { background: transparent; border: 1px solid var(--err); color: var(--err); }
+  .btn-outline-ok { background: transparent; border: 1px solid var(--ok); color: var(--ok); }
+  .btn-outline-warn { background: transparent; border: 1px solid var(--warn); color: var(--warn); }
+  [hidden] { display: none !important; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-left: 6px; background: var(--err-bg); color: var(--err); }
+  .banner { border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .floor-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .floor-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.88rem; cursor: pointer; }
+  .floor-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .stat-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .stat-tile { flex: 1 1 120px; background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .stat-tile .stat-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); margin-bottom: 3px; }
+  .stat-tile .stat-value { font-size: 1.05rem; font-weight: 700; }
+  table.hist-tbl { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 10px; }
+  table.hist-tbl th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); padding: 4px 4px 8px; border-bottom: 1px solid var(--border); }
+  table.hist-tbl td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  table.hist-tbl th.num, table.hist-tbl td.num { text-align: right; }
+  .scroll-x { overflow-x: auto; }
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
+  .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
+</style>
+</head>
+<body style="padding-bottom:100px;">
+<a class="btn-ghost" href="item-master.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit; width:auto;">← Item Master</a>
+
+<div id="step-name" class="card">
+  <div class="hint" style="margin-bottom:8px;">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="no-id-msg" class="card" hidden>
+  <div class="hint">No item selected — go back to Item Master and pick one to manage.</div>
+</div>
+
+<div id="panel-main" hidden>
+  <h1 id="item-title">Manage Item</h1>
+  <div class="sub" id="item-sub"></div>
+
+  <div class="banner banner-warn" id="dup-floor-banner" hidden>
+    <span id="dup-floor-text"></span>
+    <button type="button" class="btn-sm btn-outline-warn" id="btn-fix-dup" style="margin-top:8px; display:block;">Close the duplicate count(s)</button>
+  </div>
+
+  <div class="card">
+    <h2>Basic Info</h2>
+    <div class="row2 field">
+      <div>
+        <label>Name</label>
+        <input type="text" id="f-name">
+      </div>
+      <div>
+        <label>Code</label>
+        <input type="text" id="f-code">
+      </div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Category</label>
+        <input type="text" id="f-category">
+      </div>
+      <div>
+        <label>Subcategory</label>
+        <input type="text" id="f-subcategory">
+      </div>
+    </div>
+    <div class="row2 field">
+      <div>
+        <label>Unit</label>
+        <input type="text" id="f-unit">
+      </div>
+      <div>
+        <label>Current Rate (PKR)</label>
+        <input type="number" id="f-rate" step="any">
+      </div>
+    </div>
+    <div class="hint" id="rate-updated-hint"></div>
+  </div>
+
+  <div class="card">
+    <h2>Floor Category</h2>
+    <div class="hint" style="margin-bottom:10px;">Which floor this item is counted on in Floor Inventory. One floor only — this is what stops the same item showing up under two floors at once.</div>
+    <div class="floor-pills" id="floor-pills"></div>
+  </div>
+
+  <div class="card">
+    <h2>COGS &amp; Costing</h2>
+    <div class="row2 field">
+      <div>
+        <label>Cost Type</label>
+        <select id="f-cost-type">
+          <option value="food_cost">Food Cost (COGS)</option>
+          <option value="non_convertible">Non-Convertible (supplies/other)</option>
+          <option value="uncategorized">Uncategorized</option>
+        </select>
+      </div>
+      <div>
+        <label>Last Rate (PKR)</label>
+        <input type="text" id="f-last-rate" disabled>
+      </div>
+    </div>
+    <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="f-is-bar" style="width:auto;"> Bar item (shows in Bar's floor list)
+    </label>
+  </div>
+
+  <div class="card">
+    <h2>MOQ / Reorder</h2>
+    <div class="row3 row2 field">
+      <div>
+        <label>Min Stock Level</label>
+        <input type="number" id="f-min-stock" step="any">
+      </div>
+      <div>
+        <label>Reorder Qty</label>
+        <input type="number" id="f-reorder-qty" step="any">
+      </div>
+      <div>
+        <label>Lead Time (days)</label>
+        <input type="number" id="f-lead-time" step="1">
+      </div>
+    </div>
+    <div class="field">
+      <label>Avg Daily Usage (editable — defaults from issue history below)</label>
+      <input type="number" id="f-avg-usage" step="any">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Vendor</h2>
+    <div class="field">
+      <label>Preferred Vendor</label>
+      <select id="f-vendor"><option value="">— none set —</option></select>
+    </div>
+    <div class="hint" id="most-used-vendor-hint"></div>
+  </div>
+
+  <div class="card">
+    <h2>Usage &amp; Stock Snapshot</h2>
+    <div class="stat-grid" id="usage-stats"></div>
+    <div class="scroll-x">
+      <table class="hist-tbl" id="usage-tbl"><thead><tr><th>Month</th><th class="num">Issued to floors</th><th class="num">Wastage</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Rate History (last 20 purchases)</h2>
+    <div class="scroll-x">
+      <table class="hist-tbl" id="rate-tbl"><thead><tr><th>Date</th><th>Vendor</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="hint" id="rate-hist-empty" hidden>No purchases on record yet.</div>
+  </div>
+
+  <div class="card">
+    <h2>Status</h2>
+    <div class="hint" style="margin-bottom:10px;" id="active-status-hint"></div>
+    <button type="button" class="btn-sm" id="btn-toggle-active" style="width:100%;"></button>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div class="sticky-save" id="sticky-save" hidden>
+  <button class="btn-primary" id="btn-save" type="button">Save Changes</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
+const PAGE_KEY = "item_master"; // same gate as Item Master — this is its detail screen
+
+const FLOORS = ["KITCHEN", "BOH", "FOH", "BAR", "DEL"];
+const FLOOR_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bar", DEL: "Delivery" };
+
+const params = new URLSearchParams(location.search);
+const PRODUCT_ID = params.get("id");
+
+let state = { userId: null, userName: null, managerId: null, product: null, vendors: [], openPeriods: [] };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+  });
+  if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`${res.status} ${text}`); }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  if (!PRODUCT_ID) {
+    document.getElementById("no-id-msg").hidden = false;
+    return;
+  }
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("sticky-save").hidden = false;
+  loadAll();
+}
+
+document.getElementById("btn-back").addEventListener("click", () => {
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("sticky-save").hidden = true;
+  document.getElementById("step-name").hidden = false;
+});
+
+function fmtMoney(n) { const v = Number(n) || 0; return Math.round(v).toLocaleString(); }
+function fmtQty(n) { const v = Number(n) || 0; return (Math.round(v * 100) / 100).toLocaleString(); }
+
+async function loadAll() {
+  const [products, vendors] = await Promise.all([
+    sb(`products?id=eq.${PRODUCT_ID}&select=*`),
+    sb(`vendors?active=eq.true&select=id,name&order=name`)
+  ]);
+  state.product = products && products[0];
+  state.vendors = vendors || [];
+  if (!state.product) {
+    document.getElementById("panel-main").hidden = true;
+    document.getElementById("no-id-msg").hidden = false;
+    document.getElementById("no-id-msg").querySelector(".hint").textContent = "Item not found.";
+    return;
+  }
+  renderBasics();
+  renderFloorPills();
+  renderVendorSelect();
+  await Promise.all([checkDuplicateFloors(), loadRateHistory(), loadUsageAndWastage()]);
+}
+
+function renderBasics() {
+  const p = state.product;
+  document.getElementById("item-title").textContent = p.name;
+  document.getElementById("item-sub").textContent = `${p.code || "no code"} · ${p.unit || "no unit"}${p.active ? "" : " · RETIRED"}`;
+  document.getElementById("f-name").value = p.name || "";
+  document.getElementById("f-code").value = p.code || "";
+  document.getElementById("f-category").value = p.category || "";
+  document.getElementById("f-subcategory").value = p.subcategory || "";
+  document.getElementById("f-unit").value = p.unit || "";
+  document.getElementById("f-rate").value = p.current_rate != null ? p.current_rate : "";
+  document.getElementById("f-last-rate").value = p.last_rate != null ? `PKR ${fmtMoney(p.last_rate)}` : "—";
+  document.getElementById("rate-updated-hint").textContent = p.rate_updated_at
+    ? `Rate last updated ${new Date(p.rate_updated_at).toLocaleDateString()}` : "";
+  document.getElementById("f-cost-type").value = p.cost_type || "uncategorized";
+  document.getElementById("f-is-bar").checked = !!p.is_bar_item;
+  document.getElementById("f-min-stock").value = p.min_stock_level != null ? p.min_stock_level : "";
+  document.getElementById("f-reorder-qty").value = p.reorder_qty != null ? p.reorder_qty : "";
+  document.getElementById("f-lead-time").value = p.lead_time_days != null ? p.lead_time_days : "";
+  document.getElementById("f-avg-usage").value = p.avg_daily_usage != null ? p.avg_daily_usage : "";
+
+  const activeHint = document.getElementById("active-status-hint");
+  const toggleBtn = document.getElementById("btn-toggle-active");
+  activeHint.textContent = p.active
+    ? "This item is active and shows up for new entries everywhere."
+    : "This item is retired — it stays in history but won't show up for new entries.";
+  toggleBtn.textContent = p.active ? "Retire Item" : "Restore Item";
+  toggleBtn.className = "btn-sm " + (p.active ? "btn-outline-err" : "btn-outline-ok");
+  toggleBtn.onclick = () => toggleActive();
+}
+
+function renderFloorPills() {
+  const wrap = document.getElementById("floor-pills");
+  const current = state.product.floor_category;
+  wrap.innerHTML = FLOORS.map(f =>
+    `<div class="floor-pill ${f === current ? "selected" : ""}" data-floor="${f}">${FLOOR_LABELS[f]}</div>`
+  ).join("") + `<div class="floor-pill ${!current ? "selected" : ""}" data-floor="">Not assigned</div>`;
+  wrap.querySelectorAll(".floor-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      wrap.querySelectorAll(".floor-pill").forEach(p => p.classList.remove("selected"));
+      pill.classList.add("selected");
+      state.product.floor_category = pill.dataset.floor || null;
+      checkDuplicateFloors();
+    });
+  });
+}
+
+function renderVendorSelect() {
+  const sel = document.getElementById("f-vendor");
+  sel.innerHTML = `<option value="">— none set —</option>` + state.vendors.map(v =>
+    `<option value="${v.id}" ${v.id === state.product.preferred_vendor_id ? "selected" : ""}>${v.name}</option>`
+  ).join("");
+}
+
+async function checkDuplicateFloors() {
+  try {
+    state.openPeriods = await sb(`floor_stock_periods?product_id=eq.${PRODUCT_ID}&location_id=eq.${LOCATION_ID}&period_end_at=is.null&select=id,floor`);
+  } catch (e) { state.openPeriods = []; }
+  const floorsOpen = [...new Set(state.openPeriods.map(r => r.floor))];
+  const banner = document.getElementById("dup-floor-banner");
+  const text = document.getElementById("dup-floor-text");
+  const extra = floorsOpen.filter(f => f !== state.product.floor_category);
+  if (floorsOpen.length > 1 || (state.product.floor_category && extra.length)) {
+    banner.hidden = false;
+    text.textContent = `This item currently has an open count on more than one floor: ${floorsOpen.map(f => FLOOR_LABELS[f]).join(", ")}. It should only be counted on one.`;
+  } else {
+    banner.hidden = true;
+  }
+}
+
+document.getElementById("btn-fix-dup").addEventListener("click", async () => {
+  const keepFloor = state.product.floor_category;
+  if (!keepFloor) { alert("Pick a Floor Category above first, so I know which count to keep."); return; }
+  const toClose = state.openPeriods.filter(r => r.floor !== keepFloor);
+  if (!toClose.length) return;
+  if (!confirm(`Close the open count on ${toClose.map(r => FLOOR_LABELS[r.floor]).join(", ")}? This keeps the ${FLOOR_LABELS[keepFloor]} count as the live one.`)) return;
+  try {
+    for (const row of toClose) {
+      await sb(`floor_stock_periods?id=eq.${row.id}`, {
+        method: "PATCH", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({ period_end_at: new Date().toISOString() })
+      });
+    }
+    await checkDuplicateFloors();
+    alert("Done — duplicate floor count(s) closed.");
+  } catch (e) { alert("Couldn't close: " + e.message); }
+});
+
+async function loadRateHistory() {
+  let rows = [];
+  try {
+    rows = await sb(`purchases?product_id=eq.${PRODUCT_ID}&qty=neq.0&select=purchase_date,qty,rate,amount,vendors(name)&order=purchase_date.desc&limit=20`);
+  } catch (e) { rows = []; }
+  const tbody = document.querySelector("#rate-tbl tbody");
+  tbody.innerHTML = "";
+  document.getElementById("rate-hist-empty").hidden = !!rows.length;
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${r.purchase_date ? new Date(r.purchase_date).toLocaleDateString() : "—"}</td>
+      <td>${r.vendors?.name || "—"}</td>
+      <td class="num">${fmtQty(r.qty)}</td>
+      <td class="num">${fmtMoney(r.rate)}</td>
+      <td class="num">${fmtMoney(r.amount)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Most-used vendor, by purchase count, from the full history (not just the last 20).
+  try {
+    const all = await sb(`purchases?product_id=eq.${PRODUCT_ID}&qty=neq.0&select=vendor_id,vendors(name)`);
+    const counts = {};
+    (all || []).forEach(r => {
+      if (!r.vendor_id) return;
+      counts[r.vendor_id] = counts[r.vendor_id] || { name: r.vendors?.name || "Vendor", n: 0 };
+      counts[r.vendor_id].n += 1;
+    });
+    const top = Object.values(counts).sort((a, b) => b.n - a.n)[0];
+    document.getElementById("most-used-vendor-hint").textContent = top
+      ? `Most-used vendor in purchase history: ${top.name} (${top.n} purchase${top.n > 1 ? "s" : ""})`
+      : "No purchase history yet to infer a vendor from.";
+  } catch (e) {
+    document.getElementById("most-used-vendor-hint").textContent = "";
+  }
+}
+
+async function loadUsageAndWastage() {
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const sinceStr = sixMonthsAgo.toISOString().slice(0, 10);
+
+  let issues = [], wastage = [], lastSnapshot = [];
+  try {
+    issues = await sb(`daily_issues?product_id=eq.${PRODUCT_ID}&location_id=eq.${LOCATION_ID}&issue_date=gte.${sinceStr}&select=issue_date,qty`);
+  } catch (e) { issues = []; }
+  try {
+    wastage = await sb(`wastage_log?product_id=eq.${PRODUCT_ID}&location_id=eq.${LOCATION_ID}&log_date=gte.${sinceStr}&select=log_date,qty,amount`);
+  } catch (e) { wastage = []; }
+  try {
+    lastSnapshot = await sb(`inventory_snapshots?product_id=eq.${PRODUCT_ID}&location_id=eq.${LOCATION_ID}&select=snapshot_date,closing_qty,variance_qty&order=snapshot_date.desc&limit=1`);
+  } catch (e) { lastSnapshot = []; }
+
+  const monthKey = (d) => d.slice(0, 7);
+  const byMonth = {};
+  issues.forEach(r => {
+    const k = monthKey(r.issue_date);
+    byMonth[k] = byMonth[k] || { issued: 0, wasted: 0 };
+    byMonth[k].issued += Number(r.qty) || 0;
+  });
+  wastage.forEach(r => {
+    const k = monthKey(r.log_date);
+    byMonth[k] = byMonth[k] || { issued: 0, wasted: 0 };
+    byMonth[k].wasted += Number(r.qty) || 0;
+  });
+  const months = Object.keys(byMonth).sort().reverse();
+  const tbody = document.querySelector("#usage-tbl tbody");
+  tbody.innerHTML = months.map(k => {
+    const d = new Date(k + "-01");
+    const label = d.toLocaleDateString([], { month: "short", year: "numeric" });
+    return `<tr><td>${label}</td><td class="num">${fmtQty(byMonth[k].issued)}</td><td class="num">${fmtQty(byMonth[k].wasted)}</td></tr>`;
+  }).join("");
+
+  const totalIssued = issues.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+  const totalWasted = wastage.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+  const totalWasteAmt = wastage.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const avgPerDay = totalIssued / 182; // ~6 months of calendar days, a simple steady-state estimate
+  const snap = lastSnapshot && lastSnapshot[0];
+
+  const stats = document.getElementById("usage-stats");
+  stats.innerHTML = `
+    <div class="stat-tile"><div class="stat-label">Avg daily usage (6mo)</div><div class="stat-value">${fmtQty(avgPerDay)} ${state.product.unit || ""}</div></div>
+    <div class="stat-tile"><div class="stat-label">Total issued (6mo)</div><div class="stat-value">${fmtQty(totalIssued)} ${state.product.unit || ""}</div></div>
+    <div class="stat-tile"><div class="stat-label">Wastage (6mo)</div><div class="stat-value">${fmtQty(totalWasted)} ${state.product.unit || ""}${totalWasteAmt ? ` · PKR ${fmtMoney(totalWasteAmt)}` : ""}</div></div>
+    <div class="stat-tile"><div class="stat-label">Last physical count</div><div class="stat-value">${snap ? `${fmtQty(snap.closing_qty)} ${state.product.unit || ""}` : "—"}</div></div>
+  `;
+  if (snap) {
+    stats.innerHTML += `<div class="hint" style="flex-basis:100%;">Counted ${new Date(snap.snapshot_date).toLocaleDateString()}${snap.variance_qty ? `, variance ${fmtQty(snap.variance_qty)}` : ""}</div>`;
+  }
+
+  // Only pre-fill the editable avg-usage field if the director hasn't already set one.
+  const avgField = document.getElementById("f-avg-usage");
+  if (!avgField.value && totalIssued > 0) avgField.placeholder = fmtQty(avgPerDay);
+}
+
+async function toggleActive() {
+  const p = state.product;
+  const next = !p.active;
+  if (!next && !confirm(`Retire "${p.name}"? It stays in history but won't show up for new entries.`)) return;
+  try {
+    await sb(`products?id=eq.${p.id}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ active: next, updated_by: state.userId, updated_at: new Date().toISOString() })
+    });
+    p.active = next;
+    renderBasics();
+  } catch (e) { alert("Couldn't update: " + e.message); }
+}
+
+document.getElementById("btn-save").addEventListener("click", async () => {
+  const p = state.product;
+  const name = document.getElementById("f-name").value.trim();
+  const unit = document.getElementById("f-unit").value.trim();
+  if (!name) return alert("Name can't be empty.");
+  if (!unit) return alert("Unit can't be empty.");
+
+  const payload = {
+    name,
+    code: document.getElementById("f-code").value.trim() || null,
+    category: document.getElementById("f-category").value.trim() || null,
+    subcategory: document.getElementById("f-subcategory").value.trim() || null,
+    unit,
+    current_rate: parseFloat(document.getElementById("f-rate").value) || null,
+    floor_category: p.floor_category || null,
+    cost_type: document.getElementById("f-cost-type").value,
+    is_bar_item: document.getElementById("f-is-bar").checked,
+    min_stock_level: document.getElementById("f-min-stock").value !== "" ? parseFloat(document.getElementById("f-min-stock").value) : null,
+    reorder_qty: document.getElementById("f-reorder-qty").value !== "" ? parseFloat(document.getElementById("f-reorder-qty").value) : null,
+    lead_time_days: document.getElementById("f-lead-time").value !== "" ? parseInt(document.getElementById("f-lead-time").value, 10) : null,
+    avg_daily_usage: document.getElementById("f-avg-usage").value !== "" ? parseFloat(document.getElementById("f-avg-usage").value) : null,
+    preferred_vendor_id: document.getElementById("f-vendor").value || null,
+    updated_by: state.userId,
+    updated_at: new Date().toISOString()
+  };
+  // Rate changed by hand here also moves the old current_rate into last_rate, same as a
+  // rate update anywhere else in the system, so the COGS card's history stays meaningful.
+  if (payload.current_rate != null && Number(payload.current_rate) !== Number(p.current_rate)) {
+    payload.last_rate = p.current_rate;
+    payload.rate_updated_at = new Date().toISOString();
+  }
+
+  const btn = document.getElementById("btn-save");
+  btn.disabled = true;
+  try {
+    await sb(`products?id=eq.${p.id}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify(payload)
+    });
+    btn.textContent = "Saved ✓";
+    setTimeout(() => { btn.textContent = "Save Changes"; }, 1500);
+    await loadAll();
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+</body>
+</html>

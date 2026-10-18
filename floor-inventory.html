@@ -282,7 +282,7 @@ function setFloor(floor) {
 
 async function loadProductsOnce() {
   if (state.allProducts.length) return;
-  state.allProducts = await sb(`products?select=id,name,unit,is_bar_item&order=name`);
+  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category&order=name`);
   const sel = document.getElementById("recipe-new-product");
   sel.innerHTML = `<option value="">Add ingredient…</option>` + state.allProducts.map(p => `<option value="${p.id}">${p.name} (${p.unit})</option>`).join("");
 }
@@ -335,7 +335,19 @@ async function loadFloor() {
   parRows.forEach(r => { state.parByProduct[r.product_id] = r; });
   const parTaggedIds = parRows.map(r => r.product_id);
 
-  const ids = [...new Set([...issuedIds, ...trackedIds, ...barTaggedIds, ...parTaggedIds])];
+  let ids = [...new Set([...issuedIds, ...trackedIds, ...barTaggedIds, ...parTaggedIds])];
+
+  // An item belongs to exactly one floor (products.floor_category, set from Manage Item).
+  // Drop anything explicitly assigned to a different floor, even if it has old issuance or
+  // a leftover open period here — that's exactly the "same item on two floors" bug. An item
+  // with no floor_category yet (never assigned) still shows wherever it already has activity,
+  // same as before, until someone assigns it.
+  const prodMapForFilter = {};
+  state.allProducts.forEach(p => { prodMapForFilter[p.id] = p; });
+  ids = ids.filter(id => {
+    const fc = prodMapForFilter[id] && prodMapForFilter[id].floor_category;
+    return !fc || fc === floor;
+  });
 
   if (!ids.length) {
     list.innerHTML = "";
@@ -460,16 +472,22 @@ function renderAddItemPicker(existingIds) {
   const box = document.getElementById("add-item-box");
   if (!box) return;
   const existing = new Set(existingIds);
-  const options = state.allProducts.filter(p => !existing.has(p.id));
+  // Only offer items that belong here: unassigned ones (first time being placed on a
+  // floor) or ones already assigned to this exact floor. An item assigned to another
+  // floor doesn't show at all — reassigning it is a Manage Item decision, not something
+  // to do from the count screen, so the same item can't end up open on two floors again.
+  const options = state.allProducts.filter(p => !existing.has(p.id) && (!p.floor_category || p.floor_category === state.floor));
   box.innerHTML = `
     <label>Add an item to this floor's list</label>
     <select id="add-item-select">
       <option value="">Search/select a product…</option>
       ${options.map(p => `<option value="${p.id}">${p.name} (${p.unit})</option>`).join("")}
-    </select>`;
+    </select>
+    <div class="hint">Only showing items not already assigned to another floor. To move an item here from elsewhere, assign it from Manage Item (Item Master).</div>`;
   document.getElementById("add-item-select").addEventListener("change", async (e) => {
     const productId = e.target.value;
     if (!productId) return;
+    const prod = state.allProducts.find(p => p.id === productId);
     try {
       await sb(`floor_stock_periods`, {
         method: "POST", headers: { "Prefer": "return=minimal" },
@@ -480,6 +498,15 @@ function renderAddItemPicker(existingIds) {
           entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
         })
       });
+      // Lock the floor assignment in the first time an unassigned item is placed, so it
+      // can't quietly get added to a second floor later.
+      if (prod && !prod.floor_category) {
+        await sb(`products?id=eq.${productId}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({ floor_category: state.floor })
+        });
+        prod.floor_category = state.floor;
+      }
       await loadFloor();
     } catch (err) { alert("Couldn't add: " + err.message); }
   });
@@ -601,6 +628,25 @@ async function moveItemToFloor(item, toFloor) {
         closed_by_user_id: state.userId, closed_by_manager_id: state.managerId
       })
     });
+    // Lock the new floor in as this item's home, and make sure it's actually tracked
+    // there (opens a fresh period if it isn't already) — otherwise "move" could silently
+    // drop an item with nowhere to land until someone issues stock to it again.
+    await sb(`products?id=eq.${item.id}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ floor_category: toFloor })
+    });
+    const destOpen = await sb(`floor_stock_periods?product_id=eq.${item.id}&location_id=eq.${LOCATION_ID}&floor=eq.${toFloor}&period_end_at=is.null&select=id`);
+    if (!destOpen || !destOpen.length) {
+      await sb(`floor_stock_periods`, {
+        method: "POST", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          location_id: LOCATION_ID, floor: toFloor, product_id: item.id,
+          period_label: toFloor === "KITCHEN" ? `${todayStr()} ${state.shift}` : todayStr(),
+          period_start_at: EPOCH, beginning_qty: expected,
+          entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+        })
+      });
+    }
     await loadFloor();
   } catch (e) { alert("Couldn't move: " + e.message); }
 }

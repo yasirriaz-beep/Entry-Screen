@@ -439,6 +439,7 @@ function renderItemList() {
             ${p.active ? "Retire Item" : "Restore Item"}
           </button>
         </div>
+        <a class="btn-ghost e-manage-link" href="manage-item.html?id=${p.id}" style="display:block; text-align:center; text-decoration:none; margin-top:8px;">Manage → (floor, COGS, MOQ, vendor, history)</a>
       </div>`;
     const detail = row.querySelector(".item-detail");
     row.querySelector(".item-top").addEventListener("click", () => {
