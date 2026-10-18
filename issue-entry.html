@@ -645,7 +645,10 @@ async function printIssueReport() {
   btn.textContent = "Loading…";
   let rows = [];
   try {
-    let path = `daily_issues?location_id=eq.${LOCATION_ID}&issue_date=eq.${date}&select=qty,issued_to,amount,rate,products(name,code,unit,category)&order=issued_to.asc`;
+    // Scoped to everything THIS store man logged on the selected date — not the whole
+    // location's issues for that date, in case more than one person enters on Issue
+    // Entry the same day. entered_by_manager_id is set on every row in saveAllCounts().
+    let path = `daily_issues?location_id=eq.${LOCATION_ID}&issue_date=eq.${date}&entered_by_manager_id=eq.${state.managerId}&select=qty,issued_to,amount,rate,products(name,code,unit,category)&order=issued_to.asc`;
     if (destFilter) path += `&issued_to=eq.${destFilter}`;
     rows = await sb(path);
   } catch (e) { rows = []; }
