@@ -88,8 +88,10 @@
   .badge-confirmed { background: var(--field-bg); color: var(--accent); border: 1px solid var(--accent); }
   .confirm-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
   .confirm-row input { width: 90px; flex: 0 0 90px; padding: 8px 8px; font-size: 0.88rem; }
-  .confirm-row button { flex: 0 0 auto; padding: 8px 12px; font-size: 0.82rem; background: var(--accent); color: var(--accent-ink); }
-  .confirm-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .confirm-checkbox { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 8px 12px; font-size: 0.82rem; font-weight: 700; border-radius: 8px; background: var(--accent); color: var(--accent-ink); cursor: pointer; user-select: none; }
+  .confirm-checkbox input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent-ink); cursor: pointer; margin: 0; }
+  .confirm-checkbox:has(input:disabled) { background: var(--ok-bg); color: var(--ok); cursor: default; }
+  .confirm-checkbox:has(input:disabled) input[type="checkbox"] { accent-color: var(--ok); cursor: default; }
   .confirm-hint { font-size: 0.72rem; color: var(--ink-soft); margin-top: 4px; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -578,7 +580,7 @@ async function loadTodayList(forDate) {
     nextDate.setUTCDate(nextDate.getUTCDate() + 1);
     const endIso = nextDate.toISOString().slice(0, 19);
     const rows = await sb(
-      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${startIso}&ordered_at=lt.${endIso}&select=id,qty_requested,unit,status,ordered_at,received_qty,confirmed_received_qty,confirmed_received_at,confirmed_rate,product_id,products(name,code),vendors(name,fast_track,rate_variable)&order=ordered_at.desc`
+      `purchase_orders?location_id=eq.${LOCATION_ID}&ordered_at=gte.${startIso}&ordered_at=lt.${endIso}&select=id,qty_requested,unit,status,ordered_at,received_qty,confirmed_received_qty,confirmed_received_at,confirmed_rate,product_id,products(name,code,current_rate),vendors(name,fast_track,rate_variable)&order=ordered_at.desc`
     );
     const filtered = rows.filter(r => r.vendors && r.vendors.fast_track && r.status !== "Cancelled");
     list.innerHTML = "";
@@ -588,31 +590,45 @@ async function loadTodayList(forDate) {
       const card = document.createElement("div");
       card.className = "po-card";
       const needsRate = !!(r.vendors && r.vendors.rate_variable);
+      const isConfirmed = r.confirmed_received_qty != null;
+      // Qty always defaults to the full ordered amount — that covers the common case (what
+      // arrived matches what was ordered) with zero typing. Rate, for a daily-rate vendor,
+      // defaults to the confirmed rate if there is one, else the product's last-known rate —
+      // both are just starting points the manager can overwrite before checking the box.
+      const defaultRate = r.confirmed_rate != null ? r.confirmed_rate : (r.products?.current_rate != null ? r.products.current_rate : "");
       const rateInput = needsRate
-        ? `<input type="number" step="any" min="0" class="confirm-rate-input" data-po="${r.id}" placeholder="Rate" value="${r.confirmed_rate != null ? r.confirmed_rate : ""}">`
+        ? `<input type="number" step="any" min="0" class="confirm-rate-input" data-po="${r.id}" placeholder="Rate" value="${defaultRate}">`
         : "";
+      const qtyVal = isConfirmed ? r.confirmed_received_qty : r.qty_requested;
       let badge, confirmBlock = "";
       if (r.status === "Received") {
         badge = `<span class="badge badge-received">Received${r.received_qty != null ? " — " + r.received_qty + " " + (r.unit || "") : ""}</span>`;
-      } else if (r.confirmed_received_qty != null) {
+      } else if (isConfirmed) {
         const rateTag = needsRate && r.confirmed_rate != null ? ` @ PKR ${fmtMoney(r.confirmed_rate)}` : "";
         badge = `<span class="badge badge-confirmed">Confirmed received — ${r.confirmed_received_qty} ${r.unit || ""}${rateTag}</span>`;
         confirmBlock = `
           <div class="confirm-hint">Confirmed by you earlier — still needs the actual Goods Receipt entry (vendor account) from whoever opens the store.</div>
           <div class="confirm-row">
-            <input type="number" step="any" min="0" class="confirm-qty-input" data-po="${r.id}" value="${r.confirmed_received_qty}">
+            <input type="number" step="any" min="0" class="confirm-qty-input" data-po="${r.id}" value="${qtyVal}">
             ${rateInput}
-            <button type="button" class="btn-confirm-receipt" data-po="${r.id}" data-requested="${r.qty_requested}" data-unit="${r.unit || ""}" data-needs-rate="${needsRate}">Update confirmation</button>
-          </div>`;
+            <label class="confirm-checkbox">
+              <input type="checkbox" class="confirm-check" data-po="${r.id}" data-needs-rate="${needsRate}" checked disabled>
+              Verified received
+            </label>
+          </div>
+          <div class="confirm-hint">Different qty/rate actually arrived? Change it above — saves right away, no extra button.</div>`;
       } else {
         badge = `<span class="badge badge-ordered">Awaiting receipt</span>`;
         confirmBlock = `
           <div class="confirm-row">
-            <input type="number" step="any" min="0" class="confirm-qty-input" data-po="${r.id}" placeholder="${r.qty_requested}">
+            <input type="number" step="any" min="0" class="confirm-qty-input" data-po="${r.id}" value="${qtyVal}">
             ${rateInput}
-            <button type="button" class="btn-confirm-receipt" data-po="${r.id}" data-requested="${r.qty_requested}" data-unit="${r.unit || ""}" data-needs-rate="${needsRate}">Confirm Received</button>
+            <label class="confirm-checkbox">
+              <input type="checkbox" class="confirm-check" data-po="${r.id}" data-needs-rate="${needsRate}">
+              Verified received
+            </label>
           </div>
-          ${needsRate ? `<div class="confirm-hint">Rate changes daily for this vendor — enter today's agreed rate along with the quantity.</div>` : ""}`;
+          <div class="confirm-hint">${needsRate ? "Qty/rate default to what was ordered / last rate — adjust first if different, " : "Defaults to the full ordered qty — adjust first if what arrived is different, "}then tick the box to confirm.</div>`;
       }
       card.innerHTML = `
         <div class="po-title">${r.products?.name || "Item"} ${badge}</div>
@@ -620,8 +636,22 @@ async function loadTodayList(forDate) {
         ${confirmBlock}`;
       list.appendChild(card);
     });
-    list.querySelectorAll(".btn-confirm-receipt").forEach(btn => {
-      btn.addEventListener("click", () => confirmReceipt(btn, forDate));
+    // A tick on the checkbox is the one tap that saves the confirmation (qty/rate inputs are
+    // pre-filled with sensible defaults so most items need no typing at all). Once confirmed,
+    // the box stays checked and disabled — the only way to change the record afterwards is to
+    // edit the qty/rate fields directly, which re-saves on blur/change without another click.
+    list.querySelectorAll(".confirm-check").forEach(cb => {
+      cb.addEventListener("change", () => {
+        if (cb.checked) confirmReceipt(cb, forDate);
+      });
+    });
+    list.querySelectorAll(".confirm-qty-input, .confirm-rate-input").forEach(inp => {
+      inp.addEventListener("change", () => {
+        const poId = inp.dataset.po;
+        const row = inp.closest(".po-card");
+        const cb = row.querySelector(`.confirm-check[data-po="${poId}"]`);
+        if (cb && cb.checked) confirmReceipt(cb, forDate);
+      });
     });
   } catch (e) {
     emptyHint.hidden = false;
@@ -644,20 +674,24 @@ document.getElementById("f-list-date").addEventListener("change", (e) => {
 // anon_fast_track_confirm_receipt RLS policy, which only allows this on an Ordered fast-track
 // PO. Added 2026-10-18; rate capture added 2026-10-18 for vendors whose price changes daily
 // (e.g. Sheri Veggie) so that day's rate is logged right when it's agreed, not guessed later.
-async function confirmReceipt(btn, forDate) {
-  const poId = btn.dataset.po;
-  const needsRate = btn.dataset.needsRate === "true";
-  const row = btn.closest(".po-card");
+// Trigger changed 2026-10-19 from a type-then-click button to a single checkbox: the qty/rate
+// inputs are pre-filled with sensible defaults (full ordered qty; last-known or previously
+// confirmed rate), so ticking the box with no edits is a true one-tap confirmation for the
+// common case, while still reading whatever the manager typed if they corrected a value first.
+async function confirmReceipt(cb, forDate) {
+  const poId = cb.dataset.po;
+  const needsRate = cb.dataset.needsRate === "true";
+  const row = cb.closest(".po-card");
   const qtyInput = row.querySelector(`.confirm-qty-input[data-po="${poId}"]`);
   const rateInput = row.querySelector(`.confirm-rate-input[data-po="${poId}"]`);
   const val = parseFloat(qtyInput.value);
-  if (isNaN(val) || val < 0) { alert("Enter the quantity actually received."); return; }
+  if (isNaN(val) || val < 0) { alert("Enter the quantity actually received."); cb.checked = false; return; }
   let rateVal = null;
   if (needsRate) {
     rateVal = parseFloat(rateInput.value);
-    if (isNaN(rateVal) || rateVal < 0) { alert("This vendor's rate changes daily — enter today's rate along with the quantity."); return; }
+    if (isNaN(rateVal) || rateVal < 0) { alert("This vendor's rate changes daily — enter today's rate along with the quantity."); cb.checked = false; return; }
   }
-  btn.disabled = true;
+  cb.disabled = true;
   try {
     const body = {
       confirmed_received_qty: val,
@@ -686,7 +720,8 @@ async function confirmReceipt(btn, forDate) {
     loadTodayList(forDate);
   } catch (e) {
     alert("Couldn't save confirmation: " + e.message);
-    btn.disabled = false;
+    cb.disabled = false;
+    cb.checked = false;
   }
 }
 
