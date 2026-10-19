@@ -398,7 +398,12 @@ async function loadAll() {
   renderRows();
 }
 
-// Same BASE computation as stock-count.html's expectedQty().
+// Running expected balance AT a cutoff date — resets to the most recent physical
+// count at or before that date, if any. Same BASE computation as stock-count.html's
+// expectedQty(). Used below only to seed a period's Beginning Balance (the balance
+// carried in from before the period starts) and by renderValueSummary() for "what
+// is all the stock worth right now" — the Add/Sub shown on the page itself are never
+// taken from this function directly; see periodFor().
 function baseFor(productId, date) {
   const priorSnaps = state.snapshots.filter((s) => s.product_id === productId && s.snapshot_date <= date);
   const last = priorSnaps[0];
@@ -415,22 +420,55 @@ function baseFor(productId, date) {
   return { opening, addQty, subQty, ending, physical };
 }
 
-// Monthly view (restricted — see MONTHLY_PAGE_KEY). Simplified 2026-10-16 at
-// the owner's request: don't try to reconstruct the month from day 1 — the most
-// recent physical count (today's, once one's been logged) IS the Beginning
-// Balance, full stop. Anything before that count is tracked in Excel, not here.
-// So this is just baseFor() run through the end of the selected month (or
-// today, if the month's still in progress) — same "since the last count" logic
-// as the Daily view, just picked at a month-sized checkpoint instead of a daily
-// one. Add/Sub only ever cover activity AFTER that count, never before it.
+// Returns the calendar day immediately before `dateStr` (YYYY-MM-DD). These are
+// date-only values from the DB (purchase_date, issue_date, snapshot_date), so plain
+// calendar subtraction is all that's needed here — unlike todayStr(), there's no
+// timezone to account for.
+function dayBefore(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+// Period-scoped balance for the Daily and Monthly views (2026-10-19, per the owner:
+// Beginning Balance must be the balance as of the START of the selected period — the
+// 1st of the month for Monthly, the selected date itself for Daily — never a physical
+// count that happens to land partway through that period (e.g. an Oct 17 count should
+// not become October's Beginning). Add/Sub are then strict sums of purchases/issues
+// dated inside [periodStart, periodEnd] only — that day's own activity for Daily, that
+// month's own activity for Monthly — not "everything since the last count".
+// Ending = Beginning + Add - Sub. On purpose this does NOT re-baseline to a physical
+// count that lands inside the period — comparing the two is what the Physical/
+// Variance columns are for.
+function periodFor(productId, periodStart, periodEnd) {
+  const beginning = baseFor(productId, dayBefore(periodStart)).ending;
+  const addQty = state.purchases
+    .filter((p) => p.product_id === productId && p.purchase_date >= periodStart && p.purchase_date <= periodEnd)
+    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  const subQty = state.issues
+    .filter((i) => i.product_id === productId && i.issue_date >= periodStart && i.issue_date <= periodEnd)
+    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  const ending = beginning + addQty - subQty;
+  const priorSnaps = state.snapshots.filter((s) => s.product_id === productId && s.snapshot_date <= periodEnd);
+  const last = priorSnaps[0];
+  const physical = last && last.snapshot_date === periodEnd ? Number(last.closing_qty) : null;
+  return { opening: beginning, addQty, subQty, ending, physical, periodStart, periodEnd };
+}
+
+// Monthly view (restricted — see MONTHLY_PAGE_KEY). 2026-10-19: Beginning Balance is
+// always "as of the 1st of the selected month", and Add/Sub cover only that month's
+// own activity — replacing the previous "since the last physical count" logic, which
+// could pick up a mid-month count (e.g. Oct 17) as the Beginning and made the figures
+// hard to reconcile against Issue Entry's day-by-day numbers.
 function monthFor(productId, monthStr) {
   const [y, m] = monthStr.split("-").map(Number);
   const monthStart = `${monthStr}-01`;
   const lastDay = new Date(y, m, 0).getDate(); // day 0 of next month = last day of this month
   const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
   const effectiveEnd = monthEnd < todayStr() ? monthEnd : todayStr(); // never project into the future
-  const b = baseFor(productId, effectiveEnd);
-  return { opening: b.opening, addQty: b.addQty, subQty: b.subQty, ending: b.ending, physical: b.physical, monthStart, monthEnd: effectiveEnd };
+  const p = periodFor(productId, monthStart, effectiveEnd);
+  return { opening: p.opening, addQty: p.addQty, subQty: p.subQty, ending: p.ending, physical: p.physical, monthStart, monthEnd: effectiveEnd };
 }
 
 // This item's lifetime paid-vs-credit mix as of `date`, used only to split its current
@@ -492,7 +530,7 @@ function renderRows() {
     }
     const b = isMonthly
       ? monthFor(p.id, document.getElementById("f-month").value || todayStr().slice(0, 7))
-      : baseFor(p.id, effectiveDate);
+      : periodFor(p.id, effectiveDate, effectiveDate);
     if (isMonthly) monthEndForSummary = b.monthEnd;
     const varianceVal = b.physical !== null ? b.physical - b.ending : null;
     const varianceCell = varianceVal === null
