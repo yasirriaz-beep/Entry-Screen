@@ -126,6 +126,10 @@
     <button type="button" class="mode-btn" id="mode-po">Yes — match to PO</button>
     <button type="button" class="mode-btn" id="mode-adhoc">No — log it anyway</button>
   </div>
+  <div class="step-label" style="margin-top:14px;">Or — is this stock going <em>out</em> to another branch?</div>
+  <div class="mode-toggle">
+    <button type="button" class="mode-btn" id="mode-transfer-out">Send to Branch (Transfer Out)</button>
+  </div>
 </div>
 
 <div id="step-po-pick" class="card" hidden>
@@ -258,7 +262,7 @@ let state = {
   managerId: null,
   products: [],
   vendors: [],
-  mode: null,       // 'po' | 'adhoc'
+  mode: null,       // 'po' | 'adhoc' | 'transfer-out'
   pos: [],
   selectedPO: null, // the PO row, if mode === 'po'
   receiptPhotoPath: null
@@ -370,20 +374,38 @@ async function loadProducts() {
 
 async function loadVendors() {
   try {
-    const rows = await sb(`vendors?active=eq.true&select=id,name&order=name`);
+    const rows = await sb(`vendors?active=eq.true&select=id,name,linked_location_id&order=name`);
     state.vendors = rows;
-    const sel = document.getElementById("f-vendor");
-    rows.forEach(v => {
-      const opt = document.createElement("option");
-      opt.value = v.id;
-      opt.textContent = v.name;
-      sel.appendChild(opt);
-    });
+    populateVendorOptions(rows, { includeNone: true, includeAddNew: true });
+  } catch (e) { /* non-fatal */ }
+}
+
+// Rebuilds the Vendor dropdown from `list` — used as-is for the normal PO/adhoc
+// flows (every active vendor, plus "None" and "+ Add New Vendor"), and with a
+// branch-only `list` (vendors.linked_location_id set — see
+// add_vendor_linked_location_for_branch_transfers) for the Transfer Out flow,
+// where picking a real outside vendor wouldn't make sense.
+function populateVendorOptions(list, { includeNone, includeAddNew }) {
+  const sel = document.getElementById("f-vendor");
+  sel.innerHTML = "";
+  if (includeNone) {
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "— None / N/A —";
+    sel.appendChild(noneOpt);
+  }
+  list.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v.id;
+    opt.textContent = v.name;
+    sel.appendChild(opt);
+  });
+  if (includeAddNew) {
     const addOpt = document.createElement("option");
     addOpt.value = "__add_new__";
     addOpt.textContent = "+ Add New Vendor…";
     sel.appendChild(addOpt);
-  } catch (e) { /* non-fatal */ }
+  }
 }
 
 async function handleVendorAddNew(e) {
@@ -587,6 +609,8 @@ async function loadTodayList() {
       row.style.cursor = "default";
       const advanceTag = (r.notes || "").startsWith("Advance of PKR")
         ? ` · <span style="color:var(--accent);font-weight:600;">${(r.notes.match(/Advance of PKR [\d,]+/) || [""])[0]}</span>` : "";
+      const transferTag = Number(r.qty) < 0
+        ? ` · <span style="color:var(--warn);font-weight:600;">TRANSFER OUT</span>` : "";
 
       if (r.voided_at) {
         row.innerHTML = `
@@ -599,7 +623,7 @@ async function loadTodayList() {
 
       row.innerHTML = `
         <div class="po-title">${r.products?.name || "Item"}</div>
-        <div class="po-sub">${r.qty} ${r.unit || ""} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${advanceTag}</div>
+        <div class="po-sub">${r.qty} ${r.unit || ""} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${advanceTag}${transferTag}</div>
         <div class="void-link" data-void-open="${r.id}">Entered by mistake? Void / correct this entry</div>
         <div class="void-form" id="void-form-${r.id}" hidden>
           <textarea id="void-reason-${r.id}" rows="2" placeholder="Why is this being voided? (e.g. duplicate entry, wrong item, wrong vendor)"></textarea>
@@ -680,6 +704,14 @@ function enterForm() {
   document.getElementById("scan-status").textContent = "Snap or upload a photo of the invoice/delivery note to pre-fill the fields below.";
   state.receiptPhotoPath = null;
 
+  // Reset the vendor list/save button to the normal (every vendor) case by default —
+  // only the Transfer Out branch below narrows it to sister branches. Always resetting
+  // here (rather than only in the non-PO branch) matters because a PO's own vendor could
+  // otherwise fail to preselect below if the Transfer Out list was still active from an
+  // earlier visit to this form in the same session.
+  populateVendorOptions(state.vendors, { includeNone: true, includeAddNew: true });
+  document.getElementById("btn-save").textContent = "Save Receipt";
+
   if (state.mode === "po" && state.selectedPO) {
     const po = state.selectedPO;
     document.getElementById("block-item-pick").hidden = true;
@@ -706,8 +738,20 @@ function enterForm() {
     if (po.vendors?.id) document.getElementById("f-vendor").value = po.vendors.id;
   } else {
     document.getElementById("block-item-pick").hidden = false;
-    document.getElementById("po-context-banner").innerHTML = "";
     populateItemSelect("");
+    if (state.mode === "transfer-out") {
+      // Only the sister-branch "vendors" make sense as the destination of a transfer —
+      // see add_vendor_linked_location_for_branch_transfers.
+      populateVendorOptions(state.vendors.filter(v => v.linked_location_id), { includeNone: false, includeAddNew: false });
+      document.getElementById("po-context-banner").innerHTML = `
+        <div class="banner banner-warn">
+          This stock is leaving C-5 for another branch. Pick which branch below as the "Vendor" —
+          the qty/amount will be recorded as going <strong>out</strong> of this location's inventory, not in.
+        </div>`;
+      document.getElementById("btn-save").textContent = "Save Transfer Out";
+    } else {
+      document.getElementById("po-context-banner").innerHTML = "";
+    }
   }
   recalcAmount();
 }
@@ -771,6 +815,7 @@ async function saveReceipt() {
   const advanceAmount = paymentStatus === "advance" ? (parseFloat(document.getElementById("f-advance-amount").value) || 0) : 0;
 
   if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+  if (state.mode === "transfer-out" && !vendorId) return alert("Pick which branch this stock is going to.");
   if (paymentStatus === "advance") {
     if (!vendorId) return alert("Pick a vendor before recording an advance payment against them.");
     if (!advanceAmount || advanceAmount <= 0) return alert("Enter the advance amount that was actually paid.");
@@ -811,7 +856,19 @@ async function saveReceipt() {
   const advanceNote = paymentStatus === "advance"
     ? `Advance of PKR ${Math.round(advanceAmount).toLocaleString()} paid via ${paymentMethod === "bank" ? "bank transfer" : "cash"} on ${purchaseDate}; balance on credit.`
     : null;
-  const combinedNotes = [advanceNote, notes].filter(Boolean).join(" — ") || null;
+
+  // Transfer Out: recorded as a negative-qty/-amount "purchase" from that branch's vendor
+  // record (see add_vendor_linked_location_for_branch_transfers) — the same purchases row
+  // the inventory balance sheet already sums for Addition/Issuance just goes negative for
+  // this one, so it nets correctly without any new table or reporting logic. Payment
+  // Status/Method still apply as normal: if cash genuinely changed hands between branches
+  // it should still show up on Cash Reconciliation, exactly like it already does for
+  // existing branch-vendor purchases (e.g. Kohinoor, Susan).
+  const isTransferOut = state.mode === "transfer-out";
+  const transferNote = isTransferOut
+    ? `Transfer OUT to ${state.vendors.find(v => v.id === vendorId)?.name || "branch"}`
+    : null;
+  const combinedNotes = [advanceNote, transferNote, notes].filter(Boolean).join(" — ") || null;
 
   const payload = {
     location_id: LOCATION_ID,
@@ -821,8 +878,8 @@ async function saveReceipt() {
     purchase_date: purchaseDate,
     unit: unit,
     rate: rate,
-    qty: qty,
-    amount: amount,
+    qty: isTransferOut ? -qty : qty,
+    amount: isTransferOut ? -amount : amount,
     payment_status: paymentStatus === "advance" ? "credit" : paymentStatus,
     payment_method: paymentStatus === "advance" ? null : paymentMethod,
     notes: combinedNotes,
@@ -847,8 +904,9 @@ async function saveReceipt() {
     // actually shows up first, and everything downstream (Issue Entry's issue amount, Manage
     // Item's COGS card, the Inventory Balance Sheet's valuation) reads current_rate, not this
     // purchase's own rate. Same last_rate/rate_updated_at convention as a manual rate edit on
-    // Manage Item. Non-fatal: the purchase itself is already saved either way.
-    if (productId && rate > 0 && (oldRate === null || Math.abs(rate - oldRate) > 0.0001)) {
+    // Manage Item. Non-fatal: the purchase itself is already saved either way. Skipped for a
+    // Transfer Out — that's just valuing stock that's leaving, not a vendor's new price.
+    if (!isTransferOut && productId && rate > 0 && (oldRate === null || Math.abs(rate - oldRate) > 0.0001)) {
       try {
         // updated_by is required by the products table's RLS policies (every UPDATE policy's
         // with_check ties it to the acting user's role) — without it this silently 403'd for
@@ -941,6 +999,13 @@ document.getElementById("mode-adhoc").addEventListener("click", () => {
   state.mode = "adhoc";
   document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("selected"));
   document.getElementById("mode-adhoc").classList.add("selected");
+  document.getElementById("step-mode").hidden = true;
+  enterForm();
+});
+document.getElementById("mode-transfer-out").addEventListener("click", () => {
+  state.mode = "transfer-out";
+  document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("selected"));
+  document.getElementById("mode-transfer-out").classList.add("selected");
   document.getElementById("step-mode").hidden = true;
   enterForm();
 });
