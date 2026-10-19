@@ -212,7 +212,10 @@
   <div class="card">
     <div class="top-bar">
       <div id="row-count" class="as-of"></div>
-      <div id="last-count-info" class="as-of"></div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button class="btn-ghost no-print" id="btn-toggle-zero" type="button">Show zero-activity items</button>
+        <div id="last-count-info" class="as-of"></div>
+      </div>
     </div>
     <div class="table-scroll">
       <table class="base-table">
@@ -237,7 +240,7 @@ const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "inventory_balance_sheet";
 const MONTHLY_PAGE_KEY = "inventory_balance_sheet_monthly";
 
-let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], productFloors: {} };
+let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], productFloors: {}, showZeroItems: false };
 
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -347,7 +350,7 @@ async function afterLogin(userId, name, managerId, role) {
 }
 
 function backToNames() {
-  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], productFloors: {} };
+  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], productFloors: {}, showZeroItems: false };
   AppSession.clear();
   document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
   document.getElementById("panel-main").hidden = true;
@@ -356,6 +359,11 @@ function backToNames() {
 document.getElementById("btn-back").addEventListener("click", backToNames);
 document.getElementById("btn-print").addEventListener("click", () => window.print());
 document.getElementById("btn-print-m").addEventListener("click", () => window.print());
+document.getElementById("btn-toggle-zero").addEventListener("click", () => {
+  state.showZeroItems = !state.showZeroItems;
+  document.getElementById("btn-toggle-zero").textContent = state.showZeroItems ? "Hide zero-activity items" : "Show zero-activity items";
+  renderRows();
+});
 document.getElementById("f-date").addEventListener("change", () => { renderRows(); });
 document.getElementById("search-items").addEventListener("input", renderRows);
 document.getElementById("filter-category").addEventListener("change", renderRows);
@@ -482,12 +490,19 @@ function periodFor(productId, periodStart, periodEnd) {
 // own activity — replacing the previous "since the last physical count" logic, which
 // could pick up a mid-month count (e.g. Oct 17) as the Beginning and made the figures
 // hard to reconcile against Issue Entry's day-by-day numbers.
-function monthFor(productId, monthStr) {
+// The last day of `monthStr` this view should ever show — the calendar month-end,
+// or today if the month's still in progress (never project into the future).
+// Pulled out of monthFor() so renderRows() can get the same date without needing
+// a product to compute it against.
+function monthEffectiveEnd(monthStr) {
   const [y, m] = monthStr.split("-").map(Number);
-  const monthStart = `${monthStr}-01`;
   const lastDay = new Date(y, m, 0).getDate(); // day 0 of next month = last day of this month
   const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
-  const effectiveEnd = monthEnd < todayStr() ? monthEnd : todayStr(); // never project into the future
+  return monthEnd < todayStr() ? monthEnd : todayStr();
+}
+function monthFor(productId, monthStr) {
+  const monthStart = `${monthStr}-01`;
+  const effectiveEnd = monthEffectiveEnd(monthStr);
   const p = periodFor(productId, monthStart, effectiveEnd);
   return { opening: p.opening, addQty: p.addQty, subQty: p.subQty, ending: p.ending, physical: p.physical, monthStart, monthEnd: effectiveEnd };
 }
@@ -521,28 +536,48 @@ function renderRows() {
   const body = document.getElementById("rows-body");
   body.innerHTML = "";
 
-  const rows = state.products.filter((p) => {
+  const candidates = state.products.filter((p) => {
     if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
     if (cat && p.category !== cat) return false;
     return true;
   });
 
-  let effectiveDate;
+  let effectiveDate, monthStr, monthEndForSummary = null;
   if (isMonthly) {
-    const monthStr = document.getElementById("f-month").value || todayStr().slice(0, 7);
-    effectiveDate = `${monthStr}-01`.slice(0, 7) + "-last"; // placeholder, replaced below
-    document.getElementById("row-count").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"} for ${monthStr}`;
+    monthStr = document.getElementById("f-month").value || todayStr().slice(0, 7);
+    monthEndForSummary = monthEffectiveEnd(monthStr);
   } else {
-    const date = document.getElementById("f-date").value || todayStr();
-    effectiveDate = date;
-    document.getElementById("row-count").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"} as of ${date}`;
+    effectiveDate = document.getElementById("f-date").value || todayStr();
   }
 
-  // How many items fall in each category, for the "(N items)" hint on each
-  // category's header row — counted against the currently filtered `rows`,
-  // not the full product list, so it matches what's actually on screen.
+  // Compute every candidate's balance up front (instead of inside the render
+  // loop) so the "zero-activity" toggle below, and the category counts/
+  // subtotals further down, can see the real numbers before anything renders.
+  const computed = candidates.map((p) => {
+    const b = isMonthly ? monthFor(p.id, monthStr) : periodFor(p.id, effectiveDate, effectiveDate);
+    return { p, b };
+  });
+
+  // "Zero-activity" = nothing to show for this item in this period: no stock
+  // carried in, nothing added, nothing issued, nothing left. Items with stock
+  // on hand but no movement this period still show (they still carry value).
+  const isZeroActivity = (b) =>
+    Math.abs(b.opening) < 0.005 && Math.abs(b.addQty) < 0.005 && Math.abs(b.subQty) < 0.005 && Math.abs(b.ending) < 0.005;
+
+  const visible = state.showZeroItems ? computed : computed.filter(({ b }) => !isZeroActivity(b));
+  const hiddenCount = computed.length - visible.length;
+  const hiddenNote = hiddenCount > 0 ? ` (${hiddenCount} zero-activity item${hiddenCount === 1 ? "" : "s"} hidden)` : "";
+
+  if (isMonthly) {
+    document.getElementById("row-count").textContent = `${visible.length} item${visible.length === 1 ? "" : "s"} for ${monthStr}${hiddenNote}`;
+  } else {
+    document.getElementById("row-count").textContent = `${visible.length} item${visible.length === 1 ? "" : "s"} as of ${effectiveDate}${hiddenNote}`;
+  }
+
+  // How many items fall in each visible category, for the "(N items)" hint on
+  // each category's header row.
   const categoryCounts = {};
-  rows.forEach((p) => {
+  visible.forEach(({ p }) => {
     const c = p.category || "Uncategorized";
     categoryCounts[c] = (categoryCounts[c] || 0) + 1;
   });
@@ -566,8 +601,7 @@ function renderRows() {
   }
 
   let lastCat = null;
-  let monthEndForSummary = null;
-  rows.forEach((p) => {
+  visible.forEach(({ p, b }) => {
     const c = p.category || "Uncategorized";
     if (c !== lastCat) {
       flushCategorySubtotal(lastCat);
@@ -580,10 +614,6 @@ function renderRows() {
       body.appendChild(tr);
       lastCat = c;
     }
-    const b = isMonthly
-      ? monthFor(p.id, document.getElementById("f-month").value || todayStr().slice(0, 7))
-      : periodFor(p.id, effectiveDate, effectiveDate);
-    if (isMonthly) monthEndForSummary = b.monthEnd;
     const varianceVal = b.physical !== null ? b.physical - b.ending : null;
     const varianceCell = varianceVal === null
       ? "—"
