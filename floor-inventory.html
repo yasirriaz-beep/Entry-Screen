@@ -48,6 +48,8 @@
   .item-block { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--field-bg); }
   .item-block .item-title { font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .item-block .item-title .var-tag { font-size: 0.78rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .item-block .item-title .var-tag.within-tol { color: var(--ok); }
+  .item-block .item-title .var-tag.outside-tol { color: var(--warn); }
   .grid-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   .grid-fields.kitchen { grid-template-columns: repeat(5, 1fr); }
   .grid-fields > div { min-width: 0; }
@@ -274,7 +276,7 @@ function setFloor(floor) {
 
 async function loadProductsOnce() {
   if (state.allProducts.length) return;
-  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate,category,floor_count_excluded,floor_sort_priority&order=name`);
+  state.allProducts = await sb(`products?active=eq.true&select=id,name,unit,is_bar_item,floor_category,current_rate,category,floor_count_excluded,floor_sort_priority,floor_count_unit,floor_count_factor,floor_count_tolerance&order=name`);
 }
 
 async function loadFloor() {
@@ -511,7 +513,17 @@ async function loadFloor() {
     const rate = Number(prod.current_rate) || 0;
     const beginningQty = Number(period.beginning_qty) || 0;
     const sortPriority = prod.floor_sort_priority != null ? Number(prod.floor_sort_priority) : null;
-    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate, beginningQty, sortPriority });
+    // Count unit/factor: lets this item be ISSUED/tracked in its purchasing unit (PKT) —
+    // beginning_qty, added, par all stay in that unit everywhere, including Issue Entry's
+    // reorder math, completely unchanged — while the Ending Count box and the Var/Usage
+    // shown here convert to a finer counting unit (e.g. PCS) at the display boundary only.
+    // See floor-inventory count-unit note further down for exactly where that conversion
+    // happens. Added 2026-10-19, per the owner — chicken items counted loose on the floor
+    // rather than guessed as partial packets.
+    const countUnit = prod.floor_count_unit || null;
+    const countFactor = prod.floor_count_factor != null && Number(prod.floor_count_factor) > 0 ? Number(prod.floor_count_factor) : 1;
+    const countTolerance = prod.floor_count_tolerance != null ? Number(prod.floor_count_tolerance) : 0;
+    items.push({ id, name: prod.name, unit: prod.unit, period, added, doughUsage, isDoughIngredient, par: parRow ? Number(parRow.par_qty) : null, reorderOverride, rate, beginningQty, sortPriority, countUnit, countFactor, countTolerance });
   }
   const visible = items;
   // Most expensive first (cheese, chicken, etc. for Kitchen) so the manager counts the
@@ -649,12 +661,36 @@ function renderItemList() {
     const expected = beginning + it.added - (isKitchen ? it.doughUsage : 0);
     const dirtyVal = state.dirty[it.id];
     const enteredEnding = it.period.ending_qty != null ? it.period.ending_qty : "";
-    const showEnding = dirtyVal != null ? dirtyVal : enteredEnding;
+    const showEnding = dirtyVal != null ? dirtyVal : enteredEnding; // always in products.unit (packets) — see count-unit note below
     const variance = showEnding !== "" ? (Number(showEnding) - expected) : null;
     // Usage is shown instead of Expected — it's the actual amount consumed since the
     // last count (Beginning + Addition − Ending Count), computed live once Ending
     // Count is entered. Added 2026-10-18, per the owner.
     const usage = showEnding !== "" ? (beginning + it.added - Number(showEnding)) : null;
+
+    // Count-unit conversion (e.g. WINGS issued/tracked in PKT, counted on the floor in
+    // PCS): beginning_qty, added, Par Qty and Reorder for Store all stay in packets, above
+    // and below — Issue Entry reads floor_stock_periods/floor_par_levels directly with no
+    // idea this conversion exists, so leaving those untouched keeps it working exactly as
+    // before. Only what's actually displayed for Beginning/Addition/Ending Count/Usage/Var
+    // is multiplied by the factor; the Ending Count input is the one field that also
+    // converts BACK (typed pcs ÷ factor) before it's written into state.dirty, so what
+    // actually gets saved is still packets, same as every other item. countTolerance (pcs
+    // per packet) is the packaging margin of error on a fresh delivery — it sets a "normal
+    // range" half-width around the displayed variance, scaled by how many new packets
+    // (it.added) arrived since the last real count, so ordinary packet-fill noise isn't
+    // flagged as a real shortage. Added 2026-10-19, per the owner.
+    const factor = it.countFactor || 1;
+    const hasCount = !!(it.countUnit && factor !== 1);
+    const beginningShown = hasCount ? beginning * factor : beginning;
+    const addedShown = hasCount ? it.added * factor : it.added;
+    const showEndingShown = showEnding === "" ? "" : (hasCount ? Number(showEnding) * factor : Number(showEnding));
+    const varianceShown = hasCount ? (variance != null ? variance * factor : null) : variance;
+    const usageShown = hasCount ? (usage != null ? usage * factor : null) : usage;
+    const toleranceBand = hasCount ? Math.abs(it.countTolerance || 0) * it.added : 0;
+    const withinTolerance = varianceShown != null && toleranceBand > 0 && Math.abs(varianceShown) <= toleranceBand;
+    const varTagNote = hasCount && toleranceBand > 0 ? ` (±${fmtQty(toleranceBand)} normal)` : "";
+    const varTagClass = hasCount && toleranceBand > 0 ? (withinTolerance ? "within-tol" : "outside-tol") : "";
 
     // Par Qty is the desired floor stock (e.g. from the kitchen's paper par sheet) —
     // a standing target, not tied to this counting period. Reorder is what Issue
@@ -682,15 +718,15 @@ function renderItemList() {
     block.className = "item-block";
     block.innerHTML = `
       <div class="item-title">
-        <span>${it.name} <span class="hint" style="margin:0;">(${it.unit})</span></span>
-        <span class="var-tag">${variance != null ? "Var: " + fmtQty(variance) : ""}</span>
+        <span>${it.name} <span class="hint" style="margin:0;">(${hasCount ? it.countUnit + " · issued as " + it.unit : it.unit})</span></span>
+        <span class="var-tag ${varTagClass}">${variance != null ? "Var: " + fmtQty(varianceShown) + varTagNote : ""}</span>
       </div>
       <div class="grid-fields ${it.isDoughIngredient ? "kitchen" : ""}">
-        ${fieldHtml("Beginning", fmtQty(beginning))}
-        ${fieldHtml("Addition", fmtQty(it.added))}
+        ${fieldHtml(hasCount ? `Beginning (${it.countUnit})` : "Beginning", fmtQty(beginningShown))}
+        ${fieldHtml(hasCount ? `Addition (${it.countUnit})` : "Addition", fmtQty(addedShown))}
         ${it.isDoughIngredient ? fieldHtml("Dough Used", fmtQty(it.doughUsage)) : ""}
-        <div><label>Ending Count</label><input type="number" step="any" class="f-ending" value="${showEnding}" placeholder="count"></div>
-        <div><label>Usage</label><input type="text" class="f-usage" value="${usage != null ? fmtQty(usage) : "—"}" disabled></div>
+        <div><label>Ending Count${hasCount ? " (" + it.countUnit + ")" : ""}</label><input type="number" step="any" class="f-ending" value="${showEndingShown}" placeholder="count"></div>
+        <div><label>Usage${hasCount ? " (" + it.countUnit + ")" : ""}</label><input type="text" class="f-usage" value="${usageShown != null ? fmtQty(usageShown) : "—"}" disabled></div>
       </div>
       <div class="grid-fields" style="margin-top:8px;grid-template-columns:1fr 1fr;">
         <div><label>Par Qty (desired)</label><input type="number" step="any" class="f-par" value="${showPar}" placeholder="not set"></div>
@@ -732,17 +768,36 @@ function renderItemList() {
     function refreshReorder() {
       if (overrideChk.checked) return; // manual value — leave whatever's typed alone
       const parNow = parInput.value === "" ? null : parseFloat(parInput.value);
-      const endingNow = endingInput.value === "" ? null : parseFloat(endingInput.value);
-      const onFloorNow = endingNow != null && !isNaN(endingNow) ? endingNow : expected;
+      // endingInput.value is in the count-unit (e.g. pcs) when hasCount — Par Qty and
+      // Reorder for Store stay in packets always (that's what Store issues), so convert
+      // back here before comparing against parNow.
+      const endingTyped = endingInput.value === "" ? null : parseFloat(endingInput.value);
+      const endingNow = endingTyped != null && !isNaN(endingTyped) ? (hasCount ? endingTyped / factor : endingTyped) : null;
+      const onFloorNow = endingNow != null ? endingNow : expected;
       const r = (parNow != null && !isNaN(parNow)) ? Math.max(0, Math.round((parNow - onFloorNow) * 100) / 100) : null;
       reorderDisplay.value = r != null ? fmtQty(r) : "—";
     }
     endingInput.addEventListener("input", () => {
+      // Typed value is in the count-unit (e.g. pcs) when hasCount — convert back to
+      // packets before writing into state.dirty, since that's what actually gets saved
+      // (ending_qty) and carried forward as next period's beginning_qty. Var/Usage shown
+      // here stay in the count-unit, matching what the manager just typed.
       const v = parseFloat(endingInput.value);
-      state.dirty[it.id] = isNaN(v) ? "" : v;
+      const vPackets = isNaN(v) ? NaN : (hasCount ? v / factor : v);
+      state.dirty[it.id] = isNaN(vPackets) ? "" : vPackets;
       endingInput.classList.add("dirty");
-      varTag.textContent = !isNaN(v) ? `Var: ${fmtQty(v - expected)}` : "";
-      usageDisplay.value = !isNaN(v) ? fmtQty(beginning + it.added - v) : "—";
+      if (!isNaN(v)) {
+        const varNow = hasCount ? (v - expected * factor) : (v - expected);
+        const toleranceNote = hasCount && toleranceBand > 0 ? ` (±${fmtQty(toleranceBand)} normal)` : "";
+        varTag.textContent = `Var: ${fmtQty(varNow)}${toleranceNote}`;
+        varTag.classList.remove("within-tol", "outside-tol");
+        if (hasCount && toleranceBand > 0) varTag.classList.add(Math.abs(varNow) <= toleranceBand ? "within-tol" : "outside-tol");
+        usageDisplay.value = fmtQty(hasCount ? (beginningShown + addedShown - v) : (beginning + it.added - v));
+      } else {
+        varTag.textContent = "";
+        varTag.classList.remove("within-tol", "outside-tol");
+        usageDisplay.value = "—";
+      }
       refreshReorder();
       updateSaveBar();
     });
