@@ -51,13 +51,17 @@
   .table-scroll { overflow-x: auto; }
   .base-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 0.85rem; }
   .base-table th { text-align: right; font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-  .base-table th:first-child, .base-table th:nth-child(2) { text-align: left; }
+  .base-table th:first-child, .base-table th:nth-child(2), .base-table th:nth-child(3) { text-align: left; }
   .base-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
-  .base-table td:first-child, .base-table td:nth-child(2) { text-align: left; }
+  .base-table td:first-child, .base-table td:nth-child(2), .base-table td:nth-child(3) { text-align: left; }
   .base-table .end-val { font-weight: 600; color: var(--ink); }
   .base-table .var-off { color: var(--err); font-weight: 600; }
   .base-table .var-ok { color: var(--ok); }
   .dept-row td { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; }
+  .dept-row .cat-count { text-transform: none; font-weight: 500; letter-spacing: 0; color: var(--ink-soft); opacity: 0.8; }
+  .cat-subtotal-row td { font-weight: 700; color: var(--ink); background: var(--card-bg-soft, var(--field-bg)); border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .floor-tag { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-soft); }
+  .floor-tag.none { opacity: 0.55; }
   .no-rate-badge { font-size: 0.65rem; font-weight: 700; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
   .value-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
   .value-tile { flex: 1; min-width: 160px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
@@ -214,7 +218,7 @@
       <table class="base-table">
         <thead>
           <tr>
-            <th>Category</th><th>Item</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Prior Rate</th><th>Δ Rate %</th><th>Value (PKR)</th>
+            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Prior Rate</th><th>Δ Rate %</th><th>Value (PKR)</th><th>Payable (PKR)</th>
           </tr>
         </thead>
         <tbody id="rows-body"></tbody>
@@ -233,7 +237,7 @@ const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "inventory_balance_sheet";
 const MONTHLY_PAGE_KEY = "inventory_balance_sheet_monthly";
 
-let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [] };
+let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], productFloors: {} };
 
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -343,7 +347,7 @@ async function afterLogin(userId, name, managerId, role) {
 }
 
 function backToNames() {
-  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [] };
+  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], productFloors: {} };
   AppSession.clear();
   document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
   document.getElementById("panel-main").hidden = true;
@@ -384,6 +388,23 @@ async function loadAll() {
   try {
     state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc&limit=100000`);
   } catch (e) { state.snapshots = []; }
+
+  // Which floor(s) each item belongs to — derived from the floor-level counting
+  // history (floor_stock_periods), since that's the authoritative record of where
+  // an item is actually tracked (floor_par_levels is only configured for some
+  // floors so far). An item can legitimately live on more than one floor.
+  try {
+    const floorRows = await sb(`floor_stock_periods?location_id=eq.${LOCATION_ID}&select=product_id,floor&limit=100000`);
+    const map = {};
+    floorRows.forEach((r) => {
+      if (!r.floor) return;
+      if (!map[r.product_id]) map[r.product_id] = new Set();
+      map[r.product_id].add(r.floor);
+    });
+    const joined = {};
+    Object.keys(map).forEach((pid) => { joined[pid] = [...map[pid]].sort().join(", "); });
+    state.productFloors = joined;
+  } catch (e) { state.productFloors = {}; }
 
   const cats = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort();
   const catOptions = '<option value="">All categories</option>' + cats.map((c) => `<option value="${c}">${c}</option>`).join("");
@@ -517,14 +538,45 @@ function renderRows() {
     document.getElementById("row-count").textContent = `${rows.length} item${rows.length === 1 ? "" : "s"} as of ${date}`;
   }
 
+  // How many items fall in each category, for the "(N items)" hint on each
+  // category's header row — counted against the currently filtered `rows`,
+  // not the full product list, so it matches what's actually on screen.
+  const categoryCounts = {};
+  rows.forEach((p) => {
+    const c = p.category || "Uncategorized";
+    categoryCounts[c] = (categoryCounts[c] || 0) + 1;
+  });
+
+  // Appends the running Value/Payable subtotal row for the category just
+  // finished, then resets the running sums for the next one. Called right
+  // before a new category's header row, and once more after the loop for
+  // the final category.
+  let catValueSum = 0, catPayableSum = 0;
+  function flushCategorySubtotal(forCat) {
+    if (forCat === null) return;
+    const tr = document.createElement("tr");
+    tr.className = "cat-subtotal-row";
+    tr.innerHTML = `
+      <td></td>
+      <td colspan="12" style="text-align:right;">Subtotal — ${forCat}</td>
+      <td class="end-val">${fmtMoney(catValueSum)}</td>
+      <td class="end-val">${fmtMoney(catPayableSum)}</td>
+    `;
+    body.appendChild(tr);
+  }
+
   let lastCat = null;
   let monthEndForSummary = null;
   rows.forEach((p) => {
     const c = p.category || "Uncategorized";
     if (c !== lastCat) {
+      flushCategorySubtotal(lastCat);
+      catValueSum = 0;
+      catPayableSum = 0;
       const tr = document.createElement("tr");
       tr.className = "dept-row";
-      tr.innerHTML = `<td colspan="13">${c}</td>`;
+      const n = categoryCounts[c] || 0;
+      tr.innerHTML = `<td colspan="15">${c} <span class="cat-count">(${n} item${n === 1 ? "" : "s"})</span></td>`;
       body.appendChild(tr);
       lastCat = c;
     }
@@ -542,6 +594,16 @@ function renderRows() {
     const valueCell = rate > 0
       ? fmtMoney(itemValue)
       : `${fmtMoney(0)} <span class="no-rate-badge">no rate</span>`;
+
+    // Estimated Payable portion of this item's stock value — same weighted-average
+    // paid/credit mix used for the page-wide Paid/Payable tiles above (see
+    // paidRatioFor()), just applied per item instead of summed across all items.
+    const dateForRatio = isMonthly ? b.monthEnd : b.periodEnd;
+    const payableRatio = 1 - paidRatioFor(p.id, dateForRatio);
+    const payableValue = itemValue * payableRatio;
+    const payableCell = rate > 0 ? fmtMoney(payableValue) : "—";
+    catValueSum += itemValue;
+    catPayableSum += payableValue;
 
     // Price-change audit: compares the product's current buying rate against the
     // rate it replaced (last_rate, set whenever a purchase or manual update changes
@@ -564,10 +626,14 @@ function renderRows() {
       ? ` <span class="cost-type-badge ${p.cost_type}">${p.cost_type === "food_cost" ? "COGS" : p.cost_type === "non_convertible" ? "supplies" : "uncat."}</span>`
       : "";
 
+    const floorStr = state.productFloors[p.id] || "";
+    const floorCell = floorStr ? `<span class="floor-tag">${floorStr}</span>` : `<span class="floor-tag none">—</span>`;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td></td>
       <td>${p.name}${costBadge}</td>
+      <td>${floorCell}</td>
       <td>${p.unit || ""}</td>
       <td>${fmtQty(b.opening)}</td>
       <td>+${fmtQty(b.addQty)}</td>
@@ -579,9 +645,11 @@ function renderRows() {
       <td>${priorRateCell}</td>
       <td>${deltaCell}</td>
       <td class="end-val">${valueCell}</td>
+      <td class="end-val">${payableCell}</td>
     `;
     body.appendChild(tr);
   });
+  flushCategorySubtotal(lastCat);
 
   renderValueSummary(isMonthly ? (monthEndForSummary || todayStr()) : effectiveDate);
 }
