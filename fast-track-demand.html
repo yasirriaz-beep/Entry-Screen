@@ -42,10 +42,15 @@
     .right-col { flex: 0 0 300px; top: 16px; }
   }
   /* Below 540px (most phones in portrait), drop Rate and Amount from the item table so
-     the Item name + Qty box still have room to breathe next to the summary panel. */
+     the Item name + Qty box still have room to breathe next to the summary panel. Targeted
+     by class/id (#th-rate, .col-rate / #th-amount, .col-amount), NOT nth-child(2)/nth-child(4)
+     — a rate_variable vendor (e.g. Sheri Veggie) renders rows with only 2 cells (Item, Qty),
+     no Rate/Amount cells at all, so nth-child(2) was hiding the Qty input itself on every
+     phone. Found 2026-10-19 via a shift manager reporting the Qty column missing on Sheri
+     Veggie's order page. */
   @media (max-width: 539px) {
-    table.order-tbl th:nth-child(2), table.order-tbl td:nth-child(2),
-    table.order-tbl th:nth-child(4), table.order-tbl td:nth-child(4) { display: none; }
+    table.order-tbl #th-rate, table.order-tbl td.col-rate,
+    table.order-tbl #th-amount, table.order-tbl td.col-amount { display: none; }
     table.order-tbl .qty-input { width: 54px; padding: 6px 4px; }
     .card { padding: 12px; }
     #summary-card { padding: 10px 8px; }
@@ -419,9 +424,9 @@ function renderItems() {
       const row = document.createElement("tr");
       row.innerHTML = showRate ? `
         <td><div class="item-name">${it.name}</div><div class="item-unit">${it.unit || ""}</div></td>
-        <td class="num">${rate ? fmtMoney(rate) : "—"}</td>
+        <td class="num col-rate">${rate ? fmtMoney(rate) : "—"}</td>
         <td class="num"><input type="number" class="qty-input" step="any" min="0" placeholder="0" data-id="${it.id}"></td>
-        <td class="num amount-cell" data-amount-for="${it.id}">—</td>
+        <td class="num amount-cell col-amount" data-amount-for="${it.id}">—</td>
       ` : `
         <td><div class="item-name">${it.name}</div><div class="item-unit">${it.unit || ""}</div></td>
         <td class="num"><input type="number" class="qty-input" step="any" min="0" placeholder="0" data-id="${it.id}"></td>
