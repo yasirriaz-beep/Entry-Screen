@@ -49,7 +49,7 @@
   .filter-row > * { flex: 1; min-width: 140px; }
   .filter-row .btn-ghost { flex: none; }
   .table-scroll { overflow-x: auto; }
-  .base-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 0.85rem; }
+  .base-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 0.85rem; }
   .base-table th { text-align: right; font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
   .base-table th:first-child, .base-table th:nth-child(2), .base-table th:nth-child(3) { text-align: left; }
   .base-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
@@ -170,6 +170,7 @@
       <button class="btn-ghost no-print" id="btn-print-m" type="button">Print / Export</button>
     </div>
     <div class="hint" id="monthly-access-hint" hidden>Monthly view is restricted — only Directors and people explicitly granted "Inventory Balance Sheet — Monthly" can see it.</div>
+    <div class="hint" id="monthly-adj-hint" hidden>"Beg Adj" / "Add Adj" / "Sub Adj" are one-time reconciliation corrections tied to the owner's Excel ledger for a given month — they don't change any purchase or issue record, they just bring that month's Beg/Add/Sub/End in line with the Excel INVENTORY tab. Most rows will show "—" (no correction needed).</div>
   </div>
 
   <div class="value-summary">
@@ -221,7 +222,7 @@
       <table class="base-table">
         <thead>
           <tr>
-            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Prior Rate</th><th>Δ Rate %</th><th>Value (PKR)</th><th>Payable (PKR)</th>
+            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Beg Adj</th><th>Add</th><th>Add Adj</th><th>Sub</th><th>Sub Adj</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Prior Rate</th><th>Δ Rate %</th><th>Value (PKR)</th><th>Payable (PKR)</th>
           </tr>
         </thead>
         <tbody id="rows-body"></tbody>
@@ -240,7 +241,7 @@ const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "inventory_balance_sheet";
 const MONTHLY_PAGE_KEY = "inventory_balance_sheet_monthly";
 
-let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], productFloors: {}, showZeroItems: false };
+let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], adjustments: {}, productFloors: {}, showZeroItems: false };
 
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -272,6 +273,15 @@ function fmtQty(n) {
 }
 function fmtMoney(n) {
   return "PKR " + Math.round(Number(n) || 0).toLocaleString();
+}
+// Formats one of the three Monthly-view reconciliation adjustments (a signed
+// delta applied on top of the book figure to tie that month to the owner's
+// Excel ledger — see inventory_balance_adjustments). Zero/absent is shown as
+// "—" rather than "+0" to keep untouched rows quiet.
+function fmtAdj(n) {
+  const v = Number(n) || 0;
+  if (Math.abs(v) < 0.005) return "—";
+  return (v > 0 ? "+" : "") + fmtQty(v);
 }
 function todayStr() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -350,7 +360,7 @@ async function afterLogin(userId, name, managerId, role) {
 }
 
 function backToNames() {
-  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], productFloors: {}, showZeroItems: false };
+  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], adjustments: {}, productFloors: {}, showZeroItems: false };
   AppSession.clear();
   document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
   document.getElementById("panel-main").hidden = true;
@@ -376,6 +386,7 @@ document.getElementById("f-view").addEventListener("change", (e) => {
   state.view = (e.target.value === "monthly" && state.canMonthly) ? "monthly" : "daily";
   document.getElementById("row-daily-controls").hidden = state.view === "monthly";
   document.getElementById("row-monthly-controls").hidden = state.view !== "monthly";
+  document.getElementById("monthly-adj-hint").hidden = state.view !== "monthly";
   renderRows();
 });
 
@@ -396,6 +407,16 @@ async function loadAll() {
   try {
     state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc&limit=100000`);
   } catch (e) { state.snapshots = []; }
+  try {
+    // Owner Excel-ledger reconciliation deltas (Monthly view only — see
+    // monthFor()). Keyed by "<product_id>|<period_month>" where period_month
+    // is always the 1st of the month (e.g. "2026-10-01"), matching how these
+    // rows are written (inventory_balance_adjustments.period_month).
+    const adjRows = await sb(`inventory_balance_adjustments?location_id=eq.${LOCATION_ID}&select=product_id,period_month,beginning_adj_qty,addition_adj_qty,issuance_adj_qty&limit=100000`);
+    const adjMap = {};
+    adjRows.forEach((r) => { adjMap[`${r.product_id}|${r.period_month}`] = r; });
+    state.adjustments = adjMap;
+  } catch (e) { state.adjustments = {}; }
 
   // Which floor(s) each item belongs to — derived from the floor-level counting
   // history (floor_stock_periods), since that's the authoritative record of where
@@ -500,11 +521,32 @@ function monthEffectiveEnd(monthStr) {
   const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
   return monthEnd < todayStr() ? monthEnd : todayStr();
 }
+// Folds in the owner's Excel-ledger reconciliation adjustment for this product
+// and month (2026-10-19, per the owner: October's Beginning/Addition/Issuance
+// should match the C-5 Excel INVENTORY tab exactly). The adjustment is a
+// non-destructive delta recorded separately in inventory_balance_adjustments —
+// it never touches the underlying purchases/daily_issues rows — so the figures
+// returned here are "book + adjustment", and the three deltas themselves are
+// also returned (as adjBeg/adjAdd/adjSub) so renderRows() can show them in
+// their own columns for transparency/audit. A month with no adjustment row
+// behaves exactly as before (all deltas zero). Once a month has been
+// reconciled this way, its Oct 31-dated inventory_snapshots row (seeded
+// separately) carries the tied-out ending forward as next month's Beginning
+// via baseFor()/periodFor() — so only the reconciled month itself needs an
+// adjustment row; later months are a regular rollover with none.
 function monthFor(productId, monthStr) {
   const monthStart = `${monthStr}-01`;
   const effectiveEnd = monthEffectiveEnd(monthStr);
   const p = periodFor(productId, monthStart, effectiveEnd);
-  return { opening: p.opening, addQty: p.addQty, subQty: p.subQty, ending: p.ending, physical: p.physical, monthStart, monthEnd: effectiveEnd };
+  const adj = state.adjustments[`${productId}|${monthStart}`] || {};
+  const adjBeg = Number(adj.beginning_adj_qty) || 0;
+  const adjAdd = Number(adj.addition_adj_qty) || 0;
+  const adjSub = Number(adj.issuance_adj_qty) || 0;
+  const opening = p.opening + adjBeg;
+  const addQty = p.addQty + adjAdd;
+  const subQty = p.subQty + adjSub;
+  const ending = opening + addQty - subQty;
+  return { opening, addQty, subQty, ending, physical: p.physical, monthStart, monthEnd: effectiveEnd, adjBeg, adjAdd, adjSub };
 }
 
 // This item's lifetime paid-vs-credit mix as of `date`, used only to split its current
@@ -593,7 +635,7 @@ function renderRows() {
     tr.className = "cat-subtotal-row";
     tr.innerHTML = `
       <td></td>
-      <td colspan="12" style="text-align:right;">Subtotal — ${forCat}</td>
+      <td colspan="15" style="text-align:right;">Subtotal — ${forCat}</td>
       <td class="end-val">${fmtMoney(catValueSum)}</td>
       <td class="end-val">${fmtMoney(catPayableSum)}</td>
     `;
@@ -610,7 +652,7 @@ function renderRows() {
       const tr = document.createElement("tr");
       tr.className = "dept-row";
       const n = categoryCounts[c] || 0;
-      tr.innerHTML = `<td colspan="15">${c} <span class="cat-count">(${n} item${n === 1 ? "" : "s"})</span></td>`;
+      tr.innerHTML = `<td colspan="18">${c} <span class="cat-count">(${n} item${n === 1 ? "" : "s"})</span></td>`;
       body.appendChild(tr);
       lastCat = c;
     }
@@ -659,6 +701,13 @@ function renderRows() {
     const floorStr = state.productFloors[p.id] || "";
     const floorCell = floorStr ? `<span class="floor-tag">${floorStr}</span>` : `<span class="floor-tag none">—</span>`;
 
+    // Owner Excel-ledger reconciliation adjustments — Monthly view only (see
+    // monthFor()); Daily view's periodFor() has no notion of these, so show a
+    // plain dash there rather than a misleading zero.
+    const begAdjCell = isMonthly ? fmtAdj(b.adjBeg) : "—";
+    const addAdjCell = isMonthly ? fmtAdj(b.adjAdd) : "—";
+    const subAdjCell = isMonthly ? fmtAdj(b.adjSub) : "—";
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td></td>
@@ -666,8 +715,11 @@ function renderRows() {
       <td>${floorCell}</td>
       <td>${p.unit || ""}</td>
       <td>${fmtQty(b.opening)}</td>
+      <td>${begAdjCell}</td>
       <td>+${fmtQty(b.addQty)}</td>
+      <td>${addAdjCell}</td>
       <td>-${fmtQty(b.subQty)}</td>
+      <td>${subAdjCell}</td>
       <td class="end-val">${fmtQty(b.ending)}</td>
       <td>${b.physical === null ? "—" : fmtQty(b.physical)}</td>
       <td>${varianceCell}</td>
