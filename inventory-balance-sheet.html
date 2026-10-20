@@ -254,7 +254,7 @@ const LOCATION_ID = "10000000-0000-0000-0000-000000000005"; // C-5
 const PAGE_KEY = "inventory_balance_sheet";
 const MONTHLY_PAGE_KEY = "inventory_balance_sheet_monthly";
 
-let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], adjustments: {}, productFloors: {}, showZeroItems: false };
+let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], adjustments: {}, productFloors: {}, productFloorOverrides: {}, showZeroItems: false };
 
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -373,7 +373,7 @@ async function afterLogin(userId, name, managerId, role) {
 }
 
 function backToNames() {
-  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], adjustments: {}, productFloors: {}, showZeroItems: false };
+  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], adjustments: {}, productFloors: {}, productFloorOverrides: {}, showZeroItems: false };
   AppSession.clear();
   document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
   document.getElementById("panel-main").hidden = true;
@@ -449,6 +449,18 @@ async function loadAll() {
     Object.keys(map).forEach((pid) => { joined[pid] = [...map[pid]].sort().join(", "); });
     state.productFloors = joined;
   } catch (e) { state.productFloors = {}; }
+
+  // Display-only Floor override — a manual correction the owner made to this
+  // report's Floor column (product_floor_overrides). This does NOT feed into
+  // floor-inventory counting or floor_stock_periods/floor_par_levels in any
+  // way; it only changes what this one report shows. Where an override
+  // exists it replaces the derived value above for display purposes.
+  try {
+    const overrideRows = await sb(`product_floor_overrides?location_id=eq.${LOCATION_ID}&select=product_id,floor&limit=100000`);
+    const overrides = {};
+    overrideRows.forEach((r) => { if (r.floor) overrides[r.product_id] = r.floor; });
+    state.productFloorOverrides = overrides;
+  } catch (e) { state.productFloorOverrides = {}; }
 
   const cats = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort();
   const catOptions = '<option value="">All categories</option>' + cats.map((c) => `<option value="${c}">${c}</option>`).join("");
@@ -661,7 +673,7 @@ function computeRowMetrics(p, b, isMonthly) {
     category: p.category || "Uncategorized",
     name: p.name,
     costType: p.cost_type || "",
-    floor: state.productFloors[p.id] || "",
+    floor: state.productFloorOverrides[p.id] || state.productFloors[p.id] || "",
     unit: p.unit || "",
     opening: b.opening,
     begAdj: isMonthly ? b.adjBeg : null,
