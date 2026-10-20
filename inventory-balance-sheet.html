@@ -231,10 +231,10 @@
       <table class="base-table">
         <thead>
           <tr id="thead-daily">
-            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Rate Δ</th><th>Value (PKR)</th><th>Payable (PKR)</th>
+            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Rate</th><th>Rate Δ</th><th>Value (PKR)</th><th>Payable (PKR)</th>
           </tr>
           <tr id="thead-monthly" hidden>
-            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Beg Adj</th><th>Add</th><th>Add Adj</th><th>Sub</th><th>Sub Adj</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Rate Δ</th><th>Value (PKR)</th><th>Payable (PKR)</th>
+            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Beg Adj</th><th>Add</th><th>Add Adj</th><th>Sub</th><th>Sub Adj</th><th>End</th><th>Rate</th><th>Rate Δ</th><th>Value (PKR)</th><th>Payable (PKR)</th>
           </tr>
         </thead>
         <tbody id="rows-body"></tbody>
@@ -701,7 +701,7 @@ function renderRows() {
   // Column count differs between views (Monthly adds the three reconciliation
   // adjustment columns — see thead-daily vs thead-monthly) — this drives the
   // colspans used by the category and grand-total rows below.
-  const totalCols = isMonthly ? 17 : 14;
+  const totalCols = isMonthly ? 15 : 12;
   const subtotalSpan = totalCols - 3; // every column between "Category" and "Value"/"Payable"
 
   const hiddenCount = computed.length - visible.length;
@@ -767,10 +767,6 @@ function renderRows() {
     grandValueSum += m.itemValue;
     grandPayableSum += m.payableValue;
 
-    const varianceCell = m.variance === null
-      ? "—"
-      : `<span class="${Math.abs(m.variance) < 0.01 ? "var-ok" : "var-off"}">${m.variance > 0 ? "+" : ""}${fmtQty(m.variance)}</span>`;
-
     const valueCell = m.hasRate
       ? fmtMoney(m.itemValue)
       : `${fmtMoney(0)} <span class="no-rate-badge">no rate</span>`;
@@ -816,8 +812,6 @@ function renderRows() {
       <td>-${fmtQty(m.subQty)}</td>
       ${subAdjCell}
       <td class="end-val">${fmtQty(m.ending)}</td>
-      <td>${m.physical === null ? "—" : fmtQty(m.physical)}</td>
-      <td>${varianceCell}</td>
       <td>${m.hasRate ? fmtMoney(m.rate) : "—"}</td>
       <td${rateDeltaTitle}>${rateDeltaCell}</td>
       <td class="end-val">${valueCell}</td>
@@ -864,8 +858,8 @@ document.getElementById("nav-category").addEventListener("change", (e) => {
 function exportToExcel() {
   const { isMonthly, visible, effectiveDate, monthStr } = computeVisibleRows();
   const header = isMonthly
-    ? ["Category", "Item", "Floor", "Unit", "Beg", "Beg Adj", "Add", "Add Adj", "Sub", "Sub Adj", "End", "Physical", "Variance", "Rate", "Prior Rate", "Rate Δ %", "Value (PKR)", "Payable (PKR)"]
-    : ["Category", "Item", "Floor", "Unit", "Beg", "Add", "Sub", "End", "Physical", "Variance", "Rate", "Prior Rate", "Rate Δ %", "Value (PKR)", "Payable (PKR)"];
+    ? ["Category", "Item", "Floor", "Unit", "Beg", "Beg Adj", "Add", "Add Adj", "Sub", "Sub Adj", "End", "Rate", "Prior Rate", "Rate Δ %", "Value (PKR)", "Payable (PKR)"]
+    : ["Category", "Item", "Floor", "Unit", "Beg", "Add", "Sub", "End", "Rate", "Prior Rate", "Rate Δ %", "Value (PKR)", "Payable (PKR)"];
 
   function blankRow() { return new Array(header.length).fill(""); }
   function totalRow(label, valueSum, payableSum) {
@@ -905,8 +899,6 @@ function exportToExcel() {
     if (isMonthly) row.push(m.subAdj === null ? "" : round2(m.subAdj));
     row.push(
       round2(m.ending),
-      m.physical === null ? "" : round2(m.physical),
-      m.variance === null ? "" : round2(m.variance),
       m.hasRate ? round2(m.rate) : "",
       m.priorRate === null ? "" : round2(m.priorRate),
       m.deltaPct === null ? "" : round2(m.deltaPct),
