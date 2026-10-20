@@ -46,8 +46,8 @@
   .filter-row > * { flex: 1; min-width: 140px; }
   .progress-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; margin-right: 6px; }
   .table-scroll { overflow-x: auto; }
-  .base-grid { min-width: 700px; }
-  .item-row { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px 84px; gap: 6px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
+  .base-grid { min-width: 784px; }
+  .item-row { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px 84px 84px; gap: 6px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
   .item-row:last-child { border-bottom: none; }
   .item-name { font-size: 0.88rem; min-width: 0; }
   .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
@@ -58,7 +58,7 @@
   .item-row input.par-sugg:not(.dirty) { border-color: var(--ok); }
   .expected-val, .num-val { font-size: 0.8rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
   .num-val.end-val { color: var(--ink); font-weight: 600; }
-  .col-header { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px 84px; gap: 6px; font-size: 0.65rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .col-header { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px 84px 84px; gap: 6px; font-size: 0.65rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
   .col-header > div { text-align: right; }
   .col-header > div:first-child { text-align: left; }
   .dept-header { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; border-radius: 6px; margin: 10px 0 4px; }
@@ -107,7 +107,8 @@
     <b>Tareeqa (Instructions in Roman Urdu)</b>
     Har item ki "Ending Balance" column mein dekhein — yeh system ke mutabiq is waqt store mein maujooda stock hai.
     Jo maal jahan bhej rahe hain uski quantity usi column mein likhein: Kitchen ke liye "Kitchen Issue", BOH ke liye "BOH Issue",
-    FOH ke liye "FOH Issue", Bar ke liye "Bar Issue", aur Delivery ke liye "Delivery Issue". Ek item aik se zyada jagah bhi ja sakta hai —
+    FOH ke liye "FOH Issue", Bar ke liye "Bar Issue", Delivery ke liye "Delivery Issue", aur Bev (beverages) ke liye "Beverages Issue".
+    Agar "Beverages Issue" column nazar na aaye to table ko side se (left-right) scroll kar ke dekhein. Ek item aik se zyada jagah bhi ja sakta hai —
     bas har column mein uski apni quantity daal dein. Jo item issue nahi ho raha, uska box khali chhor dein.
     Sab likhne ke baad neeche "Save Issues" button dabayen. Agar dobara isi din kuch aur issue karna ho to wapas aa kar naya amount likh dein,
     yeh purana entry ke upar nahi likhega balke ek nayi entry ban jayegi (neeche "Issued Today" mein sab dikh jayega).
@@ -151,6 +152,7 @@
           <div>FOH Issue</div>
           <div>Bar Issue</div>
           <div>Delivery Issue</div>
+          <div>Beverages Issue</div>
         </div>
         <div id="item-list"></div>
       </div>
