@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
@@ -30,6 +31,7 @@
   }
   * { box-sizing: border-box; }
   body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 60px; max-width: 960px; margin: 0 auto; }
+  body.wide-report { max-width: 1480px; }
   h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
   .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
@@ -48,18 +50,21 @@
   .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; align-items: flex-end; }
   .filter-row > * { flex: 1; min-width: 140px; }
   .filter-row .btn-ghost { flex: none; }
-  .table-scroll { overflow-x: auto; }
-  .base-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 0.85rem; }
-  .base-table th { text-align: right; font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .table-scroll { overflow: auto; max-height: 68vh; border: 1px solid var(--border); border-radius: 10px; }
+  .base-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .base-table th { text-align: right; font-size: 0.65rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding: 6px 6px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 2; }
   .base-table th:first-child, .base-table th:nth-child(2), .base-table th:nth-child(3) { text-align: left; }
-  .base-table td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
-  .base-table td:first-child, .base-table td:nth-child(2), .base-table td:nth-child(3) { text-align: left; }
+  .base-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .base-table td:first-child, .base-table td:nth-child(2), .base-table td:nth-child(3) { text-align: left; white-space: normal; }
   .base-table .end-val { font-weight: 600; color: var(--ink); }
   .base-table .var-off { color: var(--err); font-weight: 600; }
   .base-table .var-ok { color: var(--ok); }
-  .dept-row td { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; }
+  .dept-row { scroll-margin-top: 36px; }
+  .dept-row td { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 7px; }
   .dept-row .cat-count { text-transform: none; font-weight: 500; letter-spacing: 0; color: var(--ink-soft); opacity: 0.8; }
   .cat-subtotal-row td { font-weight: 700; color: var(--ink); background: var(--card-bg-soft, var(--field-bg)); border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .grand-total-row td { font-weight: 700; color: var(--accent); background: var(--field-bg); border-top: 2px solid var(--accent); font-variant-numeric: tabular-nums; font-size: 0.85rem; padding-top: 8px; padding-bottom: 8px; }
+  .nav-select { width: auto; min-width: 150px; padding: 8px 10px; font-size: 0.82rem; }
   .floor-tag { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-soft); }
   .floor-tag.none { opacity: 0.55; }
   .no-rate-badge { font-size: 0.65rem; font-weight: 700; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
@@ -91,6 +96,8 @@
     body { padding: 0; max-width: none; }
     .card.controls, .no-print { display: none !important; }
     .base-table { font-size: 0.78rem; }
+    .table-scroll { max-height: none; overflow: visible; border: none; }
+    .base-table th { position: static; }
   }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
@@ -101,7 +108,7 @@
   .btn-login:disabled { opacity: 0.6; cursor: default; }
 </style>
 </head>
-<body>
+<body class="wide-report">
 <a class="btn-ghost" href="home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
 
 
@@ -124,7 +131,7 @@
     <b>Tareeqa (Instructions in Roman Urdu)</b>
     Yeh report sirf dekhne ke liye hai, ismein kuch likhna nahi hai. "Beginning" wo balance hai jo pichli date se chala aya,
     "Add" purchases hain, "Sub" wo maal hai jo issue hua, aur "End" system ka calculated number hai. Agar kisi item ki rate
-    recently zyada badli ho to "Δ Rate %" column mein nishan (⚠) dikhega — is par nazar rakhein, yeh ghalti bhi ho sakti hai
+    recently zyada badli ho to "Rate Δ" column mein nishan (⚠) dikhega (purani rate dekhne ke liye us par mouse le jayein) — is par nazar rakhein, yeh ghalti bhi ho sakti hai
     aur sacha price change bhi. Upar "Food Cost" / "Non-Convertible" / "Uncategorized" tiles batate hain kitna stock bikne
     ke kaabil hai aur kitna sirf consumable/non-sellable hai. Date badalne ke liye "As of date" use karein.
   </div>
@@ -214,18 +221,24 @@
     <div class="top-bar">
       <div id="row-count" class="as-of"></div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <select id="nav-category" class="nav-select no-print"><option value="">Jump to category…</option></select>
         <button class="btn-ghost no-print" id="btn-toggle-zero" type="button">Show zero-activity items</button>
+        <button class="btn-ghost no-print" id="btn-export-excel" type="button">Export to Excel</button>
         <div id="last-count-info" class="as-of"></div>
       </div>
     </div>
-    <div class="table-scroll">
+    <div class="table-scroll" id="table-scroll">
       <table class="base-table">
         <thead>
-          <tr>
-            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Beg Adj</th><th>Add</th><th>Add Adj</th><th>Sub</th><th>Sub Adj</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Prior Rate</th><th>Δ Rate %</th><th>Value (PKR)</th><th>Payable (PKR)</th>
+          <tr id="thead-daily">
+            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Rate Δ</th><th>Value (PKR)</th><th>Payable (PKR)</th>
+          </tr>
+          <tr id="thead-monthly" hidden>
+            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Beg Adj</th><th>Add</th><th>Add Adj</th><th>Sub</th><th>Sub Adj</th><th>End</th><th>Physical</th><th>Variance</th><th>Rate</th><th>Rate Δ</th><th>Value (PKR)</th><th>Payable (PKR)</th>
           </tr>
         </thead>
         <tbody id="rows-body"></tbody>
+        <tfoot id="rows-foot"></tfoot>
       </table>
     </div>
   </div>
@@ -387,6 +400,8 @@ document.getElementById("f-view").addEventListener("change", (e) => {
   document.getElementById("row-daily-controls").hidden = state.view === "monthly";
   document.getElementById("row-monthly-controls").hidden = state.view !== "monthly";
   document.getElementById("monthly-adj-hint").hidden = state.view !== "monthly";
+  document.getElementById("thead-daily").hidden = state.view === "monthly";
+  document.getElementById("thead-monthly").hidden = state.view !== "monthly";
   renderRows();
 });
 
@@ -567,7 +582,21 @@ function paidRatioFor(productId, date) {
   return paidAmt / totalAmt;
 }
 
-function renderRows() {
+// Turns a category name into a safe DOM id fragment for the dept-row anchors
+// the "Jump to category" dropdown scrolls to.
+function slugify(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "cat";
+}
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+// Filters state.products by the current search/category controls for whichever
+// view is active, computes each candidate's period balance, and applies the
+// zero-activity toggle — the one place this logic lives, so renderRows() (for
+// the on-screen table) and exportToExcel() (for the download) can never drift
+// out of sync with each other.
+function computeVisibleRows() {
   const isMonthly = state.view === "monthly" && state.canMonthly;
   const search = (isMonthly
     ? document.getElementById("search-items-m").value
@@ -575,8 +604,6 @@ function renderRows() {
   const cat = isMonthly
     ? document.getElementById("filter-category-m").value
     : document.getElementById("filter-category").value;
-  const body = document.getElementById("rows-body");
-  body.innerHTML = "";
 
   const candidates = state.products.filter((p) => {
     if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
@@ -607,6 +634,64 @@ function renderRows() {
     Math.abs(b.opening) < 0.005 && Math.abs(b.addQty) < 0.005 && Math.abs(b.subQty) < 0.005 && Math.abs(b.ending) < 0.005;
 
   const visible = state.showZeroItems ? computed : computed.filter(({ b }) => !isZeroActivity(b));
+
+  return { isMonthly, computed, visible, effectiveDate, monthStr, monthEndForSummary };
+}
+
+// All the per-row figures that depend only on the product + its computed
+// balance (never on HTML formatting) — shared by the on-screen table and the
+// Excel export so the two can never show different numbers for the same row.
+function computeRowMetrics(p, b, isMonthly) {
+  const rate = Number(p.current_rate) || 0;
+  const priorRate = Number(p.last_rate) || 0;
+  const itemValue = b.ending * rate;
+  // Estimated Payable portion of this item's stock value — same weighted-average
+  // paid/credit mix used for the page-wide Paid/Payable tiles above (see
+  // paidRatioFor()), just applied per item instead of summed across all items.
+  const dateForRatio = isMonthly ? b.monthEnd : b.periodEnd;
+  const payableRatio = 1 - paidRatioFor(p.id, dateForRatio);
+  const payableValue = itemValue * payableRatio;
+  const variance = b.physical !== null ? b.physical - b.ending : null;
+  // Price-change audit: compares the product's current buying rate against the
+  // rate it replaced (last_rate, set whenever a purchase or manual update changes
+  // current_rate — see rate_updated_at). Flags swings that look larger than normal
+  // month-to-month drift, since PKR food-cost rates move with fuel/currency shocks.
+  const deltaPct = (priorRate > 0 && rate > 0) ? ((rate - priorRate) / priorRate) * 100 : null;
+  return {
+    category: p.category || "Uncategorized",
+    name: p.name,
+    costType: p.cost_type || "",
+    floor: state.productFloors[p.id] || "",
+    unit: p.unit || "",
+    opening: b.opening,
+    begAdj: isMonthly ? b.adjBeg : null,
+    addQty: b.addQty,
+    addAdj: isMonthly ? b.adjAdd : null,
+    subQty: b.subQty,
+    subAdj: isMonthly ? b.adjSub : null,
+    ending: b.ending,
+    physical: b.physical,
+    variance,
+    rate, hasRate: rate > 0,
+    priorRate: priorRate > 0 ? priorRate : null,
+    deltaPct,
+    itemValue, payableValue,
+  };
+}
+
+function renderRows() {
+  const { isMonthly, computed, visible, effectiveDate, monthStr, monthEndForSummary } = computeVisibleRows();
+  const body = document.getElementById("rows-body");
+  const foot = document.getElementById("rows-foot");
+  body.innerHTML = "";
+  foot.innerHTML = "";
+
+  // Column count differs between views (Monthly adds the three reconciliation
+  // adjustment columns — see thead-daily vs thead-monthly) — this drives the
+  // colspans used by the category and grand-total rows below.
+  const totalCols = isMonthly ? 17 : 14;
+  const subtotalSpan = totalCols - 3; // every column between "Category" and "Value"/"Payable"
+
   const hiddenCount = computed.length - visible.length;
   const hiddenNote = hiddenCount > 0 ? ` (${hiddenCount} zero-activity item${hiddenCount === 1 ? "" : "s"} hidden)` : "";
 
@@ -635,13 +720,17 @@ function renderRows() {
     tr.className = "cat-subtotal-row";
     tr.innerHTML = `
       <td></td>
-      <td colspan="15" style="text-align:right;">Subtotal — ${forCat}</td>
+      <td colspan="${subtotalSpan}" style="text-align:right;">Subtotal — ${forCat}</td>
       <td class="end-val">${fmtMoney(catValueSum)}</td>
       <td class="end-val">${fmtMoney(catPayableSum)}</td>
     `;
     body.appendChild(tr);
   }
 
+  // One entry per category actually shown, in the order it first appears —
+  // feeds the "Jump to category" dropdown further down.
+  const navCats = [];
+  let grandValueSum = 0, grandPayableSum = 0;
   let lastCat = null;
   visible.forEach(({ p, b }) => {
     const c = p.category || "Uncategorized";
@@ -651,81 +740,74 @@ function renderRows() {
       catPayableSum = 0;
       const tr = document.createElement("tr");
       tr.className = "dept-row";
+      const slug = "cat-" + slugify(c);
+      tr.id = slug;
+      navCats.push({ name: c, id: slug });
       const n = categoryCounts[c] || 0;
-      tr.innerHTML = `<td colspan="18">${c} <span class="cat-count">(${n} item${n === 1 ? "" : "s"})</span></td>`;
+      tr.innerHTML = `<td colspan="${totalCols}">${c} <span class="cat-count">(${n} item${n === 1 ? "" : "s"})</span></td>`;
       body.appendChild(tr);
       lastCat = c;
     }
-    const varianceVal = b.physical !== null ? b.physical - b.ending : null;
-    const varianceCell = varianceVal === null
+
+    const m = computeRowMetrics(p, b, isMonthly);
+    catValueSum += m.itemValue;
+    catPayableSum += m.payableValue;
+    grandValueSum += m.itemValue;
+    grandPayableSum += m.payableValue;
+
+    const varianceCell = m.variance === null
       ? "—"
-      : `<span class="${Math.abs(varianceVal) < 0.01 ? "var-ok" : "var-off"}">${varianceVal > 0 ? "+" : ""}${fmtQty(varianceVal)}</span>`;
+      : `<span class="${Math.abs(m.variance) < 0.01 ? "var-ok" : "var-off"}">${m.variance > 0 ? "+" : ""}${fmtQty(m.variance)}</span>`;
 
-    const rate = Number(p.current_rate) || 0;
-    const itemValue = b.ending * rate;
-    const valueCell = rate > 0
-      ? fmtMoney(itemValue)
+    const valueCell = m.hasRate
+      ? fmtMoney(m.itemValue)
       : `${fmtMoney(0)} <span class="no-rate-badge">no rate</span>`;
+    const payableCell = m.hasRate ? fmtMoney(m.payableValue) : "—";
 
-    // Estimated Payable portion of this item's stock value — same weighted-average
-    // paid/credit mix used for the page-wide Paid/Payable tiles above (see
-    // paidRatioFor()), just applied per item instead of summed across all items.
-    const dateForRatio = isMonthly ? b.monthEnd : b.periodEnd;
-    const payableRatio = 1 - paidRatioFor(p.id, dateForRatio);
-    const payableValue = itemValue * payableRatio;
-    const payableCell = rate > 0 ? fmtMoney(payableValue) : "—";
-    catValueSum += itemValue;
-    catPayableSum += payableValue;
-
-    // Price-change audit: compares the product's current buying rate against the
-    // rate it replaced (last_rate, set whenever a purchase or manual update changes
-    // current_rate — see rate_updated_at). Flags swings that look larger than normal
-    // month-to-month drift, since PKR food-cost rates move with fuel/currency shocks.
-    const priorRate = Number(p.last_rate) || 0;
-    let deltaCell = "—", priorRateCell = "—";
-    if (priorRate > 0 && rate > 0) {
-      priorRateCell = fmtMoney(priorRate);
-      const deltaPct = ((rate - priorRate) / priorRate) * 100;
-      const absDelta = Math.abs(deltaPct);
-      const sign = deltaPct > 0 ? "+" : "";
+    // "Prior Rate" used to be its own column; it now rides along as a hover
+    // tooltip on "Rate Δ" instead, to save width (2026-10-20, per the owner).
+    let rateDeltaCell = "—", rateDeltaTitle = "";
+    if (m.priorRate !== null && m.deltaPct !== null) {
+      rateDeltaTitle = ` title="Prior rate: ${fmtMoney(m.priorRate)}"`;
+      const absDelta = Math.abs(m.deltaPct);
+      const sign = m.deltaPct > 0 ? "+" : "";
       let cls = "", badge = "";
       if (absDelta >= 25) { cls = "rate-alert-err"; badge = ` <span class="rate-badge err">⚠ large jump</span>`; }
       else if (absDelta >= 10) { cls = "rate-alert-warn"; badge = ` <span class="rate-badge warn">↑ check</span>`; }
-      deltaCell = `<span class="${cls}">${sign}${deltaPct.toFixed(1)}%</span>${badge}`;
+      rateDeltaCell = `<span class="${cls}">${sign}${m.deltaPct.toFixed(1)}%</span>${badge}`;
     }
 
-    const costBadge = p.cost_type
-      ? ` <span class="cost-type-badge ${p.cost_type}">${p.cost_type === "food_cost" ? "COGS" : p.cost_type === "non_convertible" ? "supplies" : "uncat."}</span>`
+    const costBadge = m.costType
+      ? ` <span class="cost-type-badge ${m.costType}">${m.costType === "food_cost" ? "COGS" : m.costType === "non_convertible" ? "supplies" : "uncat."}</span>`
       : "";
 
-    const floorStr = state.productFloors[p.id] || "";
-    const floorCell = floorStr ? `<span class="floor-tag">${floorStr}</span>` : `<span class="floor-tag none">—</span>`;
+    const floorCell = m.floor ? `<span class="floor-tag">${m.floor}</span>` : `<span class="floor-tag none">—</span>`;
 
     // Owner Excel-ledger reconciliation adjustments — Monthly view only (see
-    // monthFor()); Daily view's periodFor() has no notion of these, so show a
-    // plain dash there rather than a misleading zero.
-    const begAdjCell = isMonthly ? fmtAdj(b.adjBeg) : "—";
-    const addAdjCell = isMonthly ? fmtAdj(b.adjAdd) : "—";
-    const subAdjCell = isMonthly ? fmtAdj(b.adjSub) : "—";
+    // monthFor()); Daily view has no notion of these, so these three cells are
+    // dropped from the row entirely there (not just blanked) to save width —
+    // matching thead-daily, which has no Adj columns to line up with.
+    const begAdjCell = isMonthly ? `<td>${fmtAdj(m.begAdj)}</td>` : "";
+    const addAdjCell = isMonthly ? `<td>${fmtAdj(m.addAdj)}</td>` : "";
+    const subAdjCell = isMonthly ? `<td>${fmtAdj(m.subAdj)}</td>` : "";
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td></td>
-      <td>${p.name}${costBadge}</td>
+      <td>${m.name}${costBadge}</td>
       <td>${floorCell}</td>
-      <td>${p.unit || ""}</td>
-      <td>${fmtQty(b.opening)}</td>
-      <td>${begAdjCell}</td>
-      <td>+${fmtQty(b.addQty)}</td>
-      <td>${addAdjCell}</td>
-      <td>-${fmtQty(b.subQty)}</td>
-      <td>${subAdjCell}</td>
-      <td class="end-val">${fmtQty(b.ending)}</td>
-      <td>${b.physical === null ? "—" : fmtQty(b.physical)}</td>
+      <td>${m.unit}</td>
+      <td>${fmtQty(m.opening)}</td>
+      ${begAdjCell}
+      <td>+${fmtQty(m.addQty)}</td>
+      ${addAdjCell}
+      <td>-${fmtQty(m.subQty)}</td>
+      ${subAdjCell}
+      <td class="end-val">${fmtQty(m.ending)}</td>
+      <td>${m.physical === null ? "—" : fmtQty(m.physical)}</td>
       <td>${varianceCell}</td>
-      <td>${rate > 0 ? fmtMoney(rate) : "—"}</td>
-      <td>${priorRateCell}</td>
-      <td>${deltaCell}</td>
+      <td>${m.hasRate ? fmtMoney(m.rate) : "—"}</td>
+      <td${rateDeltaTitle}>${rateDeltaCell}</td>
       <td class="end-val">${valueCell}</td>
       <td class="end-val">${payableCell}</td>
     `;
@@ -733,8 +815,104 @@ function renderRows() {
   });
   flushCategorySubtotal(lastCat);
 
+  // Grand total across every visible row, regardless of category — pinned to
+  // the bottom of the table in its own <tfoot> (2026-10-20, per the owner).
+  const grandTr = document.createElement("tr");
+  grandTr.className = "grand-total-row";
+  grandTr.innerHTML = `
+    <td></td>
+    <td colspan="${subtotalSpan}" style="text-align:right;">GRAND TOTAL — ${visible.length} item${visible.length === 1 ? "" : "s"}</td>
+    <td>${fmtMoney(grandValueSum)}</td>
+    <td>${fmtMoney(grandPayableSum)}</td>
+  `;
+  foot.appendChild(grandTr);
+
+  // "Jump to category" dropdown — rebuilt every render since the visible set
+  // (and therefore which categories actually appear) changes with the
+  // search/category filters and the zero-activity toggle.
+  const navSelect = document.getElementById("nav-category");
+  const prevNavValue = navSelect.value;
+  navSelect.innerHTML = '<option value="">Jump to category…</option>' +
+    navCats.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  if (navCats.some((c) => c.id === prevNavValue)) navSelect.value = prevNavValue;
+
   renderValueSummary(isMonthly ? (monthEndForSummary || todayStr()) : effectiveDate);
 }
+
+document.getElementById("nav-category").addEventListener("change", (e) => {
+  const id = e.target.value;
+  if (!id) return;
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ block: "start" });
+});
+
+// Downloads the exact rows currently on screen (same filters, same view, same
+// zero-activity toggle) as an .xlsx workbook — category groups, subtotals and
+// a grand total included, mirroring the table layout.
+function exportToExcel() {
+  const { isMonthly, visible, effectiveDate, monthStr } = computeVisibleRows();
+  const header = isMonthly
+    ? ["Category", "Item", "Floor", "Unit", "Beg", "Beg Adj", "Add", "Add Adj", "Sub", "Sub Adj", "End", "Physical", "Variance", "Rate", "Prior Rate", "Rate Δ %", "Value (PKR)", "Payable (PKR)"]
+    : ["Category", "Item", "Floor", "Unit", "Beg", "Add", "Sub", "End", "Physical", "Variance", "Rate", "Prior Rate", "Rate Δ %", "Value (PKR)", "Payable (PKR)"];
+
+  function blankRow() { return new Array(header.length).fill(""); }
+  function totalRow(label, valueSum, payableSum) {
+    const row = blankRow();
+    row[1] = label;
+    row[header.length - 2] = round2(valueSum);
+    row[header.length - 1] = round2(payableSum);
+    return row;
+  }
+
+  const rows = [header];
+  let lastCat = null, catValueSum = 0, catPayableSum = 0, grandValueSum = 0, grandPayableSum = 0;
+
+  visible.forEach(({ p, b }) => {
+    const c = p.category || "Uncategorized";
+    if (c !== lastCat) {
+      if (lastCat !== null) rows.push(totalRow(`Subtotal — ${lastCat}`, catValueSum, catPayableSum));
+      catValueSum = 0;
+      catPayableSum = 0;
+      const catRow = blankRow();
+      catRow[0] = c;
+      rows.push(catRow);
+      lastCat = c;
+    }
+
+    const m = computeRowMetrics(p, b, isMonthly);
+    catValueSum += m.itemValue;
+    catPayableSum += m.payableValue;
+    grandValueSum += m.itemValue;
+    grandPayableSum += m.payableValue;
+
+    const row = [c, m.name, m.floor, m.unit, round2(m.opening)];
+    if (isMonthly) row.push(m.begAdj === null ? "" : round2(m.begAdj));
+    row.push(round2(m.addQty));
+    if (isMonthly) row.push(m.addAdj === null ? "" : round2(m.addAdj));
+    row.push(round2(m.subQty));
+    if (isMonthly) row.push(m.subAdj === null ? "" : round2(m.subAdj));
+    row.push(
+      round2(m.ending),
+      m.physical === null ? "" : round2(m.physical),
+      m.variance === null ? "" : round2(m.variance),
+      m.hasRate ? round2(m.rate) : "",
+      m.priorRate === null ? "" : round2(m.priorRate),
+      m.deltaPct === null ? "" : round2(m.deltaPct),
+      round2(m.itemValue),
+      round2(m.payableValue),
+    );
+    rows.push(row);
+  });
+  if (lastCat !== null) rows.push(totalRow(`Subtotal — ${lastCat}`, catValueSum, catPayableSum));
+  rows.push(totalRow("GRAND TOTAL", grandValueSum, grandPayableSum));
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, isMonthly ? "Monthly" : "Daily");
+  const label = String(isMonthly ? monthStr : effectiveDate).replace(/[^0-9a-zA-Z-]/g, "");
+  XLSX.writeFile(wb, `C-5_Inventory_Balance_${label}.xlsx`);
+}
+document.getElementById("btn-export-excel").addEventListener("click", exportToExcel);
 
 // Total stock value (and its estimated Paid/Payable split) always covers every active
 // item at this location, regardless of the search/category filter above — this is meant
