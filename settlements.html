@@ -66,6 +66,14 @@
   .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
   .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
 
+  .big-box { background: var(--surface); border: 2px solid var(--accent); border-radius: 14px; padding: 16px 18px; margin-bottom: 16px; }
+  .bb-label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 4px; }
+  .bb-value { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .bb-hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .readout-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .readout-row > div { flex: 1; min-width: 130px; }
+  .audit-line { font-size: 0.8rem; margin-top: 4px; }
+
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .login-field + .login-field { margin-top: 10px; }
@@ -95,7 +103,13 @@
 
   <div class="urdu-box">
     <b>Tareeqa (Instructions in Roman Urdu)</b>
-    Yeh page Food Panda, Careem, card processor aur bank deposits ko match karne ke liye hai. Jab bhi koi statement aaye, "Record a New Statement" mein brand, period dates, aur statement ke gross/commission/fees/tax/refund numbers daal kar "Save Statement" dabayen. Yeh "Awaiting Bank Deposit" list mein chala jata hai — jab paisa bank mein aa jaye to usi card ko khol kar asal (actual) deposit amount aur date likh kar "Record Deposit" dabayen. Bank ka CSV statement upload kar kay system khud bhi match karne ki koshish karta hai — match milay to "Confirm This Deposit" dabayen. Koi bhi number tabhi save hota hai jab us waalay button par click karein.
+    Yeh page Food Panda, Careem, card processor aur bank deposits ko match karne ke liye hai. Jab tak Food Panda ka statement nahi aata, uska gross sale "Food Panda Receivable" box mein outstanding dikhta rehta hai — yeh paisa Food Panda par receivable hai, till cash nahi. Jab bhi statement aaye, "Record a New Statement" mein brand, period dates, aur statement ke gross/commission/fees/tax/refund numbers daal kar "Save Statement" dabayen — commission apne aap "Food Panda Commission" expense mein book ho jata hai, aur jo commission % expect kiya tha (default 30%) woh statement ke asal commission se compare ho kar dikhta hai. Yeh "Awaiting Bank Deposit" list mein chala jata hai — jab paisa bank mein aa jaye to usi card ko khol kar asal (actual) deposit amount aur date likh kar "Record Deposit" dabayen. Bank ka CSV statement upload kar kay system khud bhi match karne ki koshish karta hai — match milay to "Confirm This Deposit" dabayen. Koi bhi number tabhi save hota hai jab us waalay button par click karein.
+  </div>
+
+  <div class="big-box" id="fp-receivable-box">
+    <div class="bb-label">Food Panda Receivable Outstanding</div>
+    <div class="bb-value" id="fp-receivable-value">Loading…</div>
+    <div class="bb-hint">Gross Food Panda sales already booked in Sales Entry that haven't been turned into a statement below yet. This is money owed by Food Panda — not cash in the till, and not the cash custodian's responsibility.</div>
   </div>
 
   <div class="card">
@@ -154,6 +168,24 @@
       <label>Reported Net (statement gross − commission − fees − tax − refund)</label>
       <div class="readout" id="fp-net-readout">PKR 0</div>
     </div>
+
+    <div class="field" id="block-expected" hidden>
+      <label>Expected Commission % (benchmark, for audit)</label>
+      <input type="number" id="f-expected-pct" min="0" max="100" step="any" value="30">
+      <div class="hint">What we calculated before the statement, at this rate. Compared against what the statement actually charged, below.</div>
+    </div>
+    <div class="readout-row field" id="block-expected-readouts" hidden>
+      <div>
+        <label>Expected Commission</label>
+        <div class="readout" id="fp-expected-commission-readout">PKR 0</div>
+      </div>
+      <div>
+        <label>Expected Net</label>
+        <div class="readout" id="fp-expected-net-readout">PKR 0</div>
+      </div>
+    </div>
+    <div class="audit-line" id="fp-commission-audit" hidden></div>
+
     <div class="field">
       <label>Notes (optional)</label>
       <textarea id="f-notes" rows="2" placeholder="Statement reference, anything unusual"></textarea>
@@ -300,6 +332,7 @@ function finishSettlementsLogin() {
     refreshOurGross();
     loadPending();
     loadHistory();
+    refreshFpReceivableBox();
   }, 150);
 }
 
@@ -331,6 +364,10 @@ function updateGrossLabel() {
     : isFoodPanda
     ? "Pulled from Sales Entry's \"Food Panda\" channel for these dates — compare it to what Food Panda's statement says."
     : "Pulled from Sales Entry's \"Third Party\" channel for these dates — compare it to what the brand's statement says.";
+  document.getElementById("block-expected").hidden = !isFoodPanda;
+  document.getElementById("block-expected-readouts").hidden = !isFoodPanda;
+  document.getElementById("fp-commission-audit").hidden = !isFoodPanda;
+  if (isFoodPanda) recalcFpNet();
 }
 document.getElementById("f-brand").addEventListener("change", () => { updateGrossLabel(); refreshOurGross(); });
 
@@ -355,9 +392,28 @@ function n(id) { const v = document.getElementById(id).value; return v === "" ? 
 function recalcFpNet() {
   const net = n("f-gross") - n("f-commission") - n("f-fees") - n("f-tax") - n("f-refund");
   document.getElementById("fp-net-readout").textContent = fmtMoney(net);
+
+  if (document.getElementById("f-brand").value === "Food Panda") {
+    const pct = n("f-expected-pct") || 0;
+    const gross = n("f-gross");
+    const expectedCommission = Math.round(gross * pct / 100 * 100) / 100;
+    const expectedNet = gross - expectedCommission;
+    document.getElementById("fp-expected-commission-readout").textContent = fmtMoney(expectedCommission);
+    document.getElementById("fp-expected-net-readout").textContent = fmtMoney(expectedNet);
+    const audit = document.getElementById("fp-commission-audit");
+    if (gross > 0 && n("f-commission") > 0) {
+      const diff = n("f-commission") - expectedCommission;
+      const actualPct = gross ? (n("f-commission") / gross * 100) : 0;
+      audit.innerHTML = Math.abs(diff) < 1
+        ? `<span class="pill-badge pill-ok">Matches benchmark</span> — statement charged ${actualPct.toFixed(1)}%, same as the ${pct}% expected.`
+        : `<span class="pill-badge ${diff > 0 ? 'pill-err' : 'pill-warn'}">${diff > 0 ? 'Higher' : 'Lower'} than expected by ${fmtMoney(Math.abs(diff))}</span> — statement charged ${actualPct.toFixed(1)}% vs ${pct}% expected.`;
+    } else {
+      audit.innerHTML = "";
+    }
+  }
   return net;
 }
-["f-gross", "f-commission", "f-fees", "f-tax", "f-refund"].forEach(id =>
+["f-gross", "f-commission", "f-fees", "f-tax", "f-refund", "f-expected-pct"].forEach(id =>
   document.getElementById(id).addEventListener("input", recalcFpNet)
 );
 
@@ -375,41 +431,39 @@ async function saveStatement() {
   if (!start || !end) return alert("Pick a period start and end date.");
   if (!gross) return alert("Enter the gross sale from the statement.");
 
-  const fpNet = gross - commission - fees - tax - refund;
+  const expectedPct = brand === "Food Panda" ? (n("f-expected-pct") || 30) : null;
 
-  // "Our recorded gross" is shown live in the #our-gross box above for the person to
-  // eyeball-compare against the statement's own gross before saving. The database
-  // computes recomputed_net itself (a generated column, from gross_sale/commission/
-  // fees/tax/refund) — it can't be and must not be sent in the insert payload.
+  // The database computes fp_reported_net, expected_commission and expected_net itself
+  // (record_food_panda_settlement), and — for Food Panda, when a commission was entered —
+  // auto-books that commission as an expense in the same call, so the cost is never left
+  // unrecorded against the gross revenue already booked in Sales Entry.
 
   const btn = document.getElementById("btn-save-statement");
   btn.disabled = true;
   try {
-    await sb("food_panda_settlements", {
-      method: "POST",
-      headers: { "Prefer": "return=minimal" },
-      body: JSON.stringify({
-        location_id: LOCATION_ID,
-        brand: brand,
-        period_label: `${start} to ${end}`,
-        period_start: start,
-        period_end: end,
-        gross_sale: gross,
-        fp_commission: commission,
-        fp_fee_adjustments: fees,
-        fp_tax: tax,
-        fp_refund: refund,
-        fp_reported_net: fpNet,
-        entered_by_user_id: state.userId,
-        entered_by_manager_id: state.managerId,
-        notes: notes
-      })
+    const res = await sbRpc("record_food_panda_settlement", {
+      p_location_id: LOCATION_ID,
+      p_brand: brand,
+      p_period_label: `${start} to ${end}`,
+      p_period_start: start,
+      p_period_end: end,
+      p_gross: gross,
+      p_commission: commission,
+      p_fees: fees,
+      p_tax: tax,
+      p_refund: refund,
+      p_expected_commission_pct: expectedPct,
+      p_user_id: state.userId,
+      p_manager_id: state.managerId,
+      p_notes: notes
     });
     ["f-gross", "f-commission", "f-fees", "f-tax", "f-refund", "f-notes"].forEach(id => document.getElementById(id).value = "");
     recalcFpNet();
-    alert("Statement saved. It'll show under \"Awaiting Bank Deposit\" until you record what actually lands.");
+    const expensedNote = (res && res.expense_id) ? ` PKR ${Math.round(commission).toLocaleString()} was booked as a Food Panda Commission expense.` : "";
+    alert("Statement saved." + expensedNote + " It'll show under \"Awaiting Bank Deposit\" until you record what actually lands.");
     loadPending();
     loadHistory();
+    refreshFpReceivableBox();
   } catch (e) {
     alert("Couldn't save: " + e.message);
   } finally {
@@ -418,21 +472,56 @@ async function saveStatement() {
 }
 document.getElementById("btn-save-statement").addEventListener("click", saveStatement);
 
+// ---------- Food Panda outstanding receivable ----------
+// Lifetime (all-dates) figure, same approach as JazzCash Outstanding on cash-reconciliation.html:
+// everything ever booked as Food Panda gross in Sales Entry, minus every statement's gross_sale
+// already recorded here — regardless of whether that statement has been deposited yet. This is
+// what hasn't even been "processed" into a statement, not a till/cash figure.
+async function fetchFpReceivableOutstanding() {
+  const [salesRows, settlementRows] = await Promise.all([
+    sb(`daily_sales?location_id=eq.${LOCATION_ID}&select=food_panda_amount&limit=100000`),
+    sb(`food_panda_settlements?location_id=eq.${LOCATION_ID}&brand=eq.${encodeURIComponent("Food Panda")}&select=gross_sale&limit=100000`)
+  ]);
+  const accrued = (salesRows || []).reduce((s, r) => s + (Number(r.food_panda_amount) || 0), 0);
+  const settled = (settlementRows || []).reduce((s, r) => s + (Number(r.gross_sale) || 0), 0);
+  return Math.round((accrued - settled) * 100) / 100;
+}
+
+async function refreshFpReceivableBox() {
+  const valueEl = document.getElementById("fp-receivable-value");
+  try {
+    const outstanding = await fetchFpReceivableOutstanding();
+    valueEl.textContent = fmtMoney(outstanding);
+  } catch (e) {
+    valueEl.textContent = "—";
+  }
+}
+
 function varianceBadge(diff) {
   if (Math.abs(diff) < 1) return `<span class="pill-badge pill-ok">Matches</span>`;
   return `<span class="pill-badge ${diff > 0 ? "pill-warn" : "pill-err"}">${diff > 0 ? "Short by" : "Over by"} ${fmtMoney(Math.abs(diff))}</span>`;
+}
+
+// commissionDiff = actual commission - expected (benchmark) commission. Positive means Food
+// Panda charged MORE than expected (bad for us, flagged red); negative means less (flagged
+// amber just to surface it, since it's still a change from the assumed rate worth noticing).
+function commissionVarianceBadge(commissionDiff) {
+  if (commissionDiff == null) return "";
+  if (Math.abs(commissionDiff) < 1) return `<span class="pill-badge pill-ok">Matches benchmark</span>`;
+  return `<span class="pill-badge ${commissionDiff > 0 ? "pill-err" : "pill-warn"}">${commissionDiff > 0 ? "Higher than expected by" : "Lower than expected by"} ${fmtMoney(Math.abs(commissionDiff))}</span>`;
 }
 
 async function loadPending() {
   const wrap = document.getElementById("pending-list");
   let rows = [];
   try {
-    rows = await sb(`food_panda_settlements?location_id=eq.${LOCATION_ID}&actual_bank_deposit=is.null&select=id,brand,period_label,gross_sale,fp_reported_net,recomputed_net&order=period_label.desc`);
+    rows = await sb(`food_panda_settlements?location_id=eq.${LOCATION_ID}&actual_bank_deposit=is.null&select=id,brand,period_label,gross_sale,fp_commission,fp_reported_net,recomputed_net,expected_commission_pct,expected_commission,commission_expense_id&order=period_label.desc`);
   } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
   if (!rows.length) { wrap.innerHTML = '<div class="empty-note">Nothing waiting on a deposit.</div>'; return; }
   wrap.innerHTML = "";
   rows.forEach(r => {
     const grossDiff = (r.recomputed_net != null && r.fp_reported_net != null) ? (r.recomputed_net - r.fp_reported_net) : null;
+    const commissionDiff = (r.expected_commission != null && r.fp_commission != null) ? (r.fp_commission - r.expected_commission) : null;
     const row = document.createElement("div");
     row.className = "settle-row";
     row.innerHTML = `
@@ -446,6 +535,9 @@ async function loadPending() {
         <div class="kv-row"><span>Gross (statement)</span><span class="v">${fmtMoney(r.gross_sale)}</span></div>
         <div class="kv-row"><span>Our recomputed net</span><span class="v">${fmtMoney(r.recomputed_net)}</span></div>
         <div class="kv-row"><span>Statement's reported net</span><span class="v">${fmtMoney(r.fp_reported_net)}</span></div>
+        ${r.expected_commission != null ? `<div class="kv-row"><span>Commission (actual vs. ${r.expected_commission_pct}% expected)</span><span class="v">${fmtMoney(r.fp_commission)} vs ${fmtMoney(r.expected_commission)}</span></div>
+        <div class="audit-line">${commissionVarianceBadge(commissionDiff)}</div>` : ""}
+        <div class="kv-row"><span>Commission expensed</span><span class="v">${r.commission_expense_id ? "Yes" : "No"}</span></div>
         <div class="row2" style="margin-top:10px;">
           <div>
             <label>Actual Bank Deposit</label>
@@ -598,16 +690,18 @@ async function loadHistory() {
   const wrap = document.getElementById("history-list");
   let rows = [];
   try {
-    rows = await sb(`food_panda_settlements?location_id=eq.${LOCATION_ID}&actual_bank_deposit=not.is.null&select=id,brand,period_label,fp_reported_net,actual_bank_deposit,deposit_date&order=deposit_date.desc&limit=20`);
+    rows = await sb(`food_panda_settlements?location_id=eq.${LOCATION_ID}&actual_bank_deposit=not.is.null&select=id,brand,period_label,fp_commission,fp_reported_net,actual_bank_deposit,deposit_date,expected_commission_pct,expected_commission,commission_expense_id&order=deposit_date.desc&limit=20`);
   } catch (e) { wrap.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; return; }
   if (!rows.length) { wrap.innerHTML = '<div class="empty-note">No settled deposits yet.</div>'; return; }
   wrap.innerHTML = rows.map(r => {
     const diff = (r.fp_reported_net || 0) - (r.actual_bank_deposit || 0);
+    const commissionDiff = (r.expected_commission != null && r.fp_commission != null) ? (r.fp_commission - r.expected_commission) : null;
     return `<div class="settle-row">
       <div class="settle-top">
         <div>
           <div class="settle-title">${r.brand} · ${r.period_label}</div>
           <div class="settle-sub">Deposited ${fmtMoney(r.actual_bank_deposit)} on ${r.deposit_date} · ${varianceBadge(diff)}</div>
+          ${r.expected_commission != null ? `<div class="audit-line">Commission ${fmtMoney(r.fp_commission)} vs ${r.expected_commission_pct}% benchmark (${fmtMoney(r.expected_commission)}) · ${commissionVarianceBadge(commissionDiff)}${r.commission_expense_id ? " · expensed" : ""}</div>` : ""}
         </div>
       </div>
     </div>`;
