@@ -929,6 +929,7 @@ async function computeIncomeStatementModel(from, to) {
 
   const groups = {};
   let uncategorizedTotal = 0;
+  let pandaCommission = 0;
   exps.forEach(e => {
     const amt = Number(e.amount) || 0;
     const meta = catMap[e.category];
@@ -942,6 +943,11 @@ async function computeIncomeStatementModel(from, to) {
     if (e.subcategory) {
       groups[groupName].categories[catName].subcats[e.subcategory] = (groups[groupName].categories[catName].subcats[e.subcategory] || 0) + amt;
     }
+    // Food Panda Commission lives under Marketing & Delivery (code 54), NOT Cost of Sales —
+    // it reduces Net Operating Income but not Gross Profit. Tracked separately here purely so
+    // the Food Panda revenue line above can show a memo "net after commission" figure; it is
+    // NOT subtracted from the Food Panda revenue line itself and does not change any total.
+    if (e.category === "Food Panda Commission") pandaCommission += amt;
   });
 
   function categoriesArray(catObj) {
@@ -998,7 +1004,8 @@ async function computeIncomeStatementModel(from, to) {
   return {
     revenueLines, totalRevenue, cogsCategories, cogsTotal, grossProfit,
     opexGroups, totalOpex, netOperatingIncome, belowLines, belowTotal,
-    netIncome: netOperatingIncome, uncategorizedTotal, bakerySale: sBakery, bakeryBilled, bakeryVariance
+    netIncome: netOperatingIncome, uncategorizedTotal, bakerySale: sBakery, bakeryBilled, bakeryVariance,
+    pandaRevenue: sPanda, pandaCommission
   };
 }
 
@@ -1029,7 +1036,18 @@ function renderIncomeStatement(model, from, to) {
   html += `<div class="pl-period-hdr"><strong>C-5</strong><br><span class="hint">Income Statement &middot; ${fmtDateLabel(from)} to ${fmtDateLabel(to)}</span></div>`;
 
   html += `<div class="pl-section-title">Revenue</div>`;
-  model.revenueLines.forEach(l => { html += plRow({ label: l.label, amount: l.amount, pct: pctOf(l.amount, R), level: 1 }); });
+  model.revenueLines.forEach(l => {
+    html += plRow({ label: l.label, amount: l.amount, pct: pctOf(l.amount, R), level: 1 });
+    // Memo only — gross stays the revenue figure in every total above and below. This just
+    // shows what's actually kept after the commission expensed under Marketing & Delivery
+    // (code 54) for the same period, so the real margin on Food Panda sales is visible right
+    // here instead of only several sections further down.
+    if (l.label === "Food Panda" && model.pandaRevenue) {
+      const net = model.pandaRevenue - model.pandaCommission;
+      const commPct = pctOf(model.pandaCommission, model.pandaRevenue);
+      html += `<div class="pl-recon-note">Commission expensed this period: ${fmtMoney(model.pandaCommission)} (${commPct}) &middot; Net after commission: <strong>${fmtMoney(net)}</strong></div>`;
+    }
+  });
   html += plRow({ label: "Total Revenue", amount: R, pct: pctOf(R, R), level: 0, boldClass: "pl-subtotal" });
 
   html += `<div class="pl-section-title">Cost of Sales</div>`;
@@ -1080,7 +1098,13 @@ function modelToAoa(model, from, to) {
   aoa.push([]);
   aoa.push(["Line", "Amount (PKR)", "% of Revenue"]);
   aoa.push(["Revenue"]);
-  model.revenueLines.forEach(l => aoa.push([`  ${l.label}`, roundNum(l.amount), pctNum(l.amount, R)]));
+  model.revenueLines.forEach(l => {
+    aoa.push([`  ${l.label}`, roundNum(l.amount), pctNum(l.amount, R)]);
+    if (l.label === "Food Panda" && model.pandaRevenue) {
+      aoa.push([`    Commission expensed this period (Marketing & Delivery)`, roundNum(model.pandaCommission), pctNum(model.pandaCommission, model.pandaRevenue)]);
+      aoa.push([`    Net after commission`, roundNum(model.pandaRevenue - model.pandaCommission)]);
+    }
+  });
   aoa.push(["Total Revenue", roundNum(R), pctNum(R, R)]);
   aoa.push([]);
   aoa.push(["Cost of Sales"]);
