@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
@@ -73,6 +74,16 @@
   .readout-row { display: flex; gap: 10px; flex-wrap: wrap; }
   .readout-row > div { flex: 1; min-width: 130px; }
   .audit-line { font-size: 0.8rem; margin-top: 4px; }
+
+  .daily-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 4px; }
+  .daily-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .daily-table th, .daily-table td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .daily-table th:first-child, .daily-table td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+  .daily-table thead th { color: var(--ink-soft); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.02em; border-bottom: 2px solid var(--border); background: var(--surface); }
+  .daily-table tfoot td { font-weight: 700; border-top: 2px solid var(--ink); border-bottom: none; background: var(--field-bg); }
+  .daily-date { font-weight: 600; }
+  .daily-row-empty td { color: var(--ink-soft); opacity: 0.55; font-style: italic; }
+  .daily-memo-note { font-size: 0.76rem; color: var(--ink-soft); margin: 6px 0 0; }
 
   .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
   .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -213,6 +224,16 @@
     <div id="history-list"><div class="hint">Loading…</div></div>
   </div>
 
+  <div class="card">
+    <div class="step-label">Monthly Sales Summary (Booked in Sales Entry)</div>
+    <div class="row2 field">
+      <div><label>Month</label><input type="month" id="ms-month"></div>
+      <div><button class="btn-primary" id="ms-run" type="button" style="width:100%;">Run</button></div>
+      <div><button class="btn-ghost" id="ms-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+    </div>
+    <div id="ms-result"><div class="hint">Pick a month and run — shows every day's booked sales by channel, so you can see the detail behind this month's Food Panda/Card/3rd-Party totals without leaving this page.</div></div>
+  </div>
+
   <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
 </div>
 
@@ -333,6 +354,8 @@ function finishSettlementsLogin() {
     loadPending();
     loadHistory();
     refreshFpReceivableBox();
+    document.getElementById("ms-month").value = today.slice(0, 7);
+    runMonthlySummary();
   }, 150);
 }
 
@@ -707,6 +730,98 @@ async function loadHistory() {
     </div>`;
   }).join("");
 }
+
+// ---------- Monthly Sales Summary (booked in Sales Entry, day by day) ----------
+// Same channel breakdown as the Sales tab on reports.html, just surfaced here too so the
+// detail behind this month's Food Panda/Card/3rd-Party totals is visible without leaving
+// the Settlements page. Bakery and Card are memo breakdowns already folded into the other
+// channel totals (see sales-entry.html) — shown for context, not added into the day's Total.
+const MS_COLUMNS = [
+  { key: "dine_in", label: "Dine In", field: "dine_in_amount" },
+  { key: "takeaway", label: "Takeaway", field: "takeaway_amount" },
+  { key: "delivery", label: "Delivery", field: "delivery_amount" },
+  { key: "third_party", label: "3rd Party", field: "third_party_amount" },
+  { key: "food_panda", label: "Food Panda", field: "food_panda_amount" },
+  { key: "bakery", label: "Bakery*", field: "bakery_sale" },
+  { key: "card", label: "Card*", field: "card_amount" }
+];
+
+function msDatesInMonth(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const dates = [];
+  for (let d = 1; d <= lastDay; d++) dates.push(`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  return dates;
+}
+function msFmtDayLabel(d) {
+  const dt = new Date(d + "T00:00:00");
+  return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+
+let msLastModel = null;
+
+async function runMonthlySummary() {
+  const monthStr = document.getElementById("ms-month").value;
+  const resultEl = document.getElementById("ms-result");
+  const exportBtn = document.getElementById("ms-export");
+  exportBtn.disabled = true;
+  if (!monthStr) { resultEl.innerHTML = '<div class="hint">Pick a month and run.</div>'; return; }
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const dates = msDatesInMonth(monthStr);
+    const from = dates[0], to = dates[dates.length - 1];
+    const rows = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale`);
+    const byDate = {}; dates.forEach(d => { byDate[d] = {}; });
+    rows.forEach(r => {
+      if (!byDate[r.sale_date]) return;
+      MS_COLUMNS.forEach(c => { byDate[r.sale_date][c.key] = (byDate[r.sale_date][c.key] || 0) + (Number(r[c.field]) || 0); });
+      byDate[r.sale_date].total = (byDate[r.sale_date].total || 0) + (Number(r.total_sale) || 0);
+    });
+    const colTotal = {}; let grandTotal = 0;
+    dates.forEach(d => {
+      MS_COLUMNS.forEach(c => { colTotal[c.key] = (colTotal[c.key] || 0) + (byDate[d][c.key] || 0); });
+      grandTotal += byDate[d].total || 0;
+    });
+
+    const bodyRows = dates.map(d => {
+      const day = byDate[d];
+      const cells = MS_COLUMNS.map(c => `<td>${fmtMoney(day[c.key] || 0)}</td>`).join("");
+      const empty = !day.total ? ' class="daily-row-empty"' : "";
+      return `<tr${empty}><td class="daily-date">${msFmtDayLabel(d)}</td>${cells}<td>${fmtMoney(day.total || 0)}</td></tr>`;
+    }).join("");
+    const footCells = MS_COLUMNS.map(c => `<td>${fmtMoney(colTotal[c.key] || 0)}</td>`).join("");
+
+    resultEl.innerHTML = `<div class="daily-table-wrap"><table class="daily-table">
+      <thead><tr><th>Date</th>${MS_COLUMNS.map(c => `<th>${c.label}</th>`).join("")}<th>Total</th></tr></thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot><tr><td>Total</td>${footCells}<td>${fmtMoney(grandTotal)}</td></tr></tfoot>
+    </table></div>
+    <div class="daily-memo-note">*Bakery and Card are memo breakdowns already included inside the channel amounts above — they are not added into Total.</div>`;
+
+    msLastModel = { dates, colTotal, grandTotal, byDate, monthStr };
+    exportBtn.disabled = false;
+  } catch (e) {
+    resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`;
+  }
+}
+document.getElementById("ms-run").addEventListener("click", runMonthlySummary);
+
+document.getElementById("ms-export").addEventListener("click", () => {
+  if (!msLastModel) return;
+  const { dates, colTotal, grandTotal, byDate, monthStr } = msLastModel;
+  const aoa = [["C-5 — Monthly Sales Summary"], [`Month: ${monthStr}`], []];
+  aoa.push(["Date", ...MS_COLUMNS.map(c => c.label), "Total"]);
+  dates.forEach(d => {
+    const day = byDate[d];
+    aoa.push([d, ...MS_COLUMNS.map(c => Math.round(day[c.key] || 0)), Math.round(day.total || 0)]);
+  });
+  aoa.push(["Total", ...MS_COLUMNS.map(c => Math.round(colTotal[c.key] || 0)), Math.round(grandTotal)]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 14 }, ...MS_COLUMNS.map(() => ({ wch: 14 })), { wch: 14 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Monthly Sales");
+  XLSX.writeFile(wb, `C-5_Monthly_Sales_Summary_${monthStr}.xlsx`);
+});
 
 const existing = AppSession.get();
 if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
