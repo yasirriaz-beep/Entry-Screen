@@ -225,13 +225,13 @@
   </div>
 
   <div class="card">
-    <div class="step-label">Monthly Sales Summary (Booked in Sales Entry)</div>
+    <div class="step-label">Food Panda Sale — Monthly Summary (Booked in Sales Entry)</div>
     <div class="row2 field">
       <div><label>Month</label><input type="month" id="ms-month"></div>
       <div><button class="btn-primary" id="ms-run" type="button" style="width:100%;">Run</button></div>
       <div><button class="btn-ghost" id="ms-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
     </div>
-    <div id="ms-result"><div class="hint">Pick a month and run — shows every day's booked sales by channel, so you can see the detail behind this month's Food Panda/Card/3rd-Party totals without leaving this page.</div></div>
+    <div id="ms-result"><div class="hint">Pick a month and run — shows each day's Food Panda sale booked in Sales Entry, for this month.</div></div>
   </div>
 
   <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
@@ -731,19 +731,12 @@ async function loadHistory() {
   }).join("");
 }
 
-// ---------- Monthly Sales Summary (booked in Sales Entry, day by day) ----------
-// Same channel breakdown as the Sales tab on reports.html, just surfaced here too so the
-// detail behind this month's Food Panda/Card/3rd-Party totals is visible without leaving
-// the Settlements page. Bakery and Card are memo breakdowns already folded into the other
-// channel totals (see sales-entry.html) — shown for context, not added into the day's Total.
+// ---------- Food Panda Sale — Monthly Summary (booked in Sales Entry, day by day) ----------
+// Food Panda only — this page is about Food Panda (and other brand) settlements, not a
+// general sales report (that's the Sales tab on reports.html). Just the one channel, so it
+// lines up directly with the Receivable Outstanding tile and the statement form above.
 const MS_COLUMNS = [
-  { key: "dine_in", label: "Dine In", field: "dine_in_amount" },
-  { key: "takeaway", label: "Takeaway", field: "takeaway_amount" },
-  { key: "delivery", label: "Delivery", field: "delivery_amount" },
-  { key: "third_party", label: "3rd Party", field: "third_party_amount" },
-  { key: "food_panda", label: "Food Panda", field: "food_panda_amount" },
-  { key: "bakery", label: "Bakery*", field: "bakery_sale" },
-  { key: "card", label: "Card*", field: "card_amount" }
+  { key: "food_panda", label: "Food Panda", field: "food_panda_amount" }
 ];
 
 function msDatesInMonth(monthStr) {
@@ -770,33 +763,33 @@ async function runMonthlySummary() {
   try {
     const dates = msDatesInMonth(monthStr);
     const from = dates[0], to = dates[dates.length - 1];
-    const rows = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale`);
+    const rows = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,food_panda_amount`);
     const byDate = {}; dates.forEach(d => { byDate[d] = {}; });
     rows.forEach(r => {
       if (!byDate[r.sale_date]) return;
       MS_COLUMNS.forEach(c => { byDate[r.sale_date][c.key] = (byDate[r.sale_date][c.key] || 0) + (Number(r[c.field]) || 0); });
-      byDate[r.sale_date].total = (byDate[r.sale_date].total || 0) + (Number(r.total_sale) || 0);
     });
     const colTotal = {}; let grandTotal = 0;
     dates.forEach(d => {
-      MS_COLUMNS.forEach(c => { colTotal[c.key] = (colTotal[c.key] || 0) + (byDate[d][c.key] || 0); });
-      grandTotal += byDate[d].total || 0;
+      MS_COLUMNS.forEach(c => {
+        colTotal[c.key] = (colTotal[c.key] || 0) + (byDate[d][c.key] || 0);
+        grandTotal += byDate[d][c.key] || 0;
+      });
     });
 
     const bodyRows = dates.map(d => {
       const day = byDate[d];
       const cells = MS_COLUMNS.map(c => `<td>${fmtMoney(day[c.key] || 0)}</td>`).join("");
-      const empty = !day.total ? ' class="daily-row-empty"' : "";
-      return `<tr${empty}><td class="daily-date">${msFmtDayLabel(d)}</td>${cells}<td>${fmtMoney(day.total || 0)}</td></tr>`;
+      const empty = !(day.food_panda) ? ' class="daily-row-empty"' : "";
+      return `<tr${empty}><td class="daily-date">${msFmtDayLabel(d)}</td>${cells}</tr>`;
     }).join("");
     const footCells = MS_COLUMNS.map(c => `<td>${fmtMoney(colTotal[c.key] || 0)}</td>`).join("");
 
     resultEl.innerHTML = `<div class="daily-table-wrap"><table class="daily-table">
-      <thead><tr><th>Date</th>${MS_COLUMNS.map(c => `<th>${c.label}</th>`).join("")}<th>Total</th></tr></thead>
+      <thead><tr><th>Date</th>${MS_COLUMNS.map(c => `<th>${c.label}</th>`).join("")}</tr></thead>
       <tbody>${bodyRows}</tbody>
-      <tfoot><tr><td>Total</td>${footCells}<td>${fmtMoney(grandTotal)}</td></tr></tfoot>
-    </table></div>
-    <div class="daily-memo-note">*Bakery and Card are memo breakdowns already included inside the channel amounts above — they are not added into Total.</div>`;
+      <tfoot><tr><td>Total</td>${footCells}</tr></tfoot>
+    </table></div>`;
 
     msLastModel = { dates, colTotal, grandTotal, byDate, monthStr };
     exportBtn.disabled = false;
@@ -808,19 +801,19 @@ document.getElementById("ms-run").addEventListener("click", runMonthlySummary);
 
 document.getElementById("ms-export").addEventListener("click", () => {
   if (!msLastModel) return;
-  const { dates, colTotal, grandTotal, byDate, monthStr } = msLastModel;
-  const aoa = [["C-5 — Monthly Sales Summary"], [`Month: ${monthStr}`], []];
-  aoa.push(["Date", ...MS_COLUMNS.map(c => c.label), "Total"]);
+  const { dates, colTotal, byDate, monthStr } = msLastModel;
+  const aoa = [["C-5 — Food Panda Sale, Monthly Summary"], [`Month: ${monthStr}`], []];
+  aoa.push(["Date", ...MS_COLUMNS.map(c => c.label)]);
   dates.forEach(d => {
     const day = byDate[d];
-    aoa.push([d, ...MS_COLUMNS.map(c => Math.round(day[c.key] || 0)), Math.round(day.total || 0)]);
+    aoa.push([d, ...MS_COLUMNS.map(c => Math.round(day[c.key] || 0))]);
   });
-  aoa.push(["Total", ...MS_COLUMNS.map(c => Math.round(colTotal[c.key] || 0)), Math.round(grandTotal)]);
+  aoa.push(["Total", ...MS_COLUMNS.map(c => Math.round(colTotal[c.key] || 0))]);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 14 }, ...MS_COLUMNS.map(() => ({ wch: 14 })), { wch: 14 }];
+  ws["!cols"] = [{ wch: 14 }, ...MS_COLUMNS.map(() => ({ wch: 14 }))];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Monthly Sales");
-  XLSX.writeFile(wb, `C-5_Monthly_Sales_Summary_${monthStr}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, "Food Panda Sales");
+  XLSX.writeFile(wb, `C-5_Food_Panda_Sale_Monthly_${monthStr}.xlsx`);
 });
 
 const existing = AppSession.get();
