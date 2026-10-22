@@ -366,7 +366,7 @@ async function sb(path, opts = {}) {
     ...opts,
     headers: {
       "apikey": ANON_KEY,
-      "Authorization": `Bearer ${ANON_KEY}`,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
       "Content-Type": "application/json",
       ...(opts.headers || {})
     }
@@ -383,7 +383,7 @@ async function sb(path, opts = {}) {
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body || {})
   });
   if (!res.ok) {
@@ -433,7 +433,7 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(), token: row.session_token });
     setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
     nameInput.value = "";
     pinInput.value = "";
@@ -625,7 +625,7 @@ async function uploadSafePhoto(file) {
   const path = `${GULBERG_ID}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/safe-photos/${path}`, {
     method: "POST",
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": file.type || "image/jpeg" },
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": file.type || "image/jpeg" },
     body: file
   });
   if (!res.ok) {
@@ -644,7 +644,7 @@ async function checkSafePhoto(file, claimedAmount) {
   const base64 = await fileToBase64(file);
   const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-safe-photo`, {
     method: "POST",
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ image_base64: base64, media_type: file.type || "image/jpeg", claimed_amount: claimedAmount })
   });
   const data = await res.json().catch(() => null);
@@ -1246,7 +1246,7 @@ async function viewPhoto(bucket, path) {
   try {
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${path}`, {
       method: "POST",
-      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ expiresIn: 300 })
     });
     if (!res.ok) throw new Error(await res.text());

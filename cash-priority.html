@@ -131,7 +131,7 @@ let state = { userId: null, userName: null, managerId: null, role: null };
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...opts,
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json", ...(opts.headers || {}) }
   });
   if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`${res.status} ${text}`); }
   const ct = res.headers.get("content-type") || "";
@@ -141,7 +141,7 @@ async function sb(path, opts = {}) {
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body || {})
   });
   if (!res.ok) { const text = await res.text().catch(() => ""); let msg = text; try { msg = JSON.parse(text).message || text; } catch (e) {} throw new Error(msg); }
@@ -186,7 +186,7 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(), token: row.session_token });
     setTimeout(() => { afterLogin(row.app_user_id, match.name, match.id, row.role); }, 150);
     nameInput.value = ""; pinInput.value = "";
     AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);

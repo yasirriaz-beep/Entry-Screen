@@ -258,7 +258,7 @@ let state = { userId: null, userName: null, managerId: null, userRole: null, pag
 
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, ...AppSession.authHeaders() },
   });
   if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => "")}`);
   return res.json();
@@ -267,7 +267,7 @@ async function sb(path) {
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body || {}),
   });
   if (!res.ok) {

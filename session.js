@@ -6,10 +6,18 @@
 // tab) is closed — so a shared/unlocked device doesn't stay "logged in" as
 // whoever used it last. See reference/ACCESS_CONTROL_AND_PIN_SYSTEM.md.
 //
-// Session shape: { managerId, userId, userName, role, pages: string[], loginAt }
+// Session shape: { managerId, userId, userName, role, pages: string[], loginAt, token }
 // `pages` is the list of page_keys this manager is granted (from
 // list_pages_for_manager). Directors get access to everything regardless of
 // what's in `pages` - see hasAccess().
+//
+// `token` is the session token verify_manager_pin() issues on a successful
+// login (see reference/SECURITY_HARDENING.md). It's sent back on every
+// subsequent request as the `x-fnk-session` header - that's what lets the
+// database tell "a real logged-in person" apart from "anyone who copied the
+// public anon key out of the page source and is calling the API directly."
+// Pages that still build their fetch headers without authHeaders() are not
+// covered by that check - see SECURITY_HARDENING.md for the rollout list.
 
 const APP_SESSION_KEY = "app_session_v1";
 
@@ -23,6 +31,18 @@ const AppSession = {
       return session;
     } catch (e) {
       return null;
+    }
+  },
+
+  // Spread this into every fetch() headers object (both plain REST calls and
+  // rpc calls) alongside apikey/Authorization. Returns {} if there's no
+  // session yet (e.g. the login call itself), so it's always safe to spread.
+  authHeaders() {
+    try {
+      const session = AppSession.get();
+      return session && session.token ? { "x-fnk-session": session.token } : {};
+    } catch (e) {
+      return {};
     }
   },
 

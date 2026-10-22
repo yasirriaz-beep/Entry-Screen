@@ -736,7 +736,7 @@ async function uploadHandoverPhoto(file, shift){
   const path = `${locationId}/${shift}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/cash-handover-photos/${path}`, {
     method: "POST",
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": file.type || "image/jpeg" },
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": file.type || "image/jpeg" },
     body: file
   });
   if (!res.ok) {
@@ -769,7 +769,7 @@ async function viewHandoverPhoto(path){
   try {
     const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/cash-handover-photos/${path}`, {
       method: "POST",
-      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ expiresIn: 300 })
     });
     if (!res.ok) throw new Error(await res.text());
@@ -1394,7 +1394,7 @@ document.getElementById("continueBtn").addEventListener("click", async () => {
     const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
-    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(), token: row.session_token });
     afterLogin(row.app_user_id, match.name, match.id, row.role);
     AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
   } catch (e) {

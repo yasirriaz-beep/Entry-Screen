@@ -160,7 +160,7 @@ let activeSection = null;
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body || {}),
   });
   if (!res.ok) {
@@ -208,6 +208,7 @@ async function doLogin(e) {
       pages: (pageRows || []).map((r) => r.page_key),
       viewOnlyPages: (pageRows || []).filter((r) => r.view_only).map((r) => r.page_key),
       loginAt: new Date().toISOString(),
+      token: row.session_token,
     };
     AppSession.set(session);
     nameInput.value = "";

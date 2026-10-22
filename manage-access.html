@@ -188,7 +188,7 @@ let state = { ownerPin: null, managers: [], appUsers: [] };
 async function sb(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...opts,
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json", ...(opts.headers || {}) }
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json", ...(opts.headers || {}) }
   });
   if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`${res.status} ${text}`); }
   const ct = res.headers.get("content-type") || "";
@@ -217,7 +217,7 @@ async function doLogin(e) {
     if (!row) throw new Error("no match");
     if (row.role !== "director") throw new Error("not a director");
 
-    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [], loginAt: new Date().toISOString(), token: row.session_token });
     document.getElementById("step-login").hidden = true;
     document.getElementById("step-pin").hidden = false;
     nameInput.value = "";
@@ -235,7 +235,7 @@ document.getElementById("login-form").addEventListener("submit", doLogin);
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body || {})
   });
   if (!res.ok) {

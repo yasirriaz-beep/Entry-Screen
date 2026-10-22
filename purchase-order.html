@@ -234,7 +234,7 @@ async function sb(path, opts = {}) {
     ...opts,
     headers: {
       "apikey": ANON_KEY,
-      "Authorization": `Bearer ${ANON_KEY}`,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
       "Content-Type": "application/json",
       ...(opts.headers || {})
     }
@@ -251,7 +251,7 @@ async function sb(path, opts = {}) {
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body || {})
   });
   if (!res.ok) {
@@ -285,7 +285,7 @@ async function doLogin(e) {
     const row = rows && rows[0];
     if (!row) throw new Error("no match");
 
-    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString() });
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(), token: row.session_token });
           setTimeout(() => {
         afterLogin(row.app_user_id, match.name, match.id, row.role);
       }, 150);
@@ -414,7 +414,7 @@ async function onDemandItemSelected() {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/suggest_reorder_qty`, {
       method: "POST",
-      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ p_location_id: LOCATION_ID, p_product_id: p.id })
     });
     const suggested = await res.json();
@@ -468,7 +468,7 @@ async function loadSuggestedReorders() {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/suggest_reorder_list_v1`, {
       method: "POST",
-      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, "Content-Type": "application/json" },
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ p_location_id: LOCATION_ID })
     });
     if (!res.ok) throw new Error(String(res.status));

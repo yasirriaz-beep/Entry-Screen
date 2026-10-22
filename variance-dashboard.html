@@ -114,6 +114,7 @@
 <a href="variance-entry.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Daily Usage Entry</a>
 <a href="pos-upload.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Upload POS Report</a>
 
+<script src="session.js"></script>
 <script>
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
@@ -126,7 +127,7 @@ async function sb(path, opts = {}) {
     ...opts,
     headers: {
       "apikey": ANON_KEY,
-      "Authorization": `Bearer ${ANON_KEY}`,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
       "Content-Type": "application/json",
       ...(opts.headers || {})
     }
