@@ -1,3 +1,4 @@
 excel-sync/out/*.xlsx
 __pycache__/
 *.pyc
+.netlify
