@@ -81,6 +81,33 @@ for a later pass.
   `verify_manager_pin` itself) — left in place but with execute revoked, so
   it's inert rather than another function to track.
 
+## October 23 follow-up — cross-branch access fix
+
+While scoping the multi-branch plan (6 branch mirrors + Bakery + FNK Grill,
+one shared Supabase backend), found that `app_users.location_id = NULL` is
+the existing convention for "this person isn't tied to one branch" — several
+policies (`daily_sales`, `cash_transfers`, `purchase_orders`) already allow
+`u.location_id = <row>.location_id OR u.location_id IS NULL`. Yasir's own
+`app_users` row already has `location_id = NULL` under `role = 'director'`,
+on the assumption this is how his own full-access login works.
+
+Two policies hadn't been given that same escape hatch — `anon_insert_expenses`
+/ `anon_update_expenses` and `anon_insert_purchases` / `anon_update_purchases`
+required a *strict* `u.location_id = <row>.location_id` match even though
+`director` is already in the allowed-roles list for both. Since
+`NULL = anything` is never true in SQL, this meant a director with
+`location_id = NULL` (i.e. Yasir's own account) could not actually submit or
+edit an expense or a purchase at C-5 — a real, live bug, not a future one.
+Fixed by adding `OR u.location_id IS NULL` to both tables' INSERT/UPDATE
+`WITH CHECK`, matching the pattern already used elsewhere. Verified the
+`EXISTS` clause now resolves `true` for Yasir's `app_users.id` against a C-5
+expense/purchase.
+
+Any director or cash_custodian/auditor account that should operate across
+branches (not just Yasir's) just needs `app_users.location_id` set to `NULL`
+— no schema change — once there's more than one branch to actually test
+against.
+
 ## Deliberately left for a separate pass
 
 - **Read exposure.** Anon can still `SELECT` nearly everything (sales, cash,
