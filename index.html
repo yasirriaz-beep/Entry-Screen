@@ -3,17 +3,76 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="refresh" content="0; url=home.html">
-<title>C-5 Entry Screens</title>
+<title>ClearRMS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  body { font-family: system-ui, sans-serif; background:#faf7f2; color:#2a2420; max-width:480px; margin:60px auto; padding:0 20px; }
-  h1 { font-size:1.3rem; }
-  a { display:block; background:#9c3b2e; color:#fff; text-decoration:none; padding:14px 18px; border-radius:10px; margin-top:14px; font-weight:600; text-align:center; }
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 28px 16px 60px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.7rem; margin: 4px 0 2px; letter-spacing: 0.01em; }
+  .sub { color: var(--ink-soft); font-size: 0.9rem; margin-bottom: 26px; line-height: 1.5; }
+  .section-label { font-size: 0.75rem; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin: 22px 0 10px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+  .tile { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 14px; min-height: 76px; text-decoration: none; color: var(--ink); }
+  .tile.live { border-color: var(--accent); }
+  .tile.live:hover { background: var(--field-bg); }
+  .tile.soon { opacity: 0.55; cursor: default; }
+  .tile-code { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.15rem; font-weight: 600; }
+  .tile-name { font-size: 0.78rem; color: var(--ink-soft); }
+  .badge { align-self: flex-start; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; border-radius: 999px; padding: 2px 8px; }
+  .badge.live { background: var(--ok-bg); color: var(--ok); }
+  .badge.soon { background: var(--warn-bg); color: var(--warn); }
+  .footer-note { margin-top: 30px; font-size: 0.8rem; color: var(--ink-soft); line-height: 1.5; border-top: 1px solid var(--border); padding-top: 16px; }
 </style>
 </head>
 <body>
-<h1>C-5 — Daily Entry</h1>
-<p>Redirecting…</p>
-<a href="home.html">Continue to Who are you?</a>
+
+<h1>ClearRMS</h1>
+<div class="sub">Restaurant &amp; production management. Choose your location below, then sign in with your usual code and PIN &mdash; the same login works at any location you have access to.</div>
+
+<div class="section-label">Branches</div>
+<div class="grid">
+  <a class="tile live" href="home.html">
+    <span class="badge live">Live</span>
+    <div><div class="tile-code">C-5</div><div class="tile-name">Sign in &rarr;</div></div>
+  </a>
+  <div class="tile soon"><span class="badge soon">Coming soon</span><div><div class="tile-code">C-1</div><div class="tile-name">Johar Town</div></div></div>
+  <div class="tile soon"><span class="badge soon">Coming soon</span><div><div class="tile-code">C-2</div><div class="tile-name">Susan</div></div></div>
+  <div class="tile soon"><span class="badge soon">Coming soon</span><div><div class="tile-code">C-3</div><div class="tile-name">Kohinoor</div></div></div>
+  <div class="tile soon"><span class="badge soon">Coming soon</span><div><div class="tile-code">C-4</div><div class="tile-name">Iqbal Town</div></div></div>
+  <div class="tile soon"><span class="badge soon">Coming soon</span><div><div class="tile-code">C-6</div><div class="tile-name">Sahiwal</div></div></div>
+  <div class="tile soon"><span class="badge soon">Coming soon</span><div><div class="tile-code">C-7</div><div class="tile-name">Baghwan Pura</div></div></div>
+</div>
+
+<div class="section-label">Production</div>
+<div class="grid">
+  <div class="tile soon"><span class="badge soon">Coming soon</span><div><div class="tile-code">Grill</div><div class="tile-name">Faisalabad</div></div></div>
+  <div class="tile soon"><span class="badge soon">Coming soon</span><div><div class="tile-code">Bakery</div><div class="tile-name">Faisalabad</div></div></div>
+</div>
+
+<div class="footer-note">Directors and other company-wide roles can sign in from the C-5 tile today; the picker above will link straight to each location once it goes live, and this page will be where multi-location logins land after signing in.</div>
+
 </body>
 </html>
