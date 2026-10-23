@@ -169,6 +169,25 @@ edit/void UI like these two, so no other `anon_update_*` policy was
 checked or changed in this pass — but if one gets built later, check it
 isn't carrying the same copy-pasted mistake.
 
+**Update, same day:** the identical mistake was in `anon_update_daily_sales`
+too, on *both* `USING` and `WITH CHECK` (not just `WITH CHECK` as on the
+two above) — hit live by `sales-entry.html`'s "Shift Sales & Cash Entry"
+save, which upserts via `POST .../daily_sales?on_conflict=location_id,
+sale_date,shift`, falling through to this UPDATE policy whenever that
+shift was already saved. Confirmed against real data: today's C-5 morning
+entry was entered by S.Manager, so anyone else (the director included)
+saving over it hit the same 401. Fixed the same way — authorize the
+current session's role/location/active status, not a match against
+`entered_by_user_id` — and kept the one genuinely separate rule this table
+has: only a director may save a row whose `sale_date` isn't today
+(`current_business_date()`), which stays in `WITH CHECK` unchanged.
+Checked `anon_select_daily_sales` and `anon_select_purchases` too, since
+they have a superficially similar `EXISTS (... u.id = <table>.
+entered_by_user_id ...)` shape — but those only verify the row's
+*recorded* author is some legitimate active user, they don't compare
+against the current session, so they're not the same bug and were left
+alone.
+
 ## For anyone touching this later
 
 - A client calling `verify_manager_pin` gets back `session_token` now —
