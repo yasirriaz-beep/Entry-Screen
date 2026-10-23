@@ -188,6 +188,57 @@ entered_by_user_id ...)` shape — but those only verify the row's
 against the current session, so they're not the same bug and were left
 alone.
 
+## October 23, continued — director override + "same shift only" for shift managers, and 4 more tables with the same bug
+
+Imran (role `director`, but with a concrete `location_id` set to C-5 rather
+than the cross-branch `NULL` convention Yasir's account uses) hit the same
+class of error on a different table. You then gave an explicit rule to
+apply everywhere this pattern shows up: **a director can always make
+changes; shift managers can only make changes within the shift that's
+live right now.**
+
+**Searched for every table with this same copy-pasted ownership mistake**
+(`WITH CHECK` requiring `current_session_app_user_id() = entered_by_user_id`)
+and found it in four more, none of which have `shift_manager` in their
+allowed-role list at all (so "same shift" doesn't apply to them — the
+ownership gate was simply removed, same as before):
+`attendance_entries`, `food_panda_settlements` (policy
+`anon_update_fp_settlements`), `inventory_snapshots`, `payroll_entries`.
+`attendance_entries` already had the right role shape (director
+unconditional, shift manager same-day-only) — it just had the ownership
+gate wrongly AND'd on top, cancelling it out even for directors.
+
+**Director access no longer depends on location at all.** The earlier Oct
+23 fix used `(u.location_id = row.location_id OR u.location_id IS NULL)`
+for every allowed role, treating a `NULL` location as the only way to get
+cross-branch access. Imran's account proves that's not reliable — a
+director can have a real location on file and still need to act anywhere.
+So on every table touched today, `role = 'director'` is now its own
+unconditional branch with no location check at all; the location-scoped
+branch is only for the other roles (`store_man`, `cash_custodian`,
+`shift_manager`).
+
+**Added a `current_shift()` helper**, mirroring `expense-entry.html`'s own
+`defaultShift()` logic server-side: 9am–6pm Asia/Karachi is `morning`,
+everything else is `evening` — same shape as the existing
+`current_business_date()` helper. Used it to tighten `shift_manager`'s
+edit window on the two tables that actually have a `shift` column:
+
+- **`expenses`, `daily_sales`**: a `shift_manager` may now only edit a row
+  where `expense_date`/`sale_date = current_business_date()` **and**
+  `shift = current_shift()` — i.e. only the shift happening right now, not
+  an earlier shift from today and not any past day. `store_man` /
+  `cash_custodian` keep the location-scoped, no-time-restriction access
+  from the earlier fix (not part of this instruction, left as-is).
+- **`purchases`**: no `shift` column exists, so `shift_manager` is scoped
+  to `purchase_date = current_business_date()` instead — the closest
+  equivalent, same idea as `attendance_entries` already used.
+
+Verified: Imran's account (`director`, location = C-5) is now
+unconditionally authorized on every one of these seven tables regardless
+of which location or date a row belongs to, since the director branch of
+each `WITH CHECK` has no location or date clause left to fail.
+
 ## For anyone touching this later
 
 - A client calling `verify_manager_pin` gets back `session_token` now —
