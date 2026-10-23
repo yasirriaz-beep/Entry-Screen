@@ -130,14 +130,59 @@ against.
   their own within 16 hours and grant nothing beyond what those two people
   already have.
 
+## October 23 follow-up — edits/voids by someone other than the original author were blocked
+
+Found via a real failure: a manager tried to correct a shift mistake on an
+existing expense entry (`expense-edit.html`, PKR 2,180 "Burger Bun for
+kitchen") and got `42501 new row violates row-level security policy for
+table "expenses"` on save.
+
+**Root cause:** `anon_update_expenses` and `anon_update_purchases` had their
+`WITH CHECK` copy-pasted from the matching `anon_insert_*` policy, which
+requires `current_session_app_user_id() = entered_by_user_id`. That's
+correct for an *insert* (you can only attribute a brand-new row to
+yourself) but wrong for an *update* — it meant **only the original author
+of a row could ever edit or void it**, and made it permanently impossible
+to edit/void any older row where `entered_by_user_id` is `null` (a lot of
+migrated historical data has this). Both `expense-edit.html` (a dedicated
+edit flow with a mandatory `edit_reason` audit note, clearly meant for
+correcting entries regardless of who made them) and `goods-receipt.html`'s
+void flow (voids any of *today's* purchases at your location, not just
+your own) are built around one authorized person correcting another's
+entry — so the check needs to authorize the **current editor**, not match
+the row's original author.
+
+**Fix:** `ALTER POLICY` on both, replacing the `entered_by_user_id` equality
+check with an authorization check on the acting session itself —
+`current_session_app_user_id()` must resolve to an active user with an
+allowed role (`store_man`, `shift_manager`, `cash_custodian`, `director`)
+at that row's location (or `location_id IS NULL`, same cross-branch
+escape hatch as everywhere else). Verified directly: the exact scenario
+that failed (Store Person editing an expense entered by S.Manager, same
+C-5 location) now evaluates `true` against the new check; it evaluated
+`false` before. `entered_by_user_id` itself is untouched by this — it still
+correctly records who *originally* entered the row; it's just no longer
+used as an edit permission gate.
+
+**Same bug, not yet hit in practice:** no other table currently has an
+edit/void UI like these two, so no other `anon_update_*` policy was
+checked or changed in this pass — but if one gets built later, check it
+isn't carrying the same copy-pasted mistake.
+
 ## For anyone touching this later
 
 - A client calling `verify_manager_pin` gets back `session_token` now —
   store it (`AppSession.set` already does) and send it as `x-fnk-session` on
   every subsequent call (`AppSession.authHeaders()` already does).
-- Any *new* write policy on a table that records "who did this" should
+- Any *new INSERT policy* on a table that records "who did this" should
   include `current_session_app_user_id() = <that column>` from the start,
-  not just the role/location check — that's the whole lesson of this pass.
+  not just the role/location check. **For an UPDATE policy on the same
+  table, do not reuse that same check** — matching the row's original
+  author blocks any legitimate correction made by someone else. An update
+  policy should authorize the *current* session against role/location
+  (and `active`), the same shape without the `= entered_by_user_id` part.
+  This exact copy-paste mistake is what broke expense/purchase edits on
+  Oct 23 (see above) — don't repeat it on a future table.
 - `DROP FUNCTION` and plain `DELETE` occasionally time out against this
   project through the Supabase MCP tool even though they succeed almost
   instantly server-side (confirmed via `pg_stat_activity` — nothing was
