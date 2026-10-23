@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grill Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 7px 10px; font-size: 0.78rem; border-radius: 8px; width: auto; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .date-row { display: flex; align-items: center; gap: 8px; }
+  .date-row input[type="date"] { flex: 1; }
+  .date-row button { width: auto; padding: 11px 14px; }
+  .summary-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 0.82rem; }
+  .summary-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; }
+  .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .emp-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 7px; background: var(--field-bg); flex-wrap: wrap; }
+  .emp-name-wrap { min-width: 0; flex: 1 1 160px; }
+  .emp-title { font-weight: 600; font-size: 0.92rem; }
+  .emp-sub { font-size: 0.76rem; color: var(--ink-soft); }
+  .status-btns { display: flex; gap: 5px; flex-wrap: wrap; }
+  .status-btn { border: 1px solid var(--border); background: var(--surface); color: var(--ink-soft); border-radius: 7px; padding: 7px 10px; font-size: 0.76rem; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 0.01em; }
+  .status-btn.active-present { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+  .status-btn.active-half { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+  .status-btn.active-absent { background: var(--err-bg); color: var(--err); border-color: var(--err); }
+  .status-btn.active-leave { background: var(--err-bg); color: var(--err); border-color: var(--err); }
+  .status-btn.active-off { background: var(--border); color: var(--ink-soft); }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="grill-home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
+
+
+<h1>Grill Attendance</h1>
+<div class="sub">Daily attendance — feeds straight into payroll's days-worked</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page har employee ki roz ki attendance marking ke liye hai. Pehle date check karen (upar wale arrows se pichla ya agla din bhi dekh sakte hain), phir har employee ke naam ke saamne Present, Absent, Weekly Off, ya Half button dabayen. Zaroorat ho to note bhi likh sakte hain. Agar sab log aaj present hain to "Mark all Present" button se ek saath sab mark ho jayenge. Har entry fauran save ho jati hai — alag se "Save" button nahi dabana parta. Weekly Off mahine mein limited dafa hi mil sakti hai; zyada lagane par sirf Director allow kar sakta hai. Guzre hue din ki entry sirf Director badal sakta hai.
+  </div>
+
+  <div class="card">
+    <div class="step-label">Date</div>
+    <div class="date-row">
+      <button type="button" class="btn-ghost" id="btn-prev-day" style="margin-top:0;">‹</button>
+      <input type="date" id="f-date">
+      <button type="button" class="btn-ghost" id="btn-next-day" style="margin-top:0;">›</button>
+    </div>
+    <div class="summary-row" id="summary-row"></div>
+  </div>
+
+  <div id="lock-banner" class="hint" style="display:none; background:var(--err-bg); color:var(--err); border:1px solid var(--err); border-radius:10px; padding:10px 12px; margin-bottom:14px;"></div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
+      <div class="step-label" style="margin-bottom:0;">Mark Attendance</div>
+      <button type="button" class="btn-sm" id="btn-mark-all-present" style="border:1px solid var(--border); background:var(--field-bg); color:var(--ink);">Mark all Present</button>
+    </div>
+    <input type="text" id="search-emp" placeholder="Search by name..." style="margin-top:10px;">
+    <div id="emp-list" style="margin-top:12px;"></div>
+    <div class="hint" id="emp-list-empty" hidden>No active employees found.</div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000008"; // Grill
+const PAGE_KEY = "attendance";
+const STATUSES = [
+  { value: "Present", label: "Present", cls: "active-present" },
+  { value: "Absent", label: "Absent", cls: "active-absent" },
+  { value: "Weekly Off", label: "Weekly Off", cls: "active-off" },
+  { value: "Half Day", label: "Half", cls: "active-half" }
+];
+
+let state = { userId: null, userName: null, userRole: null, initials: null, managerId: null, employees: [], marks: {} };
+
+// Weekly Off is capped monthly, not weekly, as of Oct 15, 2026 — people sometimes skip a
+// week and take two the next, so the real rule is a monthly total, sized to how many
+// Mondays fall in that calendar month (always 4 or 5). Enforced for real by the
+// attendance_enforce_one_weekly_off_trigger in the database; this is just the matching
+// front-end pre-check so the person gets an immediate message instead of a raw API error.
+function monthRangeFor(dateStr) {
+  const [y, m] = dateStr.split("-").map(Number);
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
+
+function mondaysInMonth(dateStr) {
+  const [y, m] = dateStr.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let count = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 1) count++;
+  }
+  return count;
+}
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function todayStr() {
+  // Grill's business day: before 9:00am PKT still counts as the previous
+  // calendar day, since the restaurant runs past midnight and does not
+  // really "end" until the early-morning close.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(), token: row.session_token });
+          setTimeout(() => {
+        afterLogin(row.app_user_id, match.name, match.id, row.role);
+      }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  const initials = name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
+  state.userId = userId;
+  state.userName = name;
+  state.userRole = role;
+  state.initials = initials;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  loadEmployees().then(loadMarksForDate);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+
+document.getElementById("btn-prev-day").addEventListener("click", () => shiftDate(-1));
+document.getElementById("btn-next-day").addEventListener("click", () => shiftDate(1));
+function shiftDate(delta) {
+  const d = new Date(document.getElementById("f-date").value + "T00:00:00");
+  d.setDate(d.getDate() + delta);
+  document.getElementById("f-date").value = d.toISOString().slice(0, 10);
+  loadMarksForDate();
+}
+document.getElementById("f-date").addEventListener("change", loadMarksForDate);
+
+async function loadEmployees() {
+  try {
+    state.employees = await sb(`employees?location_id=eq.${LOCATION_ID}&active=eq.true&select=id,name,department,designation&order=department,name`);
+  } catch (e) { state.employees = []; }
+}
+
+async function loadMarksForDate() {
+  const date = document.getElementById("f-date").value || todayStr();
+  state.marks = {};
+  try {
+    const rows = await sb(`attendance_entries?location_id=eq.${LOCATION_ID}&attendance_date=eq.${date}&select=id,employee_id,status,notes,entered_by_initials`);
+    rows.forEach(r => { state.marks[r.employee_id] = { id: r.id, status: r.status, note: r.notes, initials: r.entered_by_initials }; });
+  } catch (e) { /* none yet */ }
+
+  const isToday = date === todayStr();
+  state.locked = !isToday && state.userRole !== "director";
+  const banner = document.getElementById("lock-banner");
+  const bulkBtn = document.getElementById("btn-mark-all-present");
+  if (state.locked) {
+    banner.style.display = "block";
+    banner.textContent = `This date has closed — only the Director can make changes here. (${state.userName || "You"} can still edit today, ${todayStr()}.)`;
+    bulkBtn.disabled = true;
+  } else {
+    banner.style.display = "none";
+    bulkBtn.disabled = !isToday;
+  }
+
+  renderEmpList();
+}
+
+function renderSummary() {
+  const total = state.employees.length;
+  const counts = { Present: 0, Absent: 0, "Weekly Off": 0, "Half Day": 0 };
+  Object.values(state.marks).forEach(m => { if (counts[m.status] != null) counts[m.status]++; });
+  const marked = Object.keys(state.marks).length;
+  const row = document.getElementById("summary-row");
+  row.innerHTML = `<span class="summary-chip">${marked}/${total} marked</span>` +
+    Object.entries(counts).filter(([, c]) => c > 0).map(([k, c]) => `<span class="summary-chip">${k}: ${c}</span>`).join("");
+}
+
+function renderEmpList() {
+  renderSummary();
+  const search = document.getElementById("search-emp").value.trim().toUpperCase();
+  const list = document.getElementById("emp-list");
+  const emptyHint = document.getElementById("emp-list-empty");
+  const rows = state.employees.filter(e => !search || e.name.toUpperCase().includes(search));
+  list.innerHTML = "";
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  let lastDept = null;
+  rows.forEach(e => {
+    const dept = e.department || "Unassigned";
+    if (dept !== lastDept) {
+      const header = document.createElement("div");
+      header.className = "dept-header";
+      header.textContent = dept;
+      list.appendChild(header);
+      lastDept = dept;
+    }
+    const mark = state.marks[e.id];
+    const noteVal = (mark && mark.note) ? mark.note.replace(/"/g, "&quot;") : "";
+    const row = document.createElement("div");
+    row.className = "emp-row";
+    row.innerHTML = `
+      <div class="emp-name-wrap">
+        <div class="emp-title">${e.name}</div>
+        <div class="emp-sub">${e.designation || "—"}${mark && mark.initials ? " · marked by " + mark.initials : ""}</div>
+      </div>
+      <div class="status-btns">
+        ${STATUSES.map(s => `<button type="button" class="status-btn" data-status="${s.value}">${s.label}</button>`).join("")}
+      </div>
+      <input type="text" class="note-input" placeholder="${mark ? "Note (optional)" : "Mark a status first to add a note"}" value="${noteVal}" ${!mark || state.locked ? "disabled" : ""} style="flex:1 1 100%; margin-top:6px; padding:7px 10px; font-size:0.82rem;">`;
+    row.querySelectorAll(".status-btn").forEach(btn => {
+      const s = STATUSES.find(x => x.value === btn.dataset.status);
+      if (mark && mark.status === s.value) btn.classList.add(s.cls);
+      if (state.locked) btn.disabled = true;
+      btn.addEventListener("click", () => markAttendance(e, s.value, row));
+    });
+    const noteInput = row.querySelector(".note-input");
+    noteInput.addEventListener("change", () => saveNote(e, noteInput.value, noteInput));
+    list.appendChild(row);
+  });
+}
+
+async function markAttendance(e, status, rowEl) {
+  if (state.locked) {
+    alert("This date has closed — only the Director can make changes here.");
+    return;
+  }
+  const date = document.getElementById("f-date").value || todayStr();
+
+  if (status === "Weekly Off") {
+    const { from, to } = monthRangeFor(date);
+    const cap = mondaysInMonth(date);
+    let existing = [];
+    try {
+      existing = await sb(`attendance_entries?employee_id=eq.${e.id}&attendance_date=gte.${from}&attendance_date=lte.${to}&attendance_date=neq.${date}&status=eq.${encodeURIComponent("Weekly Off")}&select=attendance_date`);
+    } catch (err) { /* if the check fails, don't block the save over it — the database still enforces this */ }
+    if (existing.length + 1 > cap) {
+      // Hard rule as of Oct 15, 2026: Weekly Off is capped per calendar month (4 or 5,
+      // depending on the month), enforced in the database
+      // (attendance_enforce_one_weekly_off_trigger) — a manager can't get around this by
+      // calling the API directly. Only a director can override.
+      const monthLabel = new Date(date + "T00:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", month: "short", year: "numeric" });
+      if (state.userRole !== "director") {
+        alert(`${e.name} already has ${existing.length} Weekly Off day(s) booked in ${monthLabel} (${cap} allowed this month). Only a director can add more.`);
+        return;
+      }
+      const ok = confirm(`${e.name} already has ${existing.length} Weekly Off day(s) booked in ${monthLabel} (${cap} allowed this month). As a Director you can still override this — mark ${date} as Weekly Off too?`);
+      if (!ok) return;
+    }
+  }
+
+  const existing = state.marks[e.id];
+  const payload = {
+    employee_id: e.id, location_id: LOCATION_ID, attendance_date: date,
+    status, entered_by_user_id: state.userId, entered_by_initials: state.initials, entered_by_manager_id: state.managerId, updated_at: new Date().toISOString()
+  };
+  rowEl.querySelectorAll(".status-btn").forEach(b => b.style.opacity = "0.5");
+  try {
+    if (existing) {
+      await sb(`attendance_entries?id=eq.${existing.id}`, {
+        method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+      });
+      state.marks[e.id] = { id: existing.id, status, note: existing.note, initials: state.initials };
+    } else {
+      const inserted = await sb("attendance_entries", {
+        method: "POST", headers: { "Prefer": "return=representation" }, body: JSON.stringify(payload)
+      });
+      state.marks[e.id] = { id: inserted[0].id, status, initials: state.initials };
+    }
+    rowEl.querySelectorAll(".status-btn").forEach(b => {
+      b.className = "status-btn";
+      const s = STATUSES.find(x => x.value === b.dataset.status);
+      if (s.value === status) b.classList.add(s.cls);
+    });
+    const noteInput = rowEl.querySelector(".note-input");
+    if (noteInput) {
+      noteInput.disabled = false;
+      noteInput.placeholder = "Note (optional)";
+    }
+    const subEl = rowEl.querySelector(".emp-sub");
+    if (subEl) subEl.textContent = subEl.textContent.replace(/ · marked by .*$/, "") + " · marked by " + state.initials;
+    renderSummary();
+  } catch (err) {
+    alert(err.message.includes("42501") || err.message.includes("row-level security")
+      ? "Couldn't save — this date may have just closed. Only the Director can change it now."
+      : "Couldn't save: " + err.message);
+  } finally {
+    rowEl.querySelectorAll(".status-btn").forEach(b => b.style.opacity = "1");
+  }
+}
+
+async function saveNote(e, note, inputEl) {
+  const mark = state.marks[e.id];
+  if (!mark) return;
+  inputEl.disabled = true;
+  try {
+    await sb(`attendance_entries?id=eq.${mark.id}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ notes: note || null, entered_by_user_id: state.userId, entered_by_initials: state.initials, entered_by_manager_id: state.managerId, updated_at: new Date().toISOString() })
+    });
+    state.marks[e.id].note = note;
+    state.marks[e.id].initials = state.initials;
+    const subEl = inputEl.closest(".emp-row")?.querySelector(".emp-sub");
+    if (subEl) subEl.textContent = subEl.textContent.replace(/ · marked by .*$/, "") + " · marked by " + state.initials;
+  } catch (err) {
+    alert(err.message.includes("42501") || err.message.includes("row-level security")
+      ? "Couldn't save — this date may have just closed. Only the Director can change it now."
+      : "Couldn't save note: " + err.message);
+  } finally {
+    inputEl.disabled = false;
+  }
+}
+
+document.getElementById("btn-mark-all-present").addEventListener("click", async () => {
+  if (state.locked) { alert("This date has closed — only the Director can make changes here."); return; }
+  if (!confirm("Mark every employee not yet marked today as Present?")) return;
+  const date = document.getElementById("f-date").value || todayStr();
+  const toMark = state.employees.filter(e => !state.marks[e.id]);
+  const btn = document.getElementById("btn-mark-all-present");
+  btn.disabled = true;
+  try {
+    const payload = toMark.map(e => ({
+      employee_id: e.id, location_id: LOCATION_ID, attendance_date: date,
+      status: "Present", entered_by_user_id: state.userId, entered_by_initials: state.initials, entered_by_manager_id: state.managerId
+    }));
+    for (let i = 0; i < payload.length; i += 20) {
+      await sb("attendance_entries", {
+        method: "POST", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload.slice(i, i + 20))
+      });
+    }
+  } catch (err) {
+    alert("Some rows may not have saved: " + err.message);
+  } finally {
+    btn.disabled = false;
+    await loadMarksForDate();
+  }
+});
+
+document.getElementById("search-emp").addEventListener("input", renderEmpList);
+
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+</body>
+</html>

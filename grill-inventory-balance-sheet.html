@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grill Inventory Balance Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 60px; max-width: 960px; margin: 0 auto; }
+  body.wide-report { max-width: 1480px; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 11px 16px; cursor: pointer; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; align-items: flex-end; }
+  .filter-row > * { flex: 1; min-width: 140px; }
+  .filter-row .btn-ghost { flex: none; }
+  .table-scroll { overflow: auto; max-height: 68vh; border: 1px solid var(--border); border-radius: 10px; }
+  .base-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .base-table th { text-align: right; font-size: 0.65rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding: 6px 6px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 2; }
+  .base-table th:first-child, .base-table th:nth-child(2), .base-table th:nth-child(3) { text-align: left; }
+  .base-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .base-table td:first-child, .base-table td:nth-child(2), .base-table td:nth-child(3) { text-align: left; white-space: normal; }
+  .base-table .end-val { font-weight: 600; color: var(--ink); }
+  .base-table .var-off { color: var(--err); font-weight: 600; }
+  .base-table .var-ok { color: var(--ok); }
+  .dept-row { scroll-margin-top: 36px; }
+  .dept-row td { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 7px; }
+  .dept-row .cat-count { text-transform: none; font-weight: 500; letter-spacing: 0; color: var(--ink-soft); opacity: 0.8; }
+  .cat-subtotal-row td { font-weight: 700; color: var(--ink); background: var(--card-bg-soft, var(--field-bg)); border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .grand-total-row td { font-weight: 700; color: var(--accent); background: var(--field-bg); border-top: 2px solid var(--accent); font-variant-numeric: tabular-nums; font-size: 0.85rem; padding-top: 8px; padding-bottom: 8px; }
+  .nav-select { width: auto; min-width: 150px; padding: 8px 10px; font-size: 0.82rem; }
+  .floor-tag { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-soft); }
+  .floor-tag.none { opacity: 0.55; }
+  .no-rate-badge { font-size: 0.65rem; font-weight: 700; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
+  .value-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .value-tile { flex: 1; min-width: 160px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+  .value-tile .vt-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); font-weight: 600; }
+  .value-tile .vt-value { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.35rem; margin-top: 4px; }
+  .value-tile .vt-sub { font-size: 0.78rem; color: var(--ink-soft); margin-top: 2px; }
+  .value-tile.total .vt-value { color: var(--accent); }
+  .value-tile.paid .vt-value { color: var(--ok); }
+  .value-tile.payable .vt-value { color: var(--warn); }
+  .value-tile.foodcost .vt-value { color: var(--ok); }
+  .value-tile.nonconv .vt-value { color: var(--ink-soft); }
+  .value-tile.uncat .vt-value { color: var(--err); }
+  .value-tile.small { padding: 10px 14px; }
+  .value-tile.small .vt-value { font-size: 1.1rem; }
+  .rate-alert-warn { color: var(--warn); font-weight: 600; }
+  .rate-alert-err { color: var(--err); font-weight: 700; }
+  .rate-badge { font-size: 0.63rem; font-weight: 700; border-radius: 999px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
+  .rate-badge.warn { color: var(--warn); background: var(--warn-bg); }
+  .rate-badge.err { color: var(--err); background: var(--err-bg); }
+  .cost-type-badge { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; border-radius: 999px; padding: 1px 7px; }
+  .cost-type-badge.food_cost { color: var(--ok); background: var(--ok-bg); }
+  .cost-type-badge.non_convertible { color: var(--ink-soft); background: var(--field-bg); }
+  .cost-type-badge.uncategorized { color: var(--err); background: var(--err-bg); }
+  .top-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+  .as-of { color: var(--ink-soft); font-size: 0.8rem; }
+  @media print {
+    body { padding: 0; max-width: none; }
+    .card.controls, .no-print { display: none !important; }
+    .base-table { font-size: 0.78rem; }
+    .table-scroll { max-height: none; overflow: visible; border: none; }
+    .base-table th { position: static; }
+  }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body class="wide-report">
+<a class="btn-ghost" href="grill-home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
+
+
+<h1>Grill Inventory Balance Sheet</h1>
+<div class="sub">Beginning + Add (purchases) − Sub (issuance) = Ending — checked against the latest physical count</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="urdu-box no-print">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh report sirf dekhne ke liye hai, ismein kuch likhna nahi hai. "Beginning" wo balance hai jo pichli date se chala aya,
+    "Add" purchases hain, "Sub" wo maal hai jo issue hua, aur "End" system ka calculated number hai. Agar kisi item ki rate
+    recently zyada badli ho to "Rate Δ" column mein nishan (⚠) dikhega (purani rate dekhne ke liye us par mouse le jayein) — is par nazar rakhein, yeh ghalti bhi ho sakti hai
+    aur sacha price change bhi. Upar "Food Cost" / "Non-Convertible" / "Uncategorized" tiles batate hain kitna stock bikne
+    ke kaabil hai aur kitna sirf consumable/non-sellable hai. Date badalne ke liye "As of date" use karein.
+  </div>
+
+  <div class="card controls">
+    <div class="filter-row" id="view-switch-row" hidden>
+      <div>
+        <label>View</label>
+        <select id="f-view">
+          <option value="daily">Daily (as of a date)</option>
+          <option value="monthly">Monthly (restricted)</option>
+        </select>
+      </div>
+    </div>
+    <div class="filter-row" id="row-daily-controls">
+      <div>
+        <label>As of date</label>
+        <input type="date" id="f-date">
+      </div>
+      <div>
+        <label>Search</label>
+        <input type="text" id="search-items" placeholder="Name or code...">
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="filter-category"><option value="">All categories</option></select>
+      </div>
+      <button class="btn-ghost no-print" id="btn-print" type="button">Print / Export</button>
+    </div>
+    <div class="filter-row" id="row-monthly-controls" hidden>
+      <div>
+        <label>Month</label>
+        <input type="month" id="f-month">
+      </div>
+      <div>
+        <label>Search</label>
+        <input type="text" id="search-items-m" placeholder="Name or code...">
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="filter-category-m"><option value="">All categories</option></select>
+      </div>
+      <button class="btn-ghost no-print" id="btn-print-m" type="button">Print / Export</button>
+    </div>
+    <div class="hint" id="monthly-access-hint" hidden>Monthly view is restricted — only Directors and people explicitly granted "Inventory Balance Sheet — Monthly" can see it.</div>
+    <div class="hint" id="monthly-adj-hint" hidden>"Beg Adj" / "Add Adj" / "Sub Adj" are one-time reconciliation corrections tied to the owner's Excel ledger for a given month — they don't change any purchase or issue record, they just bring that month's Beg/Add/Sub/End in line with the Excel INVENTORY tab. Most rows will show "—" (no correction needed).</div>
+  </div>
+
+  <div class="value-summary">
+    <div class="value-tile total">
+      <div class="vt-label">Total Stock Value</div>
+      <div class="vt-value" id="val-total">PKR 0</div>
+      <div class="vt-sub" id="val-total-sub">all active items, as of the selected date</div>
+    </div>
+    <div class="value-tile paid">
+      <div class="vt-label">Paid For</div>
+      <div class="vt-value" id="val-paid">PKR 0</div>
+      <div class="vt-sub" id="val-paid-pct">—</div>
+    </div>
+    <div class="value-tile payable">
+      <div class="vt-label">Still Payable</div>
+      <div class="vt-value" id="val-payable">PKR 0</div>
+      <div class="vt-sub" id="val-payable-pct">—</div>
+    </div>
+  </div>
+  <div class="hint" style="margin-top:-10px; margin-bottom:16px;">Paid vs. Payable is an estimate, not a lot-tracked figure: each item's current stock value is split using that <em>item's own</em> lifetime purchase mix (how much of everything ever bought of it was paid for in cash vs. on credit), applied to what's on the shelf today — the same weighted-average assumption used anywhere this system can't trace a specific unit back to a specific invoice.</div>
+
+  <div class="value-summary">
+    <div class="value-tile small foodcost">
+      <div class="vt-label">Food Cost (COGS-convertible)</div>
+      <div class="vt-value" id="val-foodcost">PKR 0</div>
+      <div class="vt-sub">Food &amp; Beverage, spices, food-service packaging</div>
+    </div>
+    <div class="value-tile small nonconv">
+      <div class="vt-label">Non-Convertible Stock</div>
+      <div class="vt-value" id="val-nonconv">PKR 0</div>
+      <div class="vt-sub">Cutlery, equipment, cleaning, uniforms, marketing — written off when used/broken, not sold</div>
+    </div>
+    <div class="value-tile small uncat" id="tile-uncat" hidden>
+      <div class="vt-label">Uncategorized</div>
+      <div class="vt-value" id="val-uncat">PKR 0</div>
+      <div class="vt-sub">Category not yet assigned — not counted in either bucket above</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="top-bar">
+      <div id="row-count" class="as-of"></div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <select id="nav-category" class="nav-select no-print"><option value="">Jump to category…</option></select>
+        <button class="btn-ghost no-print" id="btn-toggle-zero" type="button">Show zero-activity items</button>
+        <button class="btn-ghost no-print" id="btn-export-excel" type="button">Export to Excel</button>
+        <div id="last-count-info" class="as-of"></div>
+      </div>
+    </div>
+    <div class="table-scroll" id="table-scroll">
+      <table class="base-table">
+        <thead>
+          <tr id="thead-daily">
+            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Add</th><th>Sub</th><th>End</th><th>Rate</th><th>Rate Δ</th><th>Value (PKR)</th><th>Payable (PKR)</th>
+          </tr>
+          <tr id="thead-monthly" hidden>
+            <th>Category</th><th>Item</th><th>Floor</th><th>Unit</th><th>Beg</th><th>Beg Adj</th><th>Add</th><th>Add Adj</th><th>Sub</th><th>Sub Adj</th><th>End</th><th>Rate</th><th>Rate Δ</th><th>Value (PKR)</th><th>Payable (PKR)</th>
+          </tr>
+        </thead>
+        <tbody id="rows-body"></tbody>
+        <tfoot id="rows-foot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <button class="btn-ghost no-print" id="btn-back" type="button">Change Person</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000008"; // Grill
+const PAGE_KEY = "inventory_balance_sheet";
+const MONTHLY_PAGE_KEY = "inventory_balance_sheet_monthly";
+
+let state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], adjustments: {}, productFloors: {}, productFloorOverrides: {}, showZeroItems: false };
+
+async function sb(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, ...AppSession.authHeaders() },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => "")}`);
+  return res.json();
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function fmtQty(n) {
+  const v = Number(n) || 0;
+  return (Math.round(v * 100) / 100).toLocaleString();
+}
+function fmtMoney(n) {
+  return "PKR " + Math.round(Number(n) || 0).toLocaleString();
+}
+// Formats one of the three Monthly-view reconciliation adjustments (a signed
+// delta applied on top of the book figure to tie that month to the owner's
+// Excel ledger — see inventory_balance_adjustments). Zero/absent is shown as
+// "—" rather than "+0" to keep untouched rows quiet.
+function fmtAdj(n) {
+  const v = Number(n) || 0;
+  if (Math.abs(v) < 0.005) return "—";
+  return (v > 0 ? "+" : "") + fmtQty(v);
+}
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+
+          await afterLogin(row.app_user_id, match.name, match.id, row.role);
+    nameInput.value = "";
+    pinInput.value = "";
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+async function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  state.userRole = role;
+
+  // Monthly view is restricted: Directors always see it; anyone else only if
+  // explicitly granted the "inventory_balance_sheet_monthly" page_key in
+  // Manage Access (independent of daily access to this same screen).
+  if (role === "director") {
+    state.canMonthly = true;
+  } else {
+    try {
+      state.pages = await sbRpc("list_pages_for_manager", { p_manager_id: managerId }) || [];
+    } catch (e) { state.pages = []; }
+    state.canMonthly = state.pages.includes(MONTHLY_PAGE_KEY);
+  }
+  document.getElementById("view-switch-row").hidden = !state.canMonthly;
+  document.getElementById("monthly-access-hint").hidden = !state.canMonthly;
+
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  const now = new Date();
+  document.getElementById("f-month").value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  loadAll();
+}
+
+function backToNames() {
+  state = { userId: null, userName: null, managerId: null, userRole: null, pages: [], canMonthly: false, view: "daily", products: [], purchases: [], issues: [], snapshots: [], adjustments: {}, productFloors: {}, productFloorOverrides: {}, showZeroItems: false };
+  AppSession.clear();
+  document.querySelectorAll(".name-pill").forEach((p) => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+document.getElementById("btn-print").addEventListener("click", () => window.print());
+document.getElementById("btn-print-m").addEventListener("click", () => window.print());
+document.getElementById("btn-toggle-zero").addEventListener("click", () => {
+  state.showZeroItems = !state.showZeroItems;
+  document.getElementById("btn-toggle-zero").textContent = state.showZeroItems ? "Hide zero-activity items" : "Show zero-activity items";
+  renderRows();
+});
+document.getElementById("f-date").addEventListener("change", () => { renderRows(); });
+document.getElementById("search-items").addEventListener("input", renderRows);
+document.getElementById("filter-category").addEventListener("change", renderRows);
+document.getElementById("f-month").addEventListener("change", () => { renderRows(); });
+document.getElementById("search-items-m").addEventListener("input", renderRows);
+document.getElementById("filter-category-m").addEventListener("change", renderRows);
+document.getElementById("f-view").addEventListener("change", (e) => {
+  // Belt-and-suspenders: even if someone forces the hidden select open, the
+  // monthly branch only activates when the server-granted flag is true.
+  state.view = (e.target.value === "monthly" && state.canMonthly) ? "monthly" : "daily";
+  document.getElementById("row-daily-controls").hidden = state.view === "monthly";
+  document.getElementById("row-monthly-controls").hidden = state.view !== "monthly";
+  document.getElementById("monthly-adj-hint").hidden = state.view !== "monthly";
+  document.getElementById("thead-daily").hidden = state.view === "monthly";
+  document.getElementById("thead-monthly").hidden = state.view !== "monthly";
+  renderRows();
+});
+
+async function loadAll() {
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate,last_rate,rate_updated_at,cost_type&order=category,name`);
+  } catch (e) { state.products = []; }
+  try {
+    // limit=100000 on these three base fetches (also set in issue-entry.html and
+    // stock-count.html, which share this exact baseFor()/expectedQty() formula) —
+    // without it, PostgREST's default row cap could silently truncate the data as it
+    // grows, and the three screens would stop tying without any visible error.
+    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date,amount,payment_status&limit=100000`);
+  } catch (e) { state.purchases = []; }
+  try {
+    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date&limit=100000`);
+  } catch (e) { state.issues = []; }
+  try {
+    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc&limit=100000`);
+  } catch (e) { state.snapshots = []; }
+  try {
+    // Owner Excel-ledger reconciliation deltas (Monthly view only — see
+    // monthFor()). Keyed by "<product_id>|<period_month>" where period_month
+    // is always the 1st of the month (e.g. "2026-10-01"), matching how these
+    // rows are written (inventory_balance_adjustments.period_month).
+    const adjRows = await sb(`inventory_balance_adjustments?location_id=eq.${LOCATION_ID}&select=product_id,period_month,beginning_adj_qty,addition_adj_qty,issuance_adj_qty&limit=100000`);
+    const adjMap = {};
+    adjRows.forEach((r) => { adjMap[`${r.product_id}|${r.period_month}`] = r; });
+    state.adjustments = adjMap;
+  } catch (e) { state.adjustments = {}; }
+
+  // Which floor(s) each item belongs to — derived from the floor-level counting
+  // history (floor_stock_periods), since that's the authoritative record of where
+  // an item is actually tracked (floor_par_levels is only configured for some
+  // floors so far). An item can legitimately live on more than one floor.
+  try {
+    const floorRows = await sb(`floor_stock_periods?location_id=eq.${LOCATION_ID}&select=product_id,floor&limit=100000`);
+    const map = {};
+    floorRows.forEach((r) => {
+      if (!r.floor) return;
+      if (!map[r.product_id]) map[r.product_id] = new Set();
+      map[r.product_id].add(r.floor);
+    });
+    const joined = {};
+    Object.keys(map).forEach((pid) => { joined[pid] = [...map[pid]].sort().join(", "); });
+    state.productFloors = joined;
+  } catch (e) { state.productFloors = {}; }
+
+  // Display-only Floor override — a manual correction the owner made to this
+  // report's Floor column (product_floor_overrides). This does NOT feed into
+  // floor-inventory counting or floor_stock_periods/floor_par_levels in any
+  // way; it only changes what this one report shows. Where an override
+  // exists it replaces the derived value above for display purposes.
+  try {
+    const overrideRows = await sb(`product_floor_overrides?location_id=eq.${LOCATION_ID}&select=product_id,floor&limit=100000`);
+    const overrides = {};
+    overrideRows.forEach((r) => { if (r.floor) overrides[r.product_id] = r.floor; });
+    state.productFloorOverrides = overrides;
+  } catch (e) { state.productFloorOverrides = {}; }
+
+  const cats = [...new Set(state.products.map((p) => p.category).filter(Boolean))].sort();
+  const catOptions = '<option value="">All categories</option>' + cats.map((c) => `<option value="${c}">${c}</option>`).join("");
+  document.getElementById("filter-category").innerHTML = catOptions;
+  document.getElementById("filter-category-m").innerHTML = catOptions;
+
+  const lastOverall = state.snapshots.length ? state.snapshots[0].snapshot_date : null;
+  document.getElementById("last-count-info").textContent = lastOverall
+    ? `Most recent physical count logged: ${lastOverall}`
+    : "No physical count has ever been logged for this location.";
+
+  renderRows();
+}
+
+// Running expected balance AT a cutoff date — resets to the most recent physical
+// count at or before that date, if any. Same BASE computation as stock-count.html's
+// expectedQty(). Used below only to seed a period's Beginning Balance (the balance
+// carried in from before the period starts) and by renderValueSummary() for "what
+// is all the stock worth right now" — the Add/Sub shown on the page itself are never
+// taken from this function directly; see periodFor().
+function baseFor(productId, date) {
+  const priorSnaps = state.snapshots.filter((s) => s.product_id === productId && s.snapshot_date <= date);
+  const last = priorSnaps[0];
+  const windowStart = last ? last.snapshot_date : null;
+  const opening = last ? Number(last.closing_qty) || 0 : 0;
+  const addQty = state.purchases
+    .filter((p) => p.product_id === productId && p.purchase_date <= date && (!windowStart || p.purchase_date > windowStart))
+    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  const subQty = state.issues
+    .filter((i) => i.product_id === productId && i.issue_date <= date && (!windowStart || i.issue_date > windowStart))
+    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  const ending = opening + addQty - subQty;
+  const physical = last && last.snapshot_date === date ? Number(last.closing_qty) : null;
+  return { opening, addQty, subQty, ending, physical };
+}
+
+// Returns the calendar day immediately before `dateStr` (YYYY-MM-DD). These are
+// date-only values from the DB (purchase_date, issue_date, snapshot_date), so plain
+// calendar subtraction is all that's needed here — unlike todayStr(), there's no
+// timezone to account for.
+function dayBefore(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+// Period-scoped balance for the Daily and Monthly views (2026-10-19, per the owner:
+// Beginning Balance must be the balance as of the START of the selected period — the
+// 1st of the month for Monthly, the selected date itself for Daily — never a physical
+// count that happens to land partway through that period (e.g. an Oct 17 count should
+// not become October's Beginning). Add/Sub are then strict sums of purchases/issues
+// dated inside [periodStart, periodEnd] only — that day's own activity for Daily, that
+// month's own activity for Monthly — not "everything since the last count".
+// Ending = Beginning + Add - Sub. On purpose this does NOT re-baseline to a physical
+// count that lands inside the period — comparing the two is what the Physical/
+// Variance columns are for.
+function periodFor(productId, periodStart, periodEnd) {
+  const beginning = baseFor(productId, dayBefore(periodStart)).ending;
+  const addQty = state.purchases
+    .filter((p) => p.product_id === productId && p.purchase_date >= periodStart && p.purchase_date <= periodEnd)
+    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  const subQty = state.issues
+    .filter((i) => i.product_id === productId && i.issue_date >= periodStart && i.issue_date <= periodEnd)
+    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  const ending = beginning + addQty - subQty;
+  const priorSnaps = state.snapshots.filter((s) => s.product_id === productId && s.snapshot_date <= periodEnd);
+  const last = priorSnaps[0];
+  const physical = last && last.snapshot_date === periodEnd ? Number(last.closing_qty) : null;
+  return { opening: beginning, addQty, subQty, ending, physical, periodStart, periodEnd };
+}
+
+// Monthly view (restricted — see MONTHLY_PAGE_KEY). 2026-10-19: Beginning Balance is
+// always "as of the 1st of the selected month", and Add/Sub cover only that month's
+// own activity — replacing the previous "since the last physical count" logic, which
+// could pick up a mid-month count (e.g. Oct 17) as the Beginning and made the figures
+// hard to reconcile against Issue Entry's day-by-day numbers.
+// The last day of `monthStr` this view should ever show — the calendar month-end,
+// or today if the month's still in progress (never project into the future).
+// Pulled out of monthFor() so renderRows() can get the same date without needing
+// a product to compute it against.
+function monthEffectiveEnd(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate(); // day 0 of next month = last day of this month
+  const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
+  return monthEnd < todayStr() ? monthEnd : todayStr();
+}
+// Folds in the owner's Excel-ledger reconciliation adjustment for this product
+// and month (2026-10-19, per the owner: October's Beginning/Addition/Issuance
+// should match the Grill Excel INVENTORY tab exactly). The adjustment is a
+// non-destructive delta recorded separately in inventory_balance_adjustments —
+// it never touches the underlying purchases/daily_issues rows — so the figures
+// returned here are "book + adjustment", and the three deltas themselves are
+// also returned (as adjBeg/adjAdd/adjSub) so renderRows() can show them in
+// their own columns for transparency/audit. A month with no adjustment row
+// behaves exactly as before (all deltas zero). Once a month has been
+// reconciled this way, its Oct 31-dated inventory_snapshots row (seeded
+// separately) carries the tied-out ending forward as next month's Beginning
+// via baseFor()/periodFor() — so only the reconciled month itself needs an
+// adjustment row; later months are a regular rollover with none.
+function monthFor(productId, monthStr) {
+  const monthStart = `${monthStr}-01`;
+  const effectiveEnd = monthEffectiveEnd(monthStr);
+  const p = periodFor(productId, monthStart, effectiveEnd);
+  const adj = state.adjustments[`${productId}|${monthStart}`] || {};
+  const adjBeg = Number(adj.beginning_adj_qty) || 0;
+  const adjAdd = Number(adj.addition_adj_qty) || 0;
+  const adjSub = Number(adj.issuance_adj_qty) || 0;
+  const opening = p.opening + adjBeg;
+  const addQty = p.addQty + adjAdd;
+  const subQty = p.subQty + adjSub;
+  const ending = opening + addQty - subQty;
+  return { opening, addQty, subQty, ending, physical: p.physical, monthStart, monthEnd: effectiveEnd, adjBeg, adjAdd, adjSub };
+}
+
+// This item's lifetime paid-vs-credit mix as of `date`, used only to split its current
+// stock value into an estimated Paid/Payable amount (see the hint text on the page) —
+// there's no per-unit cost-lot tracking in this system, so this is a weighted-average
+// proxy, not an exact figure.
+function paidRatioFor(productId, date) {
+  const rows = state.purchases.filter((p) => p.product_id === productId && p.purchase_date <= date);
+  let paidAmt = 0, totalAmt = 0;
+  rows.forEach((p) => {
+    const amt = Number(p.amount) || 0;
+    totalAmt += amt;
+    if (p.payment_status === "paid") paidAmt += amt;
+  });
+  // No purchase history to go on (e.g. only ever counted in via an opening snapshot) —
+  // default to fully paid rather than overstating what's owed to vendors.
+  if (totalAmt <= 0) return 1;
+  return paidAmt / totalAmt;
+}
+
+// Turns a category name into a safe DOM id fragment for the dept-row anchors
+// the "Jump to category" dropdown scrolls to.
+function slugify(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "cat";
+}
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+// Filters state.products by the current search/category controls for whichever
+// view is active, computes each candidate's period balance, and applies the
+// zero-activity toggle — the one place this logic lives, so renderRows() (for
+// the on-screen table) and exportToExcel() (for the download) can never drift
+// out of sync with each other.
+function computeVisibleRows() {
+  const isMonthly = state.view === "monthly" && state.canMonthly;
+  const search = (isMonthly
+    ? document.getElementById("search-items-m").value
+    : document.getElementById("search-items").value).trim().toUpperCase();
+  const cat = isMonthly
+    ? document.getElementById("filter-category-m").value
+    : document.getElementById("filter-category").value;
+
+  const candidates = state.products.filter((p) => {
+    if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
+    if (cat && p.category !== cat) return false;
+    return true;
+  });
+
+  let effectiveDate, monthStr, monthEndForSummary = null;
+  if (isMonthly) {
+    monthStr = document.getElementById("f-month").value || todayStr().slice(0, 7);
+    monthEndForSummary = monthEffectiveEnd(monthStr);
+  } else {
+    effectiveDate = document.getElementById("f-date").value || todayStr();
+  }
+
+  // Compute every candidate's balance up front (instead of inside the render
+  // loop) so the "zero-activity" toggle below, and the category counts/
+  // subtotals further down, can see the real numbers before anything renders.
+  const computed = candidates.map((p) => {
+    const b = isMonthly ? monthFor(p.id, monthStr) : periodFor(p.id, effectiveDate, effectiveDate);
+    return { p, b };
+  });
+
+  // "Zero-activity" = nothing to show for this item in this period: no stock
+  // carried in, nothing added, nothing issued, nothing left. Items with stock
+  // on hand but no movement this period still show (they still carry value).
+  const isZeroActivity = (b) =>
+    Math.abs(b.opening) < 0.005 && Math.abs(b.addQty) < 0.005 && Math.abs(b.subQty) < 0.005 && Math.abs(b.ending) < 0.005;
+
+  const visible = state.showZeroItems ? computed : computed.filter(({ b }) => !isZeroActivity(b));
+
+  return { isMonthly, computed, visible, effectiveDate, monthStr, monthEndForSummary };
+}
+
+// All the per-row figures that depend only on the product + its computed
+// balance (never on HTML formatting) — shared by the on-screen table and the
+// Excel export so the two can never show different numbers for the same row.
+function computeRowMetrics(p, b, isMonthly) {
+  const rate = Number(p.current_rate) || 0;
+  const priorRate = Number(p.last_rate) || 0;
+  const itemValue = b.ending * rate;
+  // Estimated Payable portion of this item's stock value — same weighted-average
+  // paid/credit mix used for the page-wide Paid/Payable tiles above (see
+  // paidRatioFor()), just applied per item instead of summed across all items.
+  const dateForRatio = isMonthly ? b.monthEnd : b.periodEnd;
+  const payableRatio = 1 - paidRatioFor(p.id, dateForRatio);
+  const payableValue = itemValue * payableRatio;
+  const variance = b.physical !== null ? b.physical - b.ending : null;
+  // Price-change audit: compares the product's current buying rate against the
+  // rate it replaced (last_rate, set whenever a purchase or manual update changes
+  // current_rate — see rate_updated_at). Flags swings that look larger than normal
+  // month-to-month drift, since PKR food-cost rates move with fuel/currency shocks.
+  const deltaPct = (priorRate > 0 && rate > 0) ? ((rate - priorRate) / priorRate) * 100 : null;
+  return {
+    category: p.category || "Uncategorized",
+    name: p.name,
+    costType: p.cost_type || "",
+    floor: state.productFloorOverrides[p.id] || state.productFloors[p.id] || "",
+    unit: p.unit || "",
+    opening: b.opening,
+    begAdj: isMonthly ? b.adjBeg : null,
+    addQty: b.addQty,
+    addAdj: isMonthly ? b.adjAdd : null,
+    subQty: b.subQty,
+    subAdj: isMonthly ? b.adjSub : null,
+    ending: b.ending,
+    physical: b.physical,
+    variance,
+    rate, hasRate: rate > 0,
+    priorRate: priorRate > 0 ? priorRate : null,
+    deltaPct,
+    itemValue, payableValue,
+  };
+}
+
+function renderRows() {
+  const { isMonthly, computed, visible, effectiveDate, monthStr, monthEndForSummary } = computeVisibleRows();
+  const body = document.getElementById("rows-body");
+  const foot = document.getElementById("rows-foot");
+  body.innerHTML = "";
+  foot.innerHTML = "";
+
+  // Column count differs between views (Monthly adds the three reconciliation
+  // adjustment columns — see thead-daily vs thead-monthly) — this drives the
+  // colspans used by the category and grand-total rows below.
+  const totalCols = isMonthly ? 15 : 12;
+  const subtotalSpan = totalCols - 3; // every column between "Category" and "Value"/"Payable"
+
+  const hiddenCount = computed.length - visible.length;
+  const hiddenNote = hiddenCount > 0 ? ` (${hiddenCount} zero-activity item${hiddenCount === 1 ? "" : "s"} hidden)` : "";
+
+  if (isMonthly) {
+    document.getElementById("row-count").textContent = `${visible.length} item${visible.length === 1 ? "" : "s"} for ${monthStr}${hiddenNote}`;
+  } else {
+    document.getElementById("row-count").textContent = `${visible.length} item${visible.length === 1 ? "" : "s"} as of ${effectiveDate}${hiddenNote}`;
+  }
+
+  // How many items fall in each visible category, for the "(N items)" hint on
+  // each category's header row.
+  const categoryCounts = {};
+  visible.forEach(({ p }) => {
+    const c = p.category || "Uncategorized";
+    categoryCounts[c] = (categoryCounts[c] || 0) + 1;
+  });
+
+  // Appends the running Value/Payable subtotal row for the category just
+  // finished, then resets the running sums for the next one. Called right
+  // before a new category's header row, and once more after the loop for
+  // the final category.
+  let catValueSum = 0, catPayableSum = 0;
+  function flushCategorySubtotal(forCat) {
+    if (forCat === null) return;
+    const tr = document.createElement("tr");
+    tr.className = "cat-subtotal-row";
+    tr.innerHTML = `
+      <td></td>
+      <td colspan="${subtotalSpan}" style="text-align:right;">Subtotal — ${forCat}</td>
+      <td class="end-val">${fmtMoney(catValueSum)}</td>
+      <td class="end-val">${fmtMoney(catPayableSum)}</td>
+    `;
+    body.appendChild(tr);
+  }
+
+  // One entry per category actually shown, in the order it first appears —
+  // feeds the "Jump to category" dropdown further down.
+  const navCats = [];
+  let grandValueSum = 0, grandPayableSum = 0;
+  let lastCat = null;
+  visible.forEach(({ p, b }) => {
+    const c = p.category || "Uncategorized";
+    if (c !== lastCat) {
+      flushCategorySubtotal(lastCat);
+      catValueSum = 0;
+      catPayableSum = 0;
+      const tr = document.createElement("tr");
+      tr.className = "dept-row";
+      const slug = "cat-" + slugify(c);
+      tr.id = slug;
+      navCats.push({ name: c, id: slug });
+      const n = categoryCounts[c] || 0;
+      tr.innerHTML = `<td colspan="${totalCols}">${c} <span class="cat-count">(${n} item${n === 1 ? "" : "s"})</span></td>`;
+      body.appendChild(tr);
+      lastCat = c;
+    }
+
+    const m = computeRowMetrics(p, b, isMonthly);
+    catValueSum += m.itemValue;
+    catPayableSum += m.payableValue;
+    grandValueSum += m.itemValue;
+    grandPayableSum += m.payableValue;
+
+    const valueCell = m.hasRate
+      ? fmtMoney(m.itemValue)
+      : `${fmtMoney(0)} <span class="no-rate-badge">no rate</span>`;
+    const payableCell = m.hasRate ? fmtMoney(m.payableValue) : "—";
+
+    // "Prior Rate" used to be its own column; it now rides along as a hover
+    // tooltip on "Rate Δ" instead, to save width (2026-10-20, per the owner).
+    let rateDeltaCell = "—", rateDeltaTitle = "";
+    if (m.priorRate !== null && m.deltaPct !== null) {
+      rateDeltaTitle = ` title="Prior rate: ${fmtMoney(m.priorRate)}"`;
+      const absDelta = Math.abs(m.deltaPct);
+      const sign = m.deltaPct > 0 ? "+" : "";
+      let cls = "", badge = "";
+      if (absDelta >= 25) { cls = "rate-alert-err"; badge = ` <span class="rate-badge err">⚠ large jump</span>`; }
+      else if (absDelta >= 10) { cls = "rate-alert-warn"; badge = ` <span class="rate-badge warn">↑ check</span>`; }
+      rateDeltaCell = `<span class="${cls}">${sign}${m.deltaPct.toFixed(1)}%</span>${badge}`;
+    }
+
+    const costBadge = m.costType
+      ? ` <span class="cost-type-badge ${m.costType}">${m.costType === "food_cost" ? "COGS" : m.costType === "non_convertible" ? "supplies" : "uncat."}</span>`
+      : "";
+
+    const floorCell = m.floor ? `<span class="floor-tag">${m.floor}</span>` : `<span class="floor-tag none">—</span>`;
+
+    // Owner Excel-ledger reconciliation adjustments — Monthly view only (see
+    // monthFor()); Daily view has no notion of these, so these three cells are
+    // dropped from the row entirely there (not just blanked) to save width —
+    // matching thead-daily, which has no Adj columns to line up with.
+    const begAdjCell = isMonthly ? `<td>${fmtAdj(m.begAdj)}</td>` : "";
+    const addAdjCell = isMonthly ? `<td>${fmtAdj(m.addAdj)}</td>` : "";
+    const subAdjCell = isMonthly ? `<td>${fmtAdj(m.subAdj)}</td>` : "";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td></td>
+      <td>${m.name}${costBadge}</td>
+      <td>${floorCell}</td>
+      <td>${m.unit}</td>
+      <td>${fmtQty(m.opening)}</td>
+      ${begAdjCell}
+      <td>+${fmtQty(m.addQty)}</td>
+      ${addAdjCell}
+      <td>-${fmtQty(m.subQty)}</td>
+      ${subAdjCell}
+      <td class="end-val">${fmtQty(m.ending)}</td>
+      <td>${m.hasRate ? fmtMoney(m.rate) : "—"}</td>
+      <td${rateDeltaTitle}>${rateDeltaCell}</td>
+      <td class="end-val">${valueCell}</td>
+      <td class="end-val">${payableCell}</td>
+    `;
+    body.appendChild(tr);
+  });
+  flushCategorySubtotal(lastCat);
+
+  // Grand total across every visible row, regardless of category — pinned to
+  // the bottom of the table in its own <tfoot> (2026-10-20, per the owner).
+  const grandTr = document.createElement("tr");
+  grandTr.className = "grand-total-row";
+  grandTr.innerHTML = `
+    <td></td>
+    <td colspan="${subtotalSpan}" style="text-align:right;">GRAND TOTAL — ${visible.length} item${visible.length === 1 ? "" : "s"}</td>
+    <td>${fmtMoney(grandValueSum)}</td>
+    <td>${fmtMoney(grandPayableSum)}</td>
+  `;
+  foot.appendChild(grandTr);
+
+  // "Jump to category" dropdown — rebuilt every render since the visible set
+  // (and therefore which categories actually appear) changes with the
+  // search/category filters and the zero-activity toggle.
+  const navSelect = document.getElementById("nav-category");
+  const prevNavValue = navSelect.value;
+  navSelect.innerHTML = '<option value="">Jump to category…</option>' +
+    navCats.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  if (navCats.some((c) => c.id === prevNavValue)) navSelect.value = prevNavValue;
+
+  renderValueSummary(isMonthly ? (monthEndForSummary || todayStr()) : effectiveDate);
+}
+
+document.getElementById("nav-category").addEventListener("change", (e) => {
+  const id = e.target.value;
+  if (!id) return;
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ block: "start" });
+});
+
+// Downloads the exact rows currently on screen (same filters, same view, same
+// zero-activity toggle) as an .xlsx workbook — category groups, subtotals and
+// a grand total included, mirroring the table layout.
+function exportToExcel() {
+  const { isMonthly, visible, effectiveDate, monthStr } = computeVisibleRows();
+  const header = isMonthly
+    ? ["Category", "Item", "Floor", "Unit", "Beg", "Beg Adj", "Add", "Add Adj", "Sub", "Sub Adj", "End", "Rate", "Prior Rate", "Rate Δ %", "Value (PKR)", "Payable (PKR)"]
+    : ["Category", "Item", "Floor", "Unit", "Beg", "Add", "Sub", "End", "Rate", "Prior Rate", "Rate Δ %", "Value (PKR)", "Payable (PKR)"];
+
+  function blankRow() { return new Array(header.length).fill(""); }
+  function totalRow(label, valueSum, payableSum) {
+    const row = blankRow();
+    row[1] = label;
+    row[header.length - 2] = round2(valueSum);
+    row[header.length - 1] = round2(payableSum);
+    return row;
+  }
+
+  const rows = [header];
+  let lastCat = null, catValueSum = 0, catPayableSum = 0, grandValueSum = 0, grandPayableSum = 0;
+
+  visible.forEach(({ p, b }) => {
+    const c = p.category || "Uncategorized";
+    if (c !== lastCat) {
+      if (lastCat !== null) rows.push(totalRow(`Subtotal — ${lastCat}`, catValueSum, catPayableSum));
+      catValueSum = 0;
+      catPayableSum = 0;
+      const catRow = blankRow();
+      catRow[0] = c;
+      rows.push(catRow);
+      lastCat = c;
+    }
+
+    const m = computeRowMetrics(p, b, isMonthly);
+    catValueSum += m.itemValue;
+    catPayableSum += m.payableValue;
+    grandValueSum += m.itemValue;
+    grandPayableSum += m.payableValue;
+
+    const row = [c, m.name, m.floor, m.unit, round2(m.opening)];
+    if (isMonthly) row.push(m.begAdj === null ? "" : round2(m.begAdj));
+    row.push(round2(m.addQty));
+    if (isMonthly) row.push(m.addAdj === null ? "" : round2(m.addAdj));
+    row.push(round2(m.subQty));
+    if (isMonthly) row.push(m.subAdj === null ? "" : round2(m.subAdj));
+    row.push(
+      round2(m.ending),
+      m.hasRate ? round2(m.rate) : "",
+      m.priorRate === null ? "" : round2(m.priorRate),
+      m.deltaPct === null ? "" : round2(m.deltaPct),
+      round2(m.itemValue),
+      round2(m.payableValue),
+    );
+    rows.push(row);
+  });
+  if (lastCat !== null) rows.push(totalRow(`Subtotal — ${lastCat}`, catValueSum, catPayableSum));
+  rows.push(totalRow("GRAND TOTAL", grandValueSum, grandPayableSum));
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, isMonthly ? "Monthly" : "Daily");
+  const label = String(isMonthly ? monthStr : effectiveDate).replace(/[^0-9a-zA-Z-]/g, "");
+  XLSX.writeFile(wb, `Grill_Inventory_Balance_${label}.xlsx`);
+}
+document.getElementById("btn-export-excel").addEventListener("click", exportToExcel);
+
+// Total stock value (and its estimated Paid/Payable split) always covers every active
+// item at this location, regardless of the search/category filter above — this is meant
+// to answer "what is all the stock in the restaurant worth right now", not a filtered view.
+function renderValueSummary(date) {
+  let totalValue = 0, paidValue = 0, payableValue = 0;
+  let foodCostValue = 0, nonConvValue = 0, uncatValue = 0;
+  state.products.forEach((p) => {
+    const rate = Number(p.current_rate) || 0;
+    if (rate <= 0) return;
+    const b = baseFor(p.id, date);
+    const value = Math.max(b.ending, 0) * rate; // negative/zero stock contributes no value
+    if (value <= 0) return;
+    const ratio = paidRatioFor(p.id, date);
+    totalValue += value;
+    paidValue += value * ratio;
+    payableValue += value * (1 - ratio);
+
+    // Food cost (COGS-convertible: sold or served to a customer) vs non-convertible
+    // stock (cutlery, equipment, cleaning supplies, etc. — expensed/written off when
+    // used or broken, never itself sold) — see products.cost_type, set from category.
+    if (p.cost_type === "food_cost") foodCostValue += value;
+    else if (p.cost_type === "non_convertible") nonConvValue += value;
+    else uncatValue += value;
+  });
+
+  document.getElementById("val-total").textContent = fmtMoney(totalValue);
+  document.getElementById("val-paid").textContent = fmtMoney(paidValue);
+  document.getElementById("val-payable").textContent = fmtMoney(payableValue);
+  document.getElementById("val-paid-pct").textContent = totalValue > 0 ? `${Math.round((paidValue / totalValue) * 100)}% of stock value` : "—";
+  document.getElementById("val-payable-pct").textContent = totalValue > 0 ? `${Math.round((payableValue / totalValue) * 100)}% of stock value` : "—";
+
+  document.getElementById("val-foodcost").textContent = fmtMoney(foodCostValue);
+  document.getElementById("val-nonconv").textContent = fmtMoney(nonConvValue);
+  const uncatTile = document.getElementById("tile-uncat");
+  if (uncatValue > 0) {
+    uncatTile.hidden = false;
+    document.getElementById("val-uncat").textContent = fmtMoney(uncatValue);
+  } else {
+    uncatTile.hidden = true;
+  }
+}
+
+// Already logged in via home.html this visit? Skip straight to the sheet.
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role).then(() => {
+    AppSession.applyAccessLock(existing, PAGE_KEY);
+  });
+}
+</script>
+</body>
+</html>

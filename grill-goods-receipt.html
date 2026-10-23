@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grill Goods Receipt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --border: #e4ddd1;
+    --ink: #2a2420;
+    --ink-soft: #6f655a;
+    --accent: #9c3b2e;
+    --accent-ink: #ffffff;
+    --field-bg: #fcfaf6;
+    --ok: #3d7a4f;
+    --ok-bg: #eaf4ec;
+    --warn: #a3650a;
+    --warn-bg: #fdf1dd;
+    --err: #b3261e;
+    --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 640px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .mode-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+  .mode-btn { flex: 1; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 11px; font-size: 0.88rem; }
+  .mode-btn.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .banner { border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4; }
+  .banner-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); }
+  .banner-err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err); }
+  .banner-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  .banner ul { margin: 6px 0 0 18px; padding: 0; }
+  .ack-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; font-size: 0.85rem; }
+  .ack-row input { width: auto; margin-top: 2px; }
+  .amount-display { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.4rem; font-weight: 600; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .route-note { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; background: var(--field-bg); font-size: 0.82rem; color: var(--ink-soft); line-height: 1.4; }
+  .route-note a { color: var(--accent); font-weight: 600; text-decoration: underline; }
+  .success-wrap { text-align: center; padding: 48px 16px; }
+  .success-wrap .check { font-size: 2.6rem; }
+  .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; background: var(--field-bg); }
+  .po-card.selected { border-color: var(--accent); background: var(--ok-bg); }
+  .po-card .po-title { font-weight: 600; }
+  .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
+  .po-card.voided { opacity: 0.6; background: transparent; }
+  .po-card.voided .po-title, .po-card.voided .po-sub { text-decoration: line-through; }
+  .void-tag { display: inline-block; margin-top: 4px; font-size: 0.78rem; font-weight: 600; color: var(--err); text-decoration: none !important; }
+  .void-link { font-size: 0.8rem; color: var(--accent); cursor: pointer; margin-top: 6px; display: inline-block; }
+  .void-form { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .void-form textarea { margin-bottom: 8px; }
+  .void-form-actions { display: flex; gap: 8px; }
+  .void-form-actions button { flex: 1; }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="grill-home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
+
+
+<h1>Grill Goods Receipt</h1>
+<div class="sub">Grill — confirm what actually arrived</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who's receiving this delivery?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div class="urdu-box" id="urdu-box" hidden>
+  <b>Tareeqa (Instructions in Roman Urdu)</b>
+  Yeh page tab istemal karen jab vendor say koi saman (stock) delivery ho kar aa jaye. Pehle batayen k yeh kisi Purchase Order (PO) per manga gaya tha ya nahi — agar PO per tha to list say wohi PO chunen, warna "No" wala option chunen aur item khud select karen. Qty Received aur Rate daalen, system khud Total nikal dega. Invoice/bill ki photo kheench kar upload kar sakte hain — kuch fields khud bhar jayen gi, magar check zaroor karen k sahi hain. Vendor, tareekh, aur Payment Status (On Credit / Paid Now / Advance) theek se bharen, phir "Save Receipt" per click karen. Agar koi entry ghalat ho jaye to "Received Today" list mein us entry k saamne "Void / correct this entry" per click kar k wajah likhen — entry ko mitaya nahi jata, sirf void (cancel) kiya jata hai taake record mehfooz rahe. Agar vendor ne poora order ek saath nahi bheja (kam maal aaya, baqi baad mein aana hai), to jitna aaj aaya hai utni hi qty likh kar save kar dein — PO band nahi hoga, baqi maal jab aayega to wohi PO list mein dobara dikhega, jitna reh gaya hai woh likha hoga.
+</div>
+
+<div id="step-mode" class="card" hidden>
+  <div class="step-label">Was this ordered through a Purchase Order?</div>
+  <div class="mode-toggle">
+    <button type="button" class="mode-btn" id="mode-po">Yes — match to PO</button>
+    <button type="button" class="mode-btn" id="mode-adhoc">No — log it anyway</button>
+  </div>
+  <div class="step-label" style="margin-top:14px;">Or — is this stock going <em>out</em> to another branch?</div>
+  <div class="mode-toggle">
+    <button type="button" class="mode-btn" id="mode-transfer-out">Send to Branch (Transfer Out)</button>
+  </div>
+</div>
+
+<div id="step-po-pick" class="card" hidden>
+  <div class="step-label">Pick the Purchase Order this delivery is for</div>
+  <div id="po-list"></div>
+  <div class="hint" id="po-empty-hint" hidden>No open (Authorized/Ordered) purchase orders found for Grill.</div>
+</div>
+
+<div id="step-form" hidden>
+  <div class="card">
+    <div id="po-context-banner"></div>
+
+    <div class="route-note">
+      Yahan sirf vendor say mangwaya hua stock darj karen (invoice/bill k saath, chahe cash ho ya credit).
+      Agar yeh ek-martaba ka cash purchase hai jis ka koi vendor invoice nahi (misal: market say khud utha k lana),
+      to <a href="expense-entry.html">Expense Entry</a> mein "Inventory Purchase" head say darj karen.
+    </div>
+
+    <div class="field">
+      <label>Scan Receipt Photo (optional)</label>
+      <input type="file" id="f-receipt-photo" accept="image/*" capture="environment">
+      <div class="hint" id="scan-status">Snap or upload a photo of the invoice/delivery note to pre-fill the fields below.</div>
+    </div>
+
+    <div class="field" id="block-item-pick" hidden>
+      <label>Item Code / Name</label>
+      <input type="text" id="f-item-search" placeholder="Start typing an item name...">
+      <select id="f-item-select" style="margin-top:6px;"></select>
+      <div class="hint" id="item-hint"></div>
+    </div>
+
+    <div class="row2 field">
+      <div>
+        <label>Qty Received</label>
+        <input type="number" id="f-qty" step="any" placeholder="0">
+      </div>
+      <div>
+        <label>Rate (PKR)</label>
+        <input type="number" id="f-rate" step="any" placeholder="0">
+      </div>
+    </div>
+
+    <div id="variance-hint"></div>
+
+    <div class="field">
+      <label>Vendor</label>
+      <select id="f-vendor"><option value="">— None / N/A —</option></select>
+    </div>
+
+    <div class="field">
+      <label>Date Received</label>
+      <input type="date" id="f-date">
+      <div class="hint">Defaults to today — change it to log a receipt for an earlier day.</div>
+    </div>
+
+    <div class="field">
+      <label>Invoice / Delivery Note #</label>
+      <input type="text" id="f-inv" placeholder="Optional">
+    </div>
+
+    <div class="field">
+      <label>Payment Status</label>
+      <select id="f-payment-status">
+        <option value="credit">On Credit (payable)</option>
+        <option value="paid">Paid Now</option>
+        <option value="advance">Advance Paid (balance stays on credit)</option>
+      </select>
+      <div class="hint" id="payment-status-hint" hidden>For a vendor like K&amp;N that needs an advance before they'll deliver — records the advance as a payment to the vendor and leaves the rest of this bill as a payable, same as On Credit.</div>
+    </div>
+
+    <div class="field" id="block-advance-amount" hidden>
+      <label>Advance Amount Paid (PKR)</label>
+      <input type="number" id="f-advance-amount" min="0" step="any" placeholder="0">
+      <div class="hint">Must be a vendor and no more than the total below.</div>
+    </div>
+
+    <div class="field" id="block-payment-method" hidden>
+      <label>Paid How</label>
+      <select id="f-payment-method">
+        <option value="cash">Cash (from the safe)</option>
+        <option value="bank">Bank Transfer</option>
+      </select>
+      <div class="hint" id="payment-method-hint">Cash here shows up as Cash Out on today's Cash Reconciliation — same as a cash vendor payment.</div>
+    </div>
+
+    <div class="field" id="f-funded-safe2-wrap" hidden style="flex-direction:row; align-items:center; gap:8px;">
+      <input type="checkbox" id="f-funded-safe2" style="width:auto;">
+      <label for="f-funded-safe2" style="margin:0; text-transform:none; font-size:0.85rem; font-weight:400;">Cash was withdrawn from Safe 2 and deposited to make this transfer</label>
+    </div>
+    <div class="hint" id="f-funded-safe2-hint" hidden style="margin-top:-8px; margin-bottom:12px;">Check this if Zeeshan took the cash out of the safe himself — it'll count as a Safe 2 cash-out on Cash Reconciliation, the same as a cash advance. Leave unchecked if this came from the normal bank balance with no cash involved.</div>
+
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="f-notes" rows="2" placeholder="Optional — condition, shortage explanation, etc."></textarea>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:4px;">
+      <span class="hint">Total</span>
+      <span class="amount-display" id="total-display">PKR 0</span>
+    </div>
+  </div>
+
+  <button class="btn-primary" id="btn-save" type="button">Save Receipt</button>
+  <button class="btn-ghost" id="btn-back" type="button">Back</button>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="step-label">Received Today</div>
+    <div id="today-list"></div>
+    <div class="hint" id="today-empty" hidden>Nothing received yet today.</div>
+  </div>
+</div>
+
+<div id="step-success" class="card success-wrap" hidden>
+  <div class="check">✓</div>
+  <div style="margin-top:8px; font-weight:600;">Receipt saved</div>
+  <div class="hint" style="margin-top:4px;" id="success-sub">Entry cleared. Ready for the next one.</div>
+  <button class="btn-primary" id="btn-another" type="button" style="margin-top:18px;">Receive Another</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000008"; // Grill
+const PAGE_KEY = "goods_receipt";
+
+let state = {
+  userId: null,
+  userName: null,
+  managerId: null,
+  products: [],
+  vendors: [],
+  mode: null,       // 'po' | 'adhoc' | 'transfer-out'
+  pos: [],
+  selectedPO: null, // the PO row, if mode === 'po'
+  receiptPhotoPath: null
+};
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function todayStr() {
+  // Grill's business day: before 9:00am PKT still counts as the previous
+  // calendar day, since the restaurant runs past midnight and does not
+  // really "end" until the early-morning close.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(), token: row.session_token });
+          setTimeout(() => {
+        afterLogin(row.app_user_id, match.name, match.id, row.role);
+      }, 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("urdu-box").hidden = false;
+  document.getElementById("step-mode").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+}
+
+async function loadProducts() {
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
+  } catch (e) { state.products = []; }
+}
+
+async function loadVendors() {
+  try {
+    const rows = await sb(`vendors?active=eq.true&select=id,name,linked_location_id&order=name`);
+    state.vendors = rows;
+    populateVendorOptions(rows, { includeNone: true, includeAddNew: true });
+  } catch (e) { /* non-fatal */ }
+}
+
+// Rebuilds the Vendor dropdown from `list` — used as-is for the normal PO/adhoc
+// flows (every active vendor, plus "None" and "+ Add New Vendor"), and with a
+// branch-only `list` (vendors.linked_location_id set — see
+// add_vendor_linked_location_for_branch_transfers) for the Transfer Out flow,
+// where picking a real outside vendor wouldn't make sense.
+function populateVendorOptions(list, { includeNone, includeAddNew }) {
+  const sel = document.getElementById("f-vendor");
+  sel.innerHTML = "";
+  if (includeNone) {
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "— None / N/A —";
+    sel.appendChild(noneOpt);
+  }
+  list.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v.id;
+    opt.textContent = v.name;
+    sel.appendChild(opt);
+  });
+  if (includeAddNew) {
+    const addOpt = document.createElement("option");
+    addOpt.value = "__add_new__";
+    addOpt.textContent = "+ Add New Vendor…";
+    sel.appendChild(addOpt);
+  }
+}
+
+async function handleVendorAddNew(e) {
+  if (e.target.value !== "__add_new__") return;
+  const name = (prompt("New vendor name:") || "").trim();
+  if (!name) { e.target.selectedIndex = 0; return; }
+  try {
+    const inserted = await sb("vendors", {
+      method: "POST",
+      headers: { "Prefer": "return=representation" },
+      body: JSON.stringify({ org_id: "00000000-0000-0000-0000-000000000001", name: name, active: true })
+    });
+    const newId = inserted && inserted[0] ? inserted[0].id : null;
+    state.vendors.push({ id: newId, name: name });
+    const addOpt = e.target.querySelector('option[value="__add_new__"]');
+    const opt = document.createElement("option");
+    opt.value = newId;
+    opt.textContent = name;
+    e.target.insertBefore(opt, addOpt);
+    e.target.value = newId;
+  } catch (err) {
+    alert("Could not add vendor: " + err.message);
+    e.target.selectedIndex = 0;
+  }
+}
+document.getElementById("f-vendor").addEventListener("change", handleVendorAddNew);
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadReceiptPhoto(file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${LOCATION_ID}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/receipts/${path}`, {
+    method: "POST",
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
+      "Content-Type": file.type || "image/jpeg"
+    },
+    body: file
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${t}`);
+  }
+  return path;
+}
+
+function findVendorIdByName(name) {
+  if (!name) return null;
+  const n = name.trim().toUpperCase();
+  if (!n) return null;
+  const exact = state.vendors.find(v => v.name.toUpperCase() === n);
+  if (exact) return exact.id;
+  const partial = state.vendors.find(v => v.name.toUpperCase().includes(n) || n.includes(v.name.toUpperCase()));
+  return partial ? partial.id : null;
+}
+
+function findProductIdByName(name) {
+  if (!name) return null;
+  const n = name.trim().toUpperCase();
+  if (!n) return null;
+  const exact = state.products.find(p => p.name.toUpperCase() === n);
+  if (exact) return exact.id;
+  const partial = state.products.find(p => n.includes(p.name.toUpperCase()) || p.name.toUpperCase().includes(n));
+  return partial ? partial.id : null;
+}
+
+async function handleReceiptPhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById("scan-status");
+  statusEl.textContent = "Uploading & scanning…";
+  try {
+    const [path, base64] = await Promise.all([
+      uploadReceiptPhoto(file),
+      fileToBase64(file)
+    ]);
+    state.receiptPhotoPath = path;
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-receipt`, {
+      method: "POST",
+      headers: {
+        "apikey": ANON_KEY,
+        "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ image_base64: base64, media_type: file.type || "image/jpeg" })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !data.extracted) {
+      statusEl.textContent = "Photo saved, but couldn't read it automatically — fill in the fields below.";
+      return;
+    }
+    const ex = data.extracted;
+    if (ex.invoice_number) document.getElementById("f-inv").value = ex.invoice_number;
+    const vId = findVendorIdByName(ex.vendor_name);
+    if (vId) document.getElementById("f-vendor").value = vId;
+    const firstItem = (ex.items || [])[0];
+    if (firstItem) {
+      if (firstItem.qty != null) document.getElementById("f-qty").value = firstItem.qty;
+      if (firstItem.rate != null) document.getElementById("f-rate").value = firstItem.rate;
+      if (state.mode === "adhoc") {
+        const pId = findProductIdByName(firstItem.name);
+        if (pId) {
+          document.getElementById("f-item-select").value = pId;
+          onItemSelected();
+        }
+      }
+    }
+    recalcAmount();
+    const extraLines = (ex.items || []).length > 1
+      ? ` (+${ex.items.length - 1} more line${ex.items.length > 2 ? "s" : ""} on this receipt — enter those separately)`
+      : "";
+    statusEl.innerHTML = `<span style="color:var(--ok)">Scanned${ex.vendor_name ? ": " + ex.vendor_name : ""}${extraLines}. Check every field before saving.</span>`;
+  } catch (err) {
+    statusEl.textContent = "Couldn't scan automatically (" + err.message + ") — the photo is still saved; fill in the fields below.";
+  }
+}
+document.getElementById("f-receipt-photo").addEventListener("change", handleReceiptPhoto);
+
+async function loadOpenPOs() {
+  try {
+    state.pos = await sb(`purchase_orders?location_id=eq.${LOCATION_ID}&status=in.(Authorized,Ordered)&select=id,qty_requested,unit,status,advance_amount,confirmed_received_qty,confirmed_rate,products(id,name,code,unit,current_rate),vendors(id,name)&order=requested_at.desc`);
+  } catch (e) { state.pos = []; }
+
+  // Partial receipts: a PO can now be received against more than once (a vendor delivers
+  // short and brings the rest later) — it stays status "Ordered" until the running total of
+  // non-voided purchases against it reaches qty_requested. Sum what's already come in so the
+  // picker and the variance check below compare against what's actually still outstanding,
+  // not the PO's original full quantity every time. Added 2026-10-18.
+  const poIds = state.pos.map(po => po.id);
+  let receivedByPo = {};
+  if (poIds.length) {
+    try {
+      const rows = await sb(`purchases?po_id=in.(${poIds.join(",")})&voided_at=is.null&select=po_id,qty`);
+      (rows || []).forEach(r => { receivedByPo[r.po_id] = (receivedByPo[r.po_id] || 0) + (Number(r.qty) || 0); });
+    } catch (e) { /* non-fatal — falls back to treating every PO as not-yet-received */ }
+  }
+  state.pos.forEach(po => {
+    po.receivedSoFar = Math.round((receivedByPo[po.id] || 0) * 100) / 100;
+    po.remaining = Math.round((((parseFloat(po.qty_requested) || 0) - po.receivedSoFar)) * 100) / 100;
+  });
+
+  const list = document.getElementById("po-list");
+  const emptyHint = document.getElementById("po-empty-hint");
+  list.innerHTML = "";
+  if (!state.pos.length) {
+    emptyHint.hidden = false;
+    return;
+  }
+  emptyHint.hidden = true;
+  state.pos.forEach(po => {
+    const card = document.createElement("div");
+    card.className = "po-card";
+    const prod = po.products;
+    const vend = po.vendors;
+    const advanceTag = Number(po.advance_amount) > 0
+      ? ` · <span style="color:var(--accent);font-weight:600;">Advance of PKR ${Math.round(po.advance_amount).toLocaleString()} already paid</span>` : "";
+    const partialTag = po.receivedSoFar > 0
+      ? ` · <span style="color:var(--warn);font-weight:600;">${po.receivedSoFar} already received — ${po.remaining} ${po.unit || prod?.unit || ""} remaining</span>` : "";
+    const confirmedTag = po.confirmed_received_qty != null
+      ? ` · <span style="color:var(--accent);font-weight:600;">Confirmed overnight: ${po.confirmed_received_qty} ${po.unit || prod?.unit || ""}${po.confirmed_rate != null ? " @ PKR " + Math.round(po.confirmed_rate).toLocaleString() : ""}</span>` : "";
+    card.innerHTML = `
+      <div class="po-title">${prod ? prod.name : "Unknown item"}</div>
+      <div class="po-sub">${vend ? vend.name : "No vendor"} · Ordered ${po.qty_requested} ${po.unit || prod?.unit || ""} · ${po.status}${advanceTag}${partialTag}${confirmedTag}</div>
+    `;
+    card.onclick = () => selectPO(po, card);
+    list.appendChild(card);
+  });
+}
+
+function selectPO(po, cardEl) {
+  document.querySelectorAll(".po-card").forEach(c => c.classList.remove("selected"));
+  cardEl.classList.add("selected");
+  state.selectedPO = po;
+  setTimeout(() => {
+    document.getElementById("step-po-pick").hidden = true;
+    enterForm();
+  }, 150);
+}
+
+async function loadTodayList() {
+  const list = document.getElementById("today-list");
+  const emptyHint = document.getElementById("today-empty");
+  try {
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${todayStr()}&select=id,qty,unit,rate,amount,created_at,notes,payment_status,voided_at,void_reason,original_qty,original_amount,products(name),vendors(name)&order=created_at.desc`);
+    list.innerHTML = "";
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "po-card" + (r.voided_at ? " voided" : "");
+      row.style.cursor = "default";
+      const advanceTag = (r.notes || "").startsWith("Advance of PKR")
+        ? ` · <span style="color:var(--accent);font-weight:600;">${(r.notes.match(/Advance of PKR [\d,]+/) || [""])[0]}</span>` : "";
+      const transferTag = Number(r.qty) < 0
+        ? ` · <span style="color:var(--warn);font-weight:600;">TRANSFER OUT</span>` : "";
+
+      if (r.voided_at) {
+        row.innerHTML = `
+          <div class="po-title">${r.products?.name || "Item"}</div>
+          <div class="po-sub">Originally ${r.original_qty ?? "?"} ${r.unit || ""} · PKR ${Math.round(r.original_amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"}</div>
+          <div class="void-tag">VOIDED — ${r.void_reason || ""}</div>`;
+        list.appendChild(row);
+        return;
+      }
+
+      row.innerHTML = `
+        <div class="po-title">${r.products?.name || "Item"}</div>
+        <div class="po-sub">${r.qty} ${r.unit || ""} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${r.vendors?.name || "no vendor"} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${advanceTag}${transferTag}</div>
+        <div class="void-link" data-void-open="${r.id}">Entered by mistake? Void / correct this entry</div>
+        <div class="void-form" id="void-form-${r.id}" hidden>
+          <textarea id="void-reason-${r.id}" rows="2" placeholder="Why is this being voided? (e.g. duplicate entry, wrong item, wrong vendor)"></textarea>
+          <div class="void-form-actions">
+            <button class="btn-ghost" type="button" data-void-cancel="${r.id}">Cancel</button>
+            <button class="btn-primary" type="button" data-void-confirm="${r.id}" style="background:var(--err);color:#fff;">Confirm void</button>
+          </div>
+        </div>`;
+      list.appendChild(row);
+    });
+
+    list.querySelectorAll("[data-void-open]").forEach(el => {
+      el.addEventListener("click", () => {
+        document.getElementById(`void-form-${el.dataset.voidOpen}`).hidden = false;
+        el.hidden = true;
+      });
+    });
+    list.querySelectorAll("[data-void-cancel]").forEach(el => {
+      el.addEventListener("click", () => {
+        const id = el.dataset.voidCancel;
+        document.getElementById(`void-form-${id}`).hidden = true;
+        const opener = list.querySelector(`[data-void-open="${id}"]`);
+        if (opener) opener.hidden = false;
+      });
+    });
+    list.querySelectorAll("[data-void-confirm]").forEach(el => {
+      el.addEventListener("click", () => voidPurchase(el.dataset.voidConfirm, rows.find(r => r.id === el.dataset.voidConfirm)));
+    });
+  } catch (e) { emptyHint.hidden = false; }
+}
+
+async function voidPurchase(id, row) {
+  const reasonEl = document.getElementById(`void-reason-${id}`);
+  const reason = (reasonEl.value || "").trim();
+  if (!reason) { reasonEl.focus(); return; }
+  const btn = document.querySelector(`[data-void-confirm="${id}"]`);
+  btn.disabled = true;
+  try {
+    await sb(`purchases?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        qty: 0,
+        amount: 0,
+        original_qty: row.qty,
+        original_rate: row.rate,
+        original_amount: row.amount,
+        voided_at: new Date().toISOString(),
+        voided_by_manager_id: state.managerId,
+        void_reason: `${reason} (voided by ${state.userName})`
+      })
+    });
+    loadTodayList();
+  } catch (e) {
+    alert("Couldn't void this entry: " + e.message);
+    btn.disabled = false;
+  }
+}
+
+function enterForm() {
+  document.getElementById("step-form").hidden = false;
+  loadTodayList();
+  document.getElementById("f-qty").value = "";
+  document.getElementById("f-rate").value = "";
+  document.getElementById("f-inv").value = "";
+  document.getElementById("f-notes").value = "";
+  document.getElementById("f-payment-status").value = "credit";
+  document.getElementById("f-payment-method").value = "cash";
+  document.getElementById("f-advance-amount").value = "";
+  document.getElementById("block-payment-method").hidden = true;
+  document.getElementById("block-advance-amount").hidden = true;
+  document.getElementById("payment-status-hint").hidden = true;
+  document.getElementById("f-funded-safe2").checked = false;
+  document.getElementById("f-funded-safe2-wrap").hidden = true;
+  document.getElementById("f-funded-safe2-hint").hidden = true;
+  document.getElementById("variance-hint").innerHTML = "";
+  document.getElementById("f-receipt-photo").value = "";
+  document.getElementById("scan-status").textContent = "Snap or upload a photo of the invoice/delivery note to pre-fill the fields below.";
+  state.receiptPhotoPath = null;
+
+  // Reset the vendor list/save button to the normal (every vendor) case by default —
+  // only the Transfer Out branch below narrows it to sister branches. Always resetting
+  // here (rather than only in the non-PO branch) matters because a PO's own vendor could
+  // otherwise fail to preselect below if the Transfer Out list was still active from an
+  // earlier visit to this form in the same session.
+  populateVendorOptions(state.vendors, { includeNone: true, includeAddNew: true });
+  document.getElementById("btn-save").textContent = "Save Receipt";
+
+  if (state.mode === "po" && state.selectedPO) {
+    const po = state.selectedPO;
+    document.getElementById("block-item-pick").hidden = true;
+    const advanceLine = Number(po.advance_amount) > 0
+      ? `<br>Advance of <strong>PKR ${Math.round(po.advance_amount).toLocaleString()}</strong> was already paid when this was ordered — it's already recorded as a vendor payment, so leave Payment Status as On Credit here and the vendor's balance will net correctly on its own.`
+      : "";
+    const partialLine = po.receivedSoFar > 0
+      ? `<br><strong>${po.receivedSoFar} ${po.unit || po.products?.unit || ""} already received</strong> on an earlier visit — ${po.remaining} still outstanding on this PO.`
+      : "";
+    const confirmedLine = po.confirmed_received_qty != null
+      ? `<br>Confirmed overnight by whoever was on site: <strong>${po.confirmed_received_qty} ${po.unit || po.products?.unit || ""}</strong>${po.confirmed_rate != null ? ` @ <strong>PKR ${Math.round(po.confirmed_rate).toLocaleString()}</strong>` : ""} — pre-filled below, double-check before saving.`
+      : "";
+    document.getElementById("po-context-banner").innerHTML = `
+      <div class="banner banner-ok">
+        Receiving against PO: <strong>${po.products?.name || "item"}</strong> ·
+        Ordered ${po.qty_requested} ${po.unit || po.products?.unit || ""} from ${po.vendors?.name || "vendor"}${advanceLine}${partialLine}${confirmedLine}
+      </div>`;
+    // The rate confirmed overnight (for a vendor whose price changes daily) beats the
+    // product's last-known rate — that's exactly the number this flow exists to capture.
+    // Same for quantity: start from what was confirmed received, not a blank field.
+    if (po.confirmed_rate != null) document.getElementById("f-rate").value = po.confirmed_rate;
+    else if (po.products?.current_rate) document.getElementById("f-rate").value = po.products.current_rate;
+    if (po.confirmed_received_qty != null) document.getElementById("f-qty").value = po.confirmed_received_qty;
+    if (po.vendors?.id) document.getElementById("f-vendor").value = po.vendors.id;
+  } else {
+    document.getElementById("block-item-pick").hidden = false;
+    populateItemSelect("");
+    if (state.mode === "transfer-out") {
+      // Only the sister-branch "vendors" make sense as the destination of a transfer —
+      // see add_vendor_linked_location_for_branch_transfers.
+      populateVendorOptions(state.vendors.filter(v => v.linked_location_id), { includeNone: false, includeAddNew: false });
+      document.getElementById("po-context-banner").innerHTML = `
+        <div class="banner banner-warn">
+          This stock is leaving Grill for another branch. Pick which branch below as the "Vendor" —
+          the qty/amount will be recorded as going <strong>out</strong> of this location's inventory, not in.
+        </div>`;
+      document.getElementById("btn-save").textContent = "Save Transfer Out";
+    } else {
+      document.getElementById("po-context-banner").innerHTML = "";
+    }
+  }
+  recalcAmount();
+}
+
+function populateItemSelect(filterText) {
+  const sel = document.getElementById("f-item-select");
+  const ft = (filterText || "").trim().toUpperCase();
+  const matches = ft
+    ? state.products.filter(p => p.name.toUpperCase().includes(ft) || (p.code || "").toUpperCase().includes(ft))
+    : state.products.slice(0, 40);
+  sel.innerHTML = '<option value="">— pick an item —</option>' +
+    matches.slice(0, 60).map(p => `<option value="${p.id}">${p.code || "?"} — ${p.name}</option>`).join("");
+}
+
+function onItemSelected() {
+  const sel = document.getElementById("f-item-select");
+  const p = state.products.find(x => x.id === sel.value);
+  if (p) {
+    document.getElementById("f-rate").value = p.current_rate || "";
+    document.getElementById("item-hint").textContent = `Unit: ${p.unit || "—"} · Last rate on file: PKR ${p.current_rate || 0}`;
+  } else {
+    document.getElementById("item-hint").textContent = "";
+  }
+  recalcAmount();
+}
+
+function recalcAmount() {
+  const qty = parseFloat(document.getElementById("f-qty").value) || 0;
+  const rate = parseFloat(document.getElementById("f-rate").value) || 0;
+  const amount = qty * rate;
+  document.getElementById("total-display").textContent = "PKR " + amount.toLocaleString("en-PK", { maximumFractionDigits: 2 });
+
+  if (state.mode === "po" && state.selectedPO) {
+    // Compare against what's still outstanding on this PO, not its original full quantity —
+    // a second partial receipt matching exactly what's left shouldn't flag as a variance.
+    const po = state.selectedPO;
+    const requested = po.receivedSoFar > 0 ? po.remaining : (parseFloat(po.qty_requested) || 0);
+    const hintEl = document.getElementById("variance-hint");
+    if (qty > 0 && requested > 0 && qty !== requested) {
+      const diff = qty - requested;
+      const label = diff > 0 ? "more than" : "less than";
+      const basis = po.receivedSoFar > 0 ? "what's still outstanding" : "what was ordered";
+      hintEl.innerHTML = `<div class="banner banner-warn">Received qty is ${Math.abs(diff)} ${label} ${basis} (${requested}). If this is a short delivery and the rest is coming later, save it as-is — the remainder will stay outstanding on this PO.</div>`;
+    } else {
+      hintEl.innerHTML = "";
+    }
+  }
+  return amount;
+}
+
+async function saveReceipt() {
+  const qty = parseFloat(document.getElementById("f-qty").value) || 0;
+  const rate = parseFloat(document.getElementById("f-rate").value) || 0;
+  const amount = qty * rate;
+  const vendorId = document.getElementById("f-vendor").value || null;
+  const invNumber = document.getElementById("f-inv").value || null;
+  const notes = document.getElementById("f-notes").value || null;
+  const paymentStatus = document.getElementById("f-payment-status").value;
+  const paymentMethod = (paymentStatus === "paid" || paymentStatus === "advance")
+    ? document.getElementById("f-payment-method").value : null;
+  const advanceAmount = paymentStatus === "advance" ? (parseFloat(document.getElementById("f-advance-amount").value) || 0) : 0;
+
+  if (!qty || qty <= 0) return alert("Enter a quantity greater than zero.");
+  if (state.mode === "transfer-out" && !vendorId) return alert("Pick which branch this stock is going to.");
+  if (paymentStatus === "advance") {
+    if (!vendorId) return alert("Pick a vendor before recording an advance payment against them.");
+    if (!advanceAmount || advanceAmount <= 0) return alert("Enter the advance amount that was actually paid.");
+    if (advanceAmount > amount + 0.01) return alert("The advance can't be more than the total (" + Math.round(amount).toLocaleString() + ") — for a bigger advance, record the extra separately on Vendor Payment.");
+  }
+
+  let productId = null, unit = null, variance = null, poId = null, oldRate = null;
+
+  if (state.mode === "po" && state.selectedPO) {
+    const po = state.selectedPO;
+    productId = po.products?.id || null;
+    unit = po.unit || po.products?.unit || null;
+    poId = po.id;
+    oldRate = po.products?.current_rate != null ? Number(po.products.current_rate) : null;
+    const requested = po.receivedSoFar > 0 ? po.remaining : (parseFloat(po.qty_requested) || 0);
+    if (requested > 0 && qty !== requested) {
+      variance = po.receivedSoFar > 0
+        ? `${po.remaining} still outstanding on this PO, received ${qty} (${po.unit || unit || ""})`
+        : `Ordered ${requested}, received ${qty} (${po.unit || unit || ""})`;
+    }
+  } else {
+    const itemSel = document.getElementById("f-item-select");
+    if (!itemSel.value) return alert("Pick an item.");
+    const p = state.products.find(x => x.id === itemSel.value);
+    productId = itemSel.value;
+    unit = p ? p.unit : null;
+    oldRate = p && p.current_rate != null ? Number(p.current_rate) : null;
+  }
+
+  const purchaseDate = document.getElementById("f-date").value || todayStr();
+
+  // An advance is recorded as a separate vendor_payments row (below) — the purchase itself
+  // still carries payment_status "credit" since the remainder is a real payable, exactly
+  // like an ordinary credit purchase. The vendor's running balance (Vendor Payment page) is
+  // owed-from-credit-purchases minus paid-via-vendor_payments, so logging the advance that
+  // way nets it out automatically without any special-casing elsewhere. Added 2026-10-13 for
+  // vendors (e.g. K&N) who require an advance before they'll deliver.
+  const advanceNote = paymentStatus === "advance"
+    ? `Advance of PKR ${Math.round(advanceAmount).toLocaleString()} paid via ${paymentMethod === "bank" ? "bank transfer" : "cash"} on ${purchaseDate}; balance on credit.`
+    : null;
+
+  // Transfer Out: recorded as a negative-qty/-amount "purchase" from that branch's vendor
+  // record (see add_vendor_linked_location_for_branch_transfers) — the same purchases row
+  // the inventory balance sheet already sums for Addition/Issuance just goes negative for
+  // this one, so it nets correctly without any new table or reporting logic. Payment
+  // Status/Method still apply as normal: if cash genuinely changed hands between branches
+  // it should still show up on Cash Reconciliation, exactly like it already does for
+  // existing branch-vendor purchases (e.g. Kohinoor, Susan).
+  const isTransferOut = state.mode === "transfer-out";
+  const transferNote = isTransferOut
+    ? `Transfer OUT to ${state.vendors.find(v => v.id === vendorId)?.name || "branch"}`
+    : null;
+  const combinedNotes = [advanceNote, transferNote, notes].filter(Boolean).join(" — ") || null;
+
+  const payload = {
+    location_id: LOCATION_ID,
+    product_id: productId,
+    vendor_id: vendorId,
+    inv_number: invNumber,
+    purchase_date: purchaseDate,
+    unit: unit,
+    rate: rate,
+    qty: isTransferOut ? -qty : qty,
+    amount: isTransferOut ? -amount : amount,
+    payment_status: paymentStatus === "advance" ? "credit" : paymentStatus,
+    payment_method: paymentStatus === "advance" ? null : paymentMethod,
+    notes: combinedNotes,
+    entered_by_user_id: state.userId,
+    entered_by_manager_id: state.managerId,
+    po_id: poId,
+    variance_note: variance,
+    receipt_photo_path: state.receiptPhotoPath
+  };
+
+  const btn = document.getElementById("btn-save");
+  btn.disabled = true;
+  try {
+    const inserted = await sb("purchases", {
+      method: "POST",
+      headers: { "Prefer": "return=representation" },
+      body: JSON.stringify(payload)
+    });
+    const purchaseId = inserted && inserted[0] ? inserted[0].id : null;
+
+    // Keep products.current_rate current — Goods Receipt is where a vendor's price change
+    // actually shows up first, and everything downstream (Issue Entry's issue amount, Manage
+    // Item's COGS card, the Inventory Balance Sheet's valuation) reads current_rate, not this
+    // purchase's own rate. Same last_rate/rate_updated_at convention as a manual rate edit on
+    // Manage Item. Non-fatal: the purchase itself is already saved either way. Skipped for a
+    // Transfer Out — that's just valuing stock that's leaving, not a vendor's new price.
+    if (!isTransferOut && productId && rate > 0 && (oldRate === null || Math.abs(rate - oldRate) > 0.0001)) {
+      try {
+        // updated_by is required by the products table's RLS policies (every UPDATE policy's
+        // with_check ties it to the acting user's role) — without it this silently 403'd for
+        // anyone who wasn't a director, even though the purchase itself still saved fine.
+        await sb(`products?id=eq.${productId}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" },
+          body: JSON.stringify({ current_rate: rate, last_rate: oldRate, rate_updated_at: new Date().toISOString(), updated_by: state.userId })
+        });
+      } catch (e) { /* non-fatal — rate can still be fixed later on Manage Item */ }
+    }
+
+    if (poId && purchaseId) {
+      // Partial receipt: this PO only closes out (status -> Received) once the running
+      // total of everything received against it reaches what was ordered. Short of that it
+      // stays "Ordered" so it keeps showing up here, ready to receive the rest later — see
+      // loadOpenPOs()'s receivedSoFar/remaining computation above. received_qty/
+      // linked_purchase_id still reflect this latest receipt for a quick glance; the actual
+      // running total always comes from summing purchases.qty where po_id = this PO.
+      const alreadyReceived = state.selectedPO ? (state.selectedPO.receivedSoFar || 0) : 0;
+      const totalRequested = state.selectedPO ? (parseFloat(state.selectedPO.qty_requested) || 0) : 0;
+      const isFullyReceived = (alreadyReceived + qty) >= (totalRequested - 0.01);
+      const patchBody = {
+        received_qty: qty,
+        received_at: new Date().toISOString(),
+        received_by_user_id: state.userId,
+        linked_purchase_id: purchaseId
+      };
+      if (isFullyReceived) patchBody.status = "Received";
+      await sb(`purchase_orders?id=eq.${poId}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(patchBody)
+      });
+    }
+
+    if (paymentStatus === "advance") {
+      const fundedFromSafe2 = paymentMethod === "bank" && document.getElementById("f-funded-safe2").checked;
+      await sb("vendor_payments", {
+        method: "POST",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          org_id: "00000000-0000-0000-0000-000000000001",
+          location_id: LOCATION_ID,
+          vendor_id: vendorId,
+          amount: advanceAmount,
+          payment_date: purchaseDate,
+          method: paymentMethod,
+          funded_from_safe2: fundedFromSafe2,
+          notes: `Advance paid at Goods Receipt${invNumber ? " (Inv# " + invNumber + ")" : ""}`,
+          paid_by: state.userId,
+          entered_by_manager_id: state.managerId
+        })
+      });
+    }
+
+    document.getElementById("success-sub").textContent = variance
+      ? `Saved — flagged for review: ${variance}`
+      : "Entry cleared. Ready for the next one.";
+    showSuccess();
+  } catch (e) {
+    alert("Couldn't save: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showSuccess() {
+  document.getElementById("step-form").hidden = true;
+  document.getElementById("step-success").hidden = false;
+}
+
+function resetToMode() {
+  state.mode = null;
+  state.selectedPO = null;
+  document.getElementById("step-success").hidden = true;
+  document.getElementById("step-form").hidden = true;
+  document.getElementById("step-po-pick").hidden = true;
+  document.getElementById("step-mode").hidden = false;
+}
+
+document.getElementById("mode-po").addEventListener("click", () => {
+  state.mode = "po";
+  document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("selected"));
+  document.getElementById("mode-po").classList.add("selected");
+  document.getElementById("step-mode").hidden = true;
+  document.getElementById("step-po-pick").hidden = false;
+  loadOpenPOs();
+});
+document.getElementById("mode-adhoc").addEventListener("click", () => {
+  state.mode = "adhoc";
+  document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("selected"));
+  document.getElementById("mode-adhoc").classList.add("selected");
+  document.getElementById("step-mode").hidden = true;
+  enterForm();
+});
+document.getElementById("mode-transfer-out").addEventListener("click", () => {
+  state.mode = "transfer-out";
+  document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("selected"));
+  document.getElementById("mode-transfer-out").classList.add("selected");
+  document.getElementById("step-mode").hidden = true;
+  enterForm();
+});
+document.getElementById("f-payment-status").addEventListener("change", (e) => {
+  const status = e.target.value;
+  document.getElementById("block-payment-method").hidden = status !== "paid" && status !== "advance";
+  document.getElementById("block-advance-amount").hidden = status !== "advance";
+  document.getElementById("payment-status-hint").hidden = status !== "advance";
+  document.getElementById("payment-method-hint").textContent = status === "advance"
+    ? "The advance amount — cash here shows up as Cash Out on today's Cash Reconciliation, same as a cash vendor payment. The rest of this bill stays payable, same as On Credit."
+    : "Cash here shows up as Cash Out on today's Cash Reconciliation — same as a cash vendor payment.";
+  updateFundedSafe2Visibility();
+});
+
+// Same "funded from Safe 2" parity as Vendor Payment — only meaningful for an Advance Paid
+// here (that's the only path on this page that posts a vendor_payments row), and only when
+// that advance is recorded as Bank Transfer rather than Cash (a plain cash advance is already
+// always a Safe 2 cash-out by definition, counted separately via method=eq.cash). Without this,
+// a bank-transfer advance actually funded by physically pulling cash from Safe 2 would never
+// show up in Cash Reconciliation's Cash Out, leaving Safe 2's physical count short with no
+// system-side explanation. Added 2026-10-18.
+function updateFundedSafe2Visibility() {
+  const status = document.getElementById("f-payment-status").value;
+  const method = document.getElementById("f-payment-method").value;
+  const wrap = document.getElementById("f-funded-safe2-wrap");
+  const hint = document.getElementById("f-funded-safe2-hint");
+  const show = status === "advance" && method === "bank";
+  wrap.hidden = !show;
+  hint.hidden = !show;
+  if (!show) document.getElementById("f-funded-safe2").checked = false;
+}
+document.getElementById("f-payment-method").addEventListener("change", updateFundedSafe2Visibility);
+document.getElementById("f-qty").addEventListener("input", recalcAmount);
+document.getElementById("f-rate").addEventListener("input", recalcAmount);
+document.getElementById("f-item-search").addEventListener("input", (e) => populateItemSelect(e.target.value));
+document.getElementById("f-item-select").addEventListener("change", onItemSelected);
+document.getElementById("btn-save").addEventListener("click", saveReceipt);
+document.getElementById("btn-back").addEventListener("click", resetToMode);
+document.getElementById("btn-another").addEventListener("click", resetToMode);
+
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
+}
+loadVendors();
+loadProducts();
+</script>
+</body>
+</html>

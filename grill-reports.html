@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grill Reports</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .row2 > div { flex: 1; min-width: 140px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+
+  .tab-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; -webkit-overflow-scrolling: touch; }
+  .tab-btn { white-space: nowrap; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink-soft); border-radius: 999px; padding: 9px 15px; font-size: 0.85rem; cursor: pointer; font-weight: 600; }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  .report-panel { display: none; }
+  .report-panel.active { display: block; }
+
+  .row-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; background: var(--field-bg); }
+  .row-card .r-title { font-weight: 600; font-size: 0.92rem; display: flex; justify-content: space-between; gap: 10px; }
+  .row-card .r-amt { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+  .row-card .r-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 3px; line-height: 1.4; }
+  .row-card .r-flag { color: var(--err); font-weight: 600; }
+  .photo-link { color: var(--accent); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  .totals-bar { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 0 0; margin-top: 6px; border-top: 2px solid var(--border); font-family: 'Zilla Slab', Georgia, serif; }
+  .empty-note { font-size: 0.85rem; color: var(--ink-soft); padding: 8px 0; }
+  .vendor-block { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; background: var(--field-bg); }
+  .vendor-block .v-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+  .vendor-block .v-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 2px 0; }
+  .vendor-block .v-row.bal { font-weight: 700; border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+  table.simple { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  table.simple th, table.simple td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--border); }
+  table.simple th { color: var(--ink-soft); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .retention-note { font-size: 0.76rem; color: var(--ink-soft); margin: -6px 0 14px; }
+
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .btn-preset { background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 999px; padding: 8px 14px; font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-preset:hover { border-color: var(--accent); }
+  .pl-period-hdr { margin-bottom: 12px; font-family: 'Zilla Slab', Georgia, serif; }
+  .pl-period-hdr .hint { margin: 2px 0 0; }
+  .pl-section-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); font-weight: 700; margin: 14px 0 2px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .pl-section-title.pl-warn-title { color: var(--err); border-bottom-color: var(--err); }
+  .pl-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 0; font-size: 0.88rem; }
+  .pl-row.clickable { cursor: pointer; }
+  .pl-row.clickable:hover { background: var(--field-bg); border-radius: 6px; }
+  .pl-label { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+  .pl-caret { display: inline-block; width: 12px; font-size: 0.7rem; transition: transform 0.15s ease; color: var(--ink-soft); flex-shrink: 0; }
+  .pl-caret.open { transform: rotate(90deg); }
+  .pl-amt-wrap { display: flex; gap: 10px; align-items: baseline; flex-shrink: 0; }
+  .pl-pct { font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 0.75rem; width: 44px; text-align: right; }
+  .pl-amt { font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; }
+  .lvl-0 { font-weight: 700; }
+  .lvl-1 { padding-left: 16px; }
+  .lvl-2 { padding-left: 32px; color: var(--ink-soft); font-size: 0.82rem; }
+  .pl-subtotal { border-top: 1px solid var(--border); margin-top: 2px; padding-top: 7px; }
+  .pl-grandtotal { border-top: 2px solid var(--ink); margin-top: 8px; padding-top: 9px; font-family: 'Zilla Slab', Georgia, serif; font-size: 1.02rem; }
+  .pl-net-income { background: var(--ok-bg); border-radius: 8px; padding: 10px 8px; margin-top: 12px; color: var(--ok); border-top: none; }
+  .pl-children[hidden] { display: none; }
+  .pl-memo-box { background: var(--warn-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 16px; }
+  .pl-memo-box .pl-row .pl-amt, .pl-memo-box .pl-row .pl-label { color: var(--warn); }
+  .pl-uncat-banner { border: 1px solid var(--err); background: var(--err-bg); color: var(--err); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; font-weight: 600; margin-bottom: 14px; }
+  .pl-recon-note { padding: 2px 0 6px 32px; font-size: 0.76rem; color: var(--ink-soft); }
+
+  .daily-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 4px; }
+  .daily-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .daily-table th, .daily-table td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .daily-table th:first-child, .daily-table td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+  .daily-table thead th { color: var(--ink-soft); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.02em; border-bottom: 2px solid var(--border); background: var(--surface); }
+  .daily-table tfoot td { font-weight: 700; border-top: 2px solid var(--ink); border-bottom: none; background: var(--field-bg); }
+  .daily-table td.daily-total, .daily-table th.daily-total-h { font-weight: 700; }
+  .daily-date { font-weight: 600; }
+  .daily-date-clickable { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; color: var(--accent); }
+  .daily-date-clickable:hover { text-decoration-style: solid; }
+  .daily-row-empty td { color: var(--ink-soft); opacity: 0.55; font-style: italic; }
+  .daily-memo-note { font-size: 0.76rem; color: var(--ink-soft); margin: 6px 0 0; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="grill-home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
+
+
+<h1>Grill Reports</h1>
+<div class="sub">Director audit view — any day, any screen, with photos where available</div>
+<div class="retention-note">Photos are kept for 40 days from upload, then automatically removed to save space. The underlying figures stay in the system permanently.</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page sirf dekhne (view) k liye hai — yahan koi entry nahi hoti, sirf pehle say maujood data ki report nikalti hai. Upar tabs mein say jo report dekhni hai woh chunen (Sales, Expenses, Goods Receipt, waghera). Phir "From" aur "To" tareekh daalen ya "This Month" / "Last Month" / "This Year" wala button dabayen, aur "Run Report" per click karen. Kuch reports mein kisi din per click karen to us din ki tafseeli entries aur receipt ki photo bhi dekh sakte hain. "Download Excel" say report Excel file mein save ho jati hai. Yaad rahe: receipt ki photos sirf 40 din tak system mein rehti hain, uske baad khud hi remove ho jati hain — lekin figures (numbers) hamesha k liye mehfooz rehte hain.
+  </div>
+
+  <div class="tab-row" id="tab-row">
+    <button class="tab-btn active" data-tab="sales">Sales</button>
+    <button class="tab-btn" data-tab="expenses">Expenses</button>
+    <button class="tab-btn" data-tab="goods_receipt">Goods Receipt</button>
+    <button class="tab-btn" data-tab="issue_entry">Issue Entry</button>
+    <button class="tab-btn" data-tab="vendor_payments">Vendor Payments</button>
+    <button class="tab-btn" data-tab="cash_recon">Cash Recon</button>
+    <button class="tab-btn" data-tab="payables">Payables (Monthly)</button>
+    <button class="tab-btn" data-tab="income_statement">Income Statement</button>
+  </div>
+
+  <!-- Sales -->
+  <div class="report-panel active" data-panel="sales">
+    <div class="card">
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="sales" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="sales" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="sales" data-range-preset="this_year">This Year</button>
+      </div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="sales-from"></div>
+        <div><label>To</label><input type="date" id="sales-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="sales-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="sales-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="sales-result"><div class="hint">Pick a period and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Expenses -->
+  <div class="report-panel" data-panel="expenses">
+    <div class="card">
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="expenses" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="expenses" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="expenses" data-range-preset="this_year">This Year</button>
+      </div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="expenses-from"></div>
+        <div><label>To</label><input type="date" id="expenses-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="expenses-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="expenses-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="expenses-result"><div class="hint">Pick a period and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Goods Receipt -->
+  <div class="report-panel" data-panel="goods_receipt">
+    <div class="card">
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="goods" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="goods" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="goods" data-range-preset="this_year">This Year</button>
+      </div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="goods-from"></div>
+        <div><label>To</label><input type="date" id="goods-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="goods-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="goods-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="goods-result"><div class="hint">Pick a period and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Issue Entry -->
+  <div class="report-panel" data-panel="issue_entry">
+    <div class="card">
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="issue" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="issue" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="issue" data-range-preset="this_year">This Year</button>
+      </div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="issue-from"></div>
+        <div><label>To</label><input type="date" id="issue-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="issue-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="issue-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="issue-result"><div class="hint">Pick a period and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Vendor Payments -->
+  <div class="report-panel" data-panel="vendor_payments">
+    <div class="card">
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="vp" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="vp" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="vp" data-range-preset="this_year">This Year</button>
+      </div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="vp-from"></div>
+        <div><label>To</label><input type="date" id="vp-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="vp-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="vp-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="vp-result"><div class="hint">Pick a period and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Cash Recon -->
+  <div class="report-panel" data-panel="cash_recon">
+    <div class="card">
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-range-target="cr" data-range-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-range-target="cr" data-range-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-range-target="cr" data-range-preset="this_year">This Year</button>
+      </div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="cr-from"></div>
+        <div><label>To</label><input type="date" id="cr-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="cr-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="cr-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="cr-result"><div class="hint">Pick a period and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Payables -->
+  <div class="report-panel" data-panel="payables">
+    <div class="card">
+      <div class="row2 field">
+        <div><label>Month</label><input type="month" id="pay-month"></div>
+        <div><button class="btn-primary" id="pay-run" type="button">Run Report</button></div>
+      </div>
+      <div id="pay-result"><div class="hint">Pick a month and run the report.</div></div>
+    </div>
+  </div>
+
+  <!-- Income Statement -->
+  <div class="report-panel" data-panel="income_statement">
+    <div class="card">
+      <div class="preset-row">
+        <button type="button" class="btn-preset" data-preset="this_month">This Month</button>
+        <button type="button" class="btn-preset" data-preset="last_month">Last Month</button>
+        <button type="button" class="btn-preset" data-preset="this_year">This Year</button>
+      </div>
+      <div class="row2 field">
+        <div><label>From</label><input type="date" id="is-from"></div>
+        <div><label>To</label><input type="date" id="is-to"></div>
+      </div>
+      <div class="row2 field">
+        <div><button class="btn-primary" id="is-run" type="button" style="width:100%;">Run Report</button></div>
+        <div><button class="btn-ghost" id="is-export" type="button" style="margin-top:0;" disabled>Download Excel</button></div>
+      </div>
+      <div id="is-result"><div class="hint">Pick a period and run the report, or tap a quick range above.</div></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000008"; // Grill
+const PAGE_KEY = "reports";
+
+let state = { userId: null, userName: null, managerId: null, role: null, users: {}, managers: {}, vendors: {}, products: {}, lastDaily: {} };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json", ...(opts.headers || {}) }
+  });
+  if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error(`${res.status} ${text}`); }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function todayStr() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function fmtMoney(n) { return "PKR " + Math.round(Number(n) || 0).toLocaleString(); }
+// "userName" looks up app_users.id (how most screens record who did a sale/expense/etc);
+// "managerName" looks up managers.id (a DIFFERENT id for the same person, used only for
+// entered_by_manager_id — mixing these two up is what showed raw uuids before).
+function userName(id) { return id && state.users[id] ? state.users[id] : (id ? "—" : "—"); }
+function managerName(id) { return id && state.managers[id] ? state.managers[id] : (id ? "—" : "—"); }
+function vendorName(id) { return id && state.vendors[id] ? state.vendors[id] : "—"; }
+function productName(id) { return id && state.products[id] ? state.products[id] : "—"; }
+
+async function viewPhoto(bucket, path) {
+  if (!path) return;
+  // iOS Safari only honors window.open() as user-initiated when it's called synchronously in
+  // the click handler — not after an await. Opening the blank tab first and filling in its
+  // location once the signed URL arrives keeps it tied to the tap on iPhone.
+  const win = window.open("", "_blank");
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${bucket}/${path}`, {
+      method: "POST",
+      headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: 300 })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if (win) win.location.href = `${SUPABASE_URL}/storage/v1${data.signedURL}`;
+    else window.open(`${SUPABASE_URL}/storage/v1${data.signedURL}`, "_blank");
+  } catch (e) {
+    if (win) win.close();
+    alert("Couldn't open the photo (it may be older than 40 days and already removed): " + e.message);
+  }
+}
+window.viewPhoto = viewPhoto;
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(), token: row.session_token });
+    nameInput.value = "";
+    pinInput.value = "";
+    afterLogin(row.app_user_id, match.name, match.id, row.role);
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+async function loadLookups() {
+  try {
+    const users = await sb(`app_users?select=id,name`);
+    users.forEach(u => { state.users[u.id] = u.name; });
+  } catch (e) { /* non-fatal */ }
+  try {
+    const vendors = await sb(`vendors?select=id,name`);
+    vendors.forEach(v => { state.vendors[v.id] = v.name; });
+  } catch (e) { /* non-fatal */ }
+  try {
+    const products = await sb(`products?select=id,name,unit`);
+    products.forEach(p => { state.products[p.id] = p.name; });
+  } catch (e) { /* non-fatal */ }
+  try {
+    // managers.id is a DIFFERENT id space from app_users.id (see userName/managerName
+    // above) — entered_by_manager_id needs this map, not state.users.
+    const managers = await sbRpc("list_manager_names", {});
+    managers.forEach(m => { state.managers[m.id] = m.name; });
+  } catch (e) { /* non-fatal */ }
+}
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId; state.userName = name; state.managerId = managerId; state.role = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  const d = todayStr();
+  const monthStartStr = d.slice(0, 8) + "01";
+  ["sales", "expenses", "goods", "issue", "vp", "cr", "is"].forEach(p => {
+    document.getElementById(`${p}-from`).value = monthStartStr;
+    document.getElementById(`${p}-to`).value = d;
+  });
+  document.getElementById("pay-month").value = d.slice(0, 7);
+  loadLookups();
+}
+
+// --- Tabs ---
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".report-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelector(`.report-panel[data-panel="${btn.dataset.tab}"]`).classList.add("active");
+  });
+});
+
+// --- Shared daily-table engine (date rows x column(s) x Total-on-the-right) ---
+// Used by every monthly/range report below, and by its matching Excel export, so each
+// report only has to say which table to query and how to bucket it by day.
+function datesInRange(from, to) {
+  const dates = [];
+  let d = new Date(from + "T00:00:00Z");
+  const end = new Date(to + "T00:00:00Z");
+  while (d <= end) { dates.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); }
+  return dates;
+}
+function fmtDayLabel(d) {
+  const dt = new Date(d + "T00:00:00");
+  return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+function finalizeDailyModel(dates, columns, matrix, totals) {
+  const rowTotal = {}, colTotal = {}; let grandTotal = 0;
+  dates.forEach(d => {
+    const rt = totals && totals[d] != null ? totals[d] : columns.reduce((a, c) => a + (matrix[d][c.key] || 0), 0);
+    rowTotal[d] = rt; grandTotal += rt;
+    columns.forEach(c => { colTotal[c.key] = (colTotal[c.key] || 0) + (matrix[d][c.key] || 0); });
+  });
+  return { dates, columns, matrix, rowTotal, colTotal, grandTotal };
+}
+// Dynamic-column pivot: one column per distinct value of colKeyFn(row), e.g. category or vendor.
+function buildPivotModel(rows, { dateKey, colKeyFn, amtKey, from, to }) {
+  const dates = datesInRange(from, to);
+  const matrix = {}; dates.forEach(d => { matrix[d] = {}; });
+  const colLabels = {};
+  rows.forEach(r => {
+    const d = r[dateKey];
+    if (!matrix[d]) return;
+    const key = colKeyFn(r) || "Unspecified";
+    colLabels[key] = key;
+    matrix[d][key] = (matrix[d][key] || 0) + (Number(r[amtKey]) || 0);
+  });
+  const columns = Object.keys(colLabels).sort((a, b) => a.localeCompare(b)).map(k => ({ key: k, label: k }));
+  return finalizeDailyModel(dates, columns, matrix);
+}
+// Fixed-column daily table: sums named source fields per day. If totalField is given, the
+// Total column comes straight from that field (summed) instead of summing the shown columns —
+// needed when a shown column is a memo breakdown already counted elsewhere (bakery, card split).
+function buildFixedColsModel(rows, { dateKey, columns, totalField, from, to }) {
+  const dates = datesInRange(from, to);
+  const matrix = {}; dates.forEach(d => { matrix[d] = {}; });
+  const totals = totalField ? {} : null;
+  rows.forEach(r => {
+    const d = r[dateKey];
+    if (!matrix[d]) return;
+    columns.forEach(c => { matrix[d][c.key] = (matrix[d][c.key] || 0) + (Number(r[c.field]) || 0); });
+    if (totalField) totals[d] = (totals[d] || 0) + (Number(r[totalField]) || 0);
+  });
+  return finalizeDailyModel(dates, columns, matrix, totals);
+}
+// `drill` (optional) = { detailId } makes each date clickable — it loads the itemized
+// entries for that one day (including receipt photo links) into a panel below the table.
+// The monthly table only has day totals, so this is the only way back to a single receipt.
+function renderDailyTable(model, drill) {
+  const rows = model.dates.map(d => {
+    const cells = model.columns.map(c => `<td>${fmtMoney(model.matrix[d][c.key] || 0)}</td>`).join("");
+    const empty = model.rowTotal[d] === 0 ? ' class="daily-row-empty"' : "";
+    const dateCell = drill
+      ? `<td class="daily-date daily-date-clickable" data-drill-date="${d}">${fmtDayLabel(d)}</td>`
+      : `<td class="daily-date">${fmtDayLabel(d)}</td>`;
+    return `<tr${empty}>${dateCell}${cells}<td class="daily-total">${fmtMoney(model.rowTotal[d])}</td></tr>`;
+  }).join("");
+  const footCells = model.columns.map(c => `<td>${fmtMoney(model.colTotal[c.key] || 0)}</td>`).join("");
+  const table = `<div class="daily-table-wrap"><table class="daily-table">
+    <thead><tr><th>Date</th>${model.columns.map(c => `<th>${escapeHtml(c.label)}</th>`).join("")}<th class="daily-total-h">Total</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td>Total</td>${footCells}<td>${fmtMoney(model.grandTotal)}</td></tr></tfoot>
+  </table></div>`;
+  if (!drill) return table;
+  return table + `<div class="hint" style="margin:8px 0 2px;">Tap a date above to see that day's line items and receipt photos.</div><div id="${drill.detailId}"></div>`;
+}
+// Shared renderer for a day's itemized entries (used by the drill-down below Expenses,
+// Goods Receipt, and Vendor Payments) — same row-card + photo-link markup the old
+// single-day reports used, so nothing about viewing a receipt has actually changed.
+function renderDayDetailCards(rows, cardFn, emptyMsg) {
+  if (!rows.length) return `<div class="empty-note">${emptyMsg}</div>`;
+  let total = 0;
+  const cards = rows.map(r => { total += Number(r.amount) || 0; return cardFn(r); }).join("");
+  return cards + `<div class="totals-bar"><span>Day total (${rows.length} entries)</span><span>${fmtMoney(total)}</span></div>`;
+}
+function wireDrillDown(resultElId, detailId, loaderFn) {
+  document.getElementById(resultElId).addEventListener("click", (e) => {
+    const cell = e.target.closest(".daily-date-clickable");
+    if (!cell) return;
+    const detailEl = document.getElementById(detailId);
+    if (!detailEl) return;
+    detailEl.innerHTML = '<div class="hint">Loading…</div>';
+    loaderFn(cell.dataset.drillDate, detailEl);
+  });
+}
+function dailyModelToAoa(model, title, from, to) {
+  const aoa = [[title], [`Period: ${from} to ${to}`], []];
+  aoa.push(["Date", ...model.columns.map(c => c.label), "Total"]);
+  model.dates.forEach(d => {
+    aoa.push([d, ...model.columns.map(c => roundNum(model.matrix[d][c.key] || 0)), roundNum(model.rowTotal[d])]);
+  });
+  aoa.push(["Total", ...model.columns.map(c => roundNum(model.colTotal[c.key] || 0)), roundNum(model.grandTotal)]);
+  return aoa;
+}
+function exportDailyToExcel(model, title, from, to, filenamePrefix) {
+  const aoa = dailyModelToAoa(model, title, from, to);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 14 }, ...model.columns.map(() => ({ wch: 16 })), { wch: 16 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, title.slice(0, 31));
+  XLSX.writeFile(wb, `Grill_${filenamePrefix}_${from}_to_${to}.xlsx`);
+}
+function presetRange(preset) {
+  const today = todayStr();
+  const [y, m] = today.split("-").map(Number);
+  if (preset === "this_month") return [`${y}-${String(m).padStart(2, "0")}-01`, today];
+  if (preset === "last_month") {
+    const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
+    const lastDay = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+    return [`${py}-${String(pm).padStart(2, "0")}-01`, `${py}-${String(pm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`];
+  }
+  return [`${y}-01-01`, today];
+}
+function wireRangePreset(btn) {
+  btn.addEventListener("click", () => {
+    const prefix = btn.dataset.rangeTarget;
+    const [from, to] = presetRange(btn.dataset.rangePreset);
+    document.getElementById(`${prefix}-from`).value = from;
+    document.getElementById(`${prefix}-to`).value = to;
+    document.getElementById(`${prefix}-run`).click();
+  });
+}
+function rangeAndGuard(prefix) {
+  const from = document.getElementById(`${prefix}-from`).value;
+  const to = document.getElementById(`${prefix}-to`).value;
+  const resultEl = document.getElementById(`${prefix}-result`);
+  const exportBtn = document.getElementById(`${prefix}-export`);
+  exportBtn.disabled = true;
+  if (!from || !to) { resultEl.innerHTML = '<div class="hint">Pick a period and run the report.</div>'; return null; }
+  if (from > to) { resultEl.innerHTML = '<div class="empty-note">"From" must be on or before "To".</div>'; return null; }
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  return { from, to, resultEl, exportBtn };
+}
+
+// --- Sales report (monthly, per day; Bakery/Card shown as memo, not summed into Total) ---
+async function runSalesReport() {
+  const ctx = rangeAndGuard("sales"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
+  try {
+    const rows = await sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=sale_date,dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale,card_amount,total_sale`);
+    const columns = [
+      { key: "dine_in", label: "Dine In", field: "dine_in_amount" },
+      { key: "takeaway", label: "Takeaway", field: "takeaway_amount" },
+      { key: "delivery", label: "Delivery", field: "delivery_amount" },
+      { key: "third_party", label: "3rd Party", field: "third_party_amount" },
+      { key: "food_panda", label: "Food Panda", field: "food_panda_amount" },
+      { key: "bakery", label: "Bakery*", field: "bakery_sale" },
+      { key: "card", label: "Card*", field: "card_amount" }
+    ];
+    const model = buildFixedColsModel(rows, { dateKey: "sale_date", columns, totalField: "total_sale", from, to });
+    resultEl.innerHTML = renderDailyTable(model) + `<div class="daily-memo-note">*Bakery and Card are memo breakdowns already included inside the channel amounts — they are not added into Total.</div>`;
+    state.lastDaily.sales = { model, from, to, title: "Sales Report" };
+    exportBtn.disabled = false;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("sales-run").addEventListener("click", runSalesReport);
+document.getElementById("sales-export").addEventListener("click", () => {
+  const s = state.lastDaily.sales; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Sales");
+});
+
+// --- Expenses report (monthly, per day, pivoted by category) ---
+async function runExpensesReport() {
+  const ctx = rangeAndGuard("expenses"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
+  try {
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${from}&expense_date=lte.${to}&select=expense_date,category,amount`);
+    const model = buildPivotModel(rows, { dateKey: "expense_date", colKeyFn: r => r.category || "Uncategorized", amtKey: "amount", from, to });
+    resultEl.innerHTML = renderDailyTable(model, { detailId: "expenses-detail" });
+    state.lastDaily.expenses = { model, from, to, title: "Expenses Report" };
+    exportBtn.disabled = false;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("expenses-run").addEventListener("click", runExpensesReport);
+document.getElementById("expenses-export").addEventListener("click", () => {
+  const s = state.lastDaily.expenses; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Expenses");
+});
+wireDrillDown("expenses-result", "expenses-detail", async (date, detailEl) => {
+  try {
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=eq.${date}&select=*&order=created_at`);
+    detailEl.innerHTML = renderDayDetailCards(rows, r => {
+      const flagged = r.ai_check_status && r.ai_check_status !== "ok";
+      return `<div class="row-card">
+        <div class="r-title"><span>${r.category || "Expense"}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          ${r.detail ? r.detail + "<br>" : ""}
+          ${r.vendor_id ? "Vendor: " + vendorName(r.vendor_id) + " · " : ""}Payment: ${r.payment_method || "cash"}${r.shift ? " · " + (r.shift === "morning" ? "Morning" : "Evening") : ""}<br>
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
+          ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
+          ${flagged ? `<br><span class="r-flag">Flagged: ${r.ai_check_status}${r.ai_check_reason ? " — " + r.ai_check_reason : ""}</span>` : ""}
+        </div>
+      </div>`;
+    }, "No expenses for this date.");
+  } catch (e) { detailEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+});
+
+// --- Goods Receipt report (monthly, per day, pivoted by vendor) ---
+async function runGoodsReport() {
+  const ctx = rangeAndGuard("goods"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
+  try {
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=purchase_date,vendor_id,amount`);
+    const model = buildPivotModel(rows, { dateKey: "purchase_date", colKeyFn: r => r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned", amtKey: "amount", from, to });
+    resultEl.innerHTML = renderDailyTable(model, { detailId: "goods-detail" });
+    state.lastDaily.goods = { model, from, to, title: "Goods Receipt Report" };
+    exportBtn.disabled = false;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("goods-run").addEventListener("click", runGoodsReport);
+document.getElementById("goods-export").addEventListener("click", () => {
+  const s = state.lastDaily.goods; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Goods_Receipt");
+});
+wireDrillDown("goods-result", "goods-detail", async (date, detailEl) => {
+  try {
+    const rows = await sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=eq.${date}&select=*&order=created_at`);
+    detailEl.innerHTML = renderDayDetailCards(rows, r => `<div class="row-card">
+        <div class="r-title"><span>${productName(r.product_id)}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          ${r.qty} ${r.unit || ""} @ ${fmtMoney(r.rate)} · Vendor: ${r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned"} · ${r.payment_status === "credit" ? "On credit" : "Paid"}${r.inv_number ? " · Inv# " + r.inv_number : ""}<br>
+          Entered by: ${userName(r.entered_by_user_id)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
+          ${r.receipt_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('receipts','${r.receipt_photo_path}')">View Photo</span>` : ""}
+          ${r.variance_note ? `<br><span class="r-flag">Variance: ${r.variance_note}</span>` : ""}
+        </div>
+      </div>`, "No goods received on this date.");
+  } catch (e) { detailEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+});
+
+// --- Issue Entry report (monthly, per day, pivoted by where it was issued to) ---
+async function runIssueReport() {
+  const ctx = rangeAndGuard("issue"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
+  try {
+    const rows = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&issue_date=gte.${from}&issue_date=lte.${to}&select=issue_date,issued_to,amount`);
+    const model = buildPivotModel(rows, { dateKey: "issue_date", colKeyFn: r => r.issued_to || "Unspecified", amtKey: "amount", from, to });
+    resultEl.innerHTML = renderDailyTable(model);
+    state.lastDaily.issue = { model, from, to, title: "Issue Entry Report" };
+    exportBtn.disabled = false;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("issue-run").addEventListener("click", runIssueReport);
+document.getElementById("issue-export").addEventListener("click", () => {
+  const s = state.lastDaily.issue; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Issue_Entry");
+});
+
+// --- Vendor Payments report (monthly, per day, pivoted by vendor) ---
+async function runVpReport() {
+  const ctx = rangeAndGuard("vp"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
+  try {
+    const rows = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=gte.${from}&payment_date=lte.${to}&select=payment_date,vendor_id,amount`);
+    const model = buildPivotModel(rows, { dateKey: "payment_date", colKeyFn: r => r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned", amtKey: "amount", from, to });
+    resultEl.innerHTML = renderDailyTable(model, { detailId: "vp-detail" });
+    state.lastDaily.vp = { model, from, to, title: "Vendor Payments Report" };
+    exportBtn.disabled = false;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("vp-run").addEventListener("click", runVpReport);
+document.getElementById("vp-export").addEventListener("click", () => {
+  const s = state.lastDaily.vp; if (s) exportDailyToExcel(s.model, s.title, s.from, s.to, "Vendor_Payments");
+});
+wireDrillDown("vp-result", "vp-detail", async (date, detailEl) => {
+  try {
+    const rows = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=eq.${date}&select=*&order=created_at`);
+    detailEl.innerHTML = renderDayDetailCards(rows, r => `<div class="row-card">
+        <div class="r-title"><span>${r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned"}</span><span class="r-amt">${fmtMoney(r.amount)}</span></div>
+        <div class="r-sub">
+          Method: ${r.method}${r.notes ? " · " + r.notes : ""}<br>
+          Paid by: ${userName(r.paid_by)}${r.entered_by_manager_id ? " (via " + managerName(r.entered_by_manager_id) + ")" : ""}
+          ${r.payment_photo_path ? ` · <span class="photo-link" onclick="viewPhoto('vendor-payment-photos','${r.payment_photo_path}')">View Photo</span>` : ""}
+        </div>
+      </div>`, "No vendor payments on this date.");
+  } catch (e) { detailEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+});
+
+// --- Cash Reconciliation report (monthly, per day — fixed columns, Status is text so no
+// row Total column; cash_safe_ledger is Grill-wide, so there's no location filter here,
+// matching the single-day report this replaces) ---
+async function runCrReport() {
+  const ctx = rangeAndGuard("cr"); if (!ctx) return;
+  const { from, to, resultEl, exportBtn } = ctx;
+  try {
+    const rows = await sb(`cash_safe_ledger?ledger_date=gte.${from}&ledger_date=lte.${to}&select=ledger_date,opening_cash,cash_in,cash_out,counted_cash,cash_variance,status,safe_photo_path&order=ledger_date`);
+    const byDate = {}; rows.forEach(r => { byDate[r.ledger_date] = r; });
+    const dates = datesInRange(from, to);
+    let sumIn = 0, sumOut = 0, sumVar = 0, flaggedDays = 0;
+    const bodyRows = dates.map(d => {
+      const r = byDate[d];
+      if (!r) return `<tr class="daily-row-empty"><td class="daily-date">${fmtDayLabel(d)}</td><td colspan="7">No entry</td></tr>`;
+      const expected = (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
+      const varianceOk = !r.cash_variance || Math.abs(Number(r.cash_variance)) < 1;
+      sumIn += Number(r.cash_in) || 0; sumOut += Number(r.cash_out) || 0; sumVar += Number(r.cash_variance) || 0;
+      if (!varianceOk) flaggedDays++;
+      return `<tr><td class="daily-date">${fmtDayLabel(d)}</td><td>${fmtMoney(r.opening_cash)}</td><td>${fmtMoney(r.cash_in)}</td><td>${fmtMoney(r.cash_out)}</td><td>${fmtMoney(expected)}</td><td>${r.counted_cash != null ? fmtMoney(r.counted_cash) : "—"}</td><td style="${varianceOk ? "" : "color:var(--err);font-weight:700;"}">${r.cash_variance != null ? fmtMoney(r.cash_variance) : "—"} ${r.status ? `<span class="hint" style="margin:0;">(${r.status})</span>` : ""}</td><td>${r.safe_photo_path ? `<span class="photo-link" onclick="viewPhoto('safe-photos','${r.safe_photo_path}')">Photo</span>` : "—"}</td></tr>`;
+    }).join("");
+    resultEl.innerHTML = `<div class="daily-table-wrap"><table class="daily-table">
+      <thead><tr><th>Date</th><th>Opening</th><th>Cash In</th><th>Cash Out</th><th>Expected</th><th>Counted</th><th>Variance (Status)</th><th>Safe Photo</th></tr></thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot><tr><td>Total</td><td>—</td><td>${fmtMoney(sumIn)}</td><td>${fmtMoney(sumOut)}</td><td>—</td><td>—</td><td style="${flaggedDays ? "color:var(--err);" : ""}">${fmtMoney(sumVar)} ${flaggedDays ? `(${flaggedDays} flagged)` : ""}</td><td>—</td></tr></tfoot>
+    </table></div>`;
+    state.lastDaily.cr = { from, to, rows: dates.map(d => byDate[d] || { ledger_date: d }) };
+    exportBtn.disabled = false;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("cr-run").addEventListener("click", runCrReport);
+document.getElementById("cr-export").addEventListener("click", () => {
+  const s = state.lastDaily.cr; if (!s) return;
+  const aoa = [["Cash Reconciliation Report"], [`Period: ${s.from} to ${s.to}`], [],
+    ["Date", "Opening", "Cash In", "Cash Out", "Expected", "Counted", "Variance", "Status"]];
+  s.rows.forEach(r => {
+    const expected = (Number(r.opening_cash) || 0) + (Number(r.cash_in) || 0) - (Number(r.cash_out) || 0);
+    aoa.push([r.ledger_date, roundNum(r.opening_cash), roundNum(r.cash_in), roundNum(r.cash_out), roundNum(expected), r.counted_cash != null ? roundNum(r.counted_cash) : "", r.cash_variance != null ? roundNum(r.cash_variance) : "", r.status || ""]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Cash Reconciliation");
+  XLSX.writeFile(wb, `Grill_Cash_Reconciliation_${s.from}_to_${s.to}.xlsx`);
+});
+document.querySelectorAll(".btn-preset[data-range-target]").forEach(wireRangePreset);
+
+// --- Monthly Payables report ---
+async function runPayReport() {
+  const month = document.getElementById("pay-month").value; // YYYY-MM
+  const resultEl = document.getElementById("pay-result");
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const [y, m] = month.split("-").map(Number);
+    const monthStart = `${month}-01`;
+    const nextMonth = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10); // first day of next month
+    const monthEndExclusive = nextMonth;
+
+    const vendors = await sb(`vendors?active=eq.true&select=id,name,opening_payable_balance,opening_balance_as_of&order=name`);
+    // Some vendors (e.g. IRC DAIRY PRODUCT) are bought by more than one
+    // location, so they can't use a single global opening balance on the
+    // vendors row — a per-location override lives in
+    // vendor_location_opening_balances — it wins over the vendor-level field
+    // whenever a row exists for this location. See vendor-payment.html.
+    const overrides = await sb(`vendor_location_opening_balances?location_id=eq.${LOCATION_ID}&select=vendor_id,opening_payable_balance,opening_balance_as_of`);
+    const overrideMap = {};
+    overrides.forEach(o => { overrideMap[o.vendor_id] = o; });
+
+    const allPurchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&payment_status=eq.credit&purchase_date=lt.${monthEndExclusive}&select=vendor_id,amount,purchase_date`);
+    const allPayments = await sb(`vendor_payments?location_id=eq.${LOCATION_ID}&payment_date=lt.${monthEndExclusive}&select=vendor_id,amount,payment_date`);
+
+    let grandBalance = 0;
+    const blocks = vendors.map(v => {
+      const ov = overrideMap[v.id];
+      // opening_payable_balance is a baseline AS OF opening_balance_as_of, already
+      // netted against purchases/payments up to that date, so only activity dated
+      // AFTER that baseline date counts here — otherwise pre-baseline purchases get
+      // counted twice (once inside the baseline, once again from raw history).
+      const asOf = (ov ? ov.opening_balance_as_of : v.opening_balance_as_of) || null;
+      const opening = Number(ov ? ov.opening_payable_balance : v.opening_payable_balance) || 0;
+      let owedToDate = 0, paidToDate = 0, owedInMonth = 0, paidInMonth = 0;
+      allPurchases.forEach(p => {
+        if (p.vendor_id !== v.id || (asOf && !(p.purchase_date > asOf))) return;
+        owedToDate += Number(p.amount) || 0;
+        if (p.purchase_date >= monthStart) owedInMonth += Number(p.amount) || 0;
+      });
+      allPayments.forEach(p => {
+        if (p.vendor_id !== v.id || (asOf && !(p.payment_date > asOf))) return;
+        paidToDate += Number(p.amount) || 0;
+        if (p.payment_date >= monthStart) paidInMonth += Number(p.amount) || 0;
+      });
+      const balance = opening + owedToDate - paidToDate;
+      const activityThisMonth = owedInMonth + paidInMonth;
+      if (Math.abs(balance) < 0.01 && activityThisMonth < 0.01) return null;
+      grandBalance += balance;
+      return { name: v.name, purchased: owedInMonth, paid: paidInMonth, balance };
+    }).filter(Boolean).sort((a, b) => b.balance - a.balance);
+
+    if (!blocks.length) { resultEl.innerHTML = '<div class="empty-note">No vendor activity or balance for this month.</div>'; return; }
+
+    resultEl.innerHTML = blocks.map(b => `
+      <div class="vendor-block">
+        <div class="v-name">${b.name}</div>
+        <div class="v-row"><span>Purchased this month (credit)</span><span>${fmtMoney(b.purchased)}</span></div>
+        <div class="v-row"><span>Paid this month</span><span>${fmtMoney(b.paid)}</span></div>
+        <div class="v-row bal"><span>Balance as of month end</span><span>${fmtMoney(b.balance)}</span></div>
+      </div>`).join("") + `<div class="totals-bar"><span>Total payable</span><span>${fmtMoney(grandBalance)}</span></div>`;
+  } catch (e) { resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`; }
+}
+document.getElementById("pay-run").addEventListener("click", runPayReport);
+
+// --- Income Statement (QuickBooks-style P&L) ---
+// Built from expense_categories' code/group_name (Cost of Sales / Payroll & Benefits /
+// Occupancy / Operating Expenses / Marketing & Delivery / G&A / Below-the-line) and
+// daily_sales' channel columns. Deliberately NOT built off chart_of_accounts/journal_entries
+// — those tables exist but nothing in this app posts to them, so they're not the source of truth.
+const OPEX_GROUP_ORDER = ["Payroll & Benefits", "Occupancy", "Operating Expenses", "Marketing & Delivery", "G&A / Other"];
+// Bakery items sold at Grill are already counted inside Dine-In/Takeaway/Delivery/etc
+// (bakery_sale on daily_sales is a memo breakdown, not a separate channel — see the comment
+// in sales-entry.html). So it must NOT be added again as revenue. It's deducted here as a
+// Cost of Sales line instead (what Grill owes its sister bakery entity for those goods),
+// and compared against FNK BAKERY's actual Goods Receipt purchases for the same period —
+// the two should converge to ~0 variance at month end.
+const FNK_BAKERY_VENDOR_ID = "a36f9863-aae0-5a58-ba7c-a97c6b259757";
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function pctOf(amount, base) { return base ? (amount / base * 100).toFixed(1) + "%" : "—"; }
+function pctNum(amount, base) { return base ? Number((amount / base * 100).toFixed(1)) : ""; }
+function roundNum(n) { return Math.round(Number(n) || 0); }
+function fmtDateLabel(d) {
+  const dt = new Date(d + "T00:00:00");
+  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+async function computeIncomeStatementModel(from, to) {
+  const [cats, exps, salesRows, purchaseRows] = await Promise.all([
+    sb(`expense_categories?select=name,code,group_name,is_below_the_line&order=sort_order`),
+    sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${from}&expense_date=lte.${to}&select=category,subcategory,amount`),
+    sb(`daily_sales?location_id=eq.${LOCATION_ID}&sale_date=gte.${from}&sale_date=lte.${to}&select=dine_in_amount,takeaway_amount,delivery_amount,third_party_amount,food_panda_amount,bakery_sale`),
+    sb(`purchases?location_id=eq.${LOCATION_ID}&purchase_date=gte.${from}&purchase_date=lte.${to}&select=vendor_id,amount`)
+  ]);
+  // Goods Receipt (purchases table) is a completely separate feed from expenses — nothing in
+  // expenses is linked to it (checked: linked_purchase_id is unused in this app's data), so
+  // every purchases row is additive cost, not a duplicate of an expense. FNK Bakery's rows are
+  // pulled out separately because that cost is already represented via the bakery_sale line
+  // above (see the reconciliation note) — counting them again here would double it.
+  const bakeryPurchaseRows = purchaseRows.filter(r => r.vendor_id === FNK_BAKERY_VENDOR_ID);
+  const goodsReceiptRows = purchaseRows.filter(r => r.vendor_id !== FNK_BAKERY_VENDOR_ID);
+
+  const catMap = {};
+  cats.forEach(c => { catMap[c.name] = c; });
+
+  let sDineIn = 0, sTakeaway = 0, sDelivery = 0, sThird = 0, sPanda = 0, sBakery = 0;
+  salesRows.forEach(r => {
+    sDineIn += Number(r.dine_in_amount) || 0;
+    sTakeaway += Number(r.takeaway_amount) || 0;
+    sDelivery += Number(r.delivery_amount) || 0;
+    sThird += Number(r.third_party_amount) || 0;
+    sPanda += Number(r.food_panda_amount) || 0;
+    sBakery += Number(r.bakery_sale) || 0;
+  });
+  // sBakery is deliberately excluded from revenue — see the note above OPEX_GROUP_ORDER.
+  const revenueLinesRaw = [
+    { label: "Dine In", amount: sDineIn },
+    { label: "Takeaway", amount: sTakeaway },
+    { label: "Delivery", amount: sDelivery },
+    { label: "Third Party / Careem", amount: sThird },
+    { label: "Food Panda", amount: sPanda }
+  ];
+  const revenueLines = revenueLinesRaw.filter(l => Math.abs(l.amount) > 0.004);
+  const totalRevenue = revenueLinesRaw.reduce((a, l) => a + l.amount, 0);
+  const bakeryBilled = bakeryPurchaseRows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  const bakeryVariance = sBakery - bakeryBilled;
+
+  const groups = {};
+  let uncategorizedTotal = 0;
+  let pandaCommission = 0;
+  exps.forEach(e => {
+    const amt = Number(e.amount) || 0;
+    const meta = catMap[e.category];
+    const groupName = meta && meta.group_name ? meta.group_name : "Uncategorized / Needs Review";
+    if (!meta || !meta.group_name) uncategorizedTotal += amt;
+    if (!groups[groupName]) groups[groupName] = { total: 0, categories: {} };
+    groups[groupName].total += amt;
+    const catName = e.category || "Uncategorized";
+    if (!groups[groupName].categories[catName]) groups[groupName].categories[catName] = { total: 0, code: meta ? meta.code : "", subcats: {} };
+    groups[groupName].categories[catName].total += amt;
+    if (e.subcategory) {
+      groups[groupName].categories[catName].subcats[e.subcategory] = (groups[groupName].categories[catName].subcats[e.subcategory] || 0) + amt;
+    }
+    // Food Panda Commission lives under Marketing & Delivery (code 54), NOT Cost of Sales —
+    // it reduces Net Operating Income but not Gross Profit. Tracked separately here purely so
+    // the Food Panda revenue line above can show a memo "net after commission" figure; it is
+    // NOT subtracted from the Food Panda revenue line itself and does not change any total.
+    if (e.category === "Food Panda Commission") pandaCommission += amt;
+  });
+
+  function categoriesArray(catObj) {
+    return Object.keys(catObj)
+      .sort((a, b) => (catObj[a].code || "").localeCompare(catObj[b].code || "") || a.localeCompare(b))
+      .map(name => ({
+        name,
+        total: catObj[name].total,
+        subcats: Object.keys(catObj[name].subcats).sort().map(s => ({ name: s, amount: catObj[name].subcats[s] }))
+      }));
+  }
+
+  const cogsGroup = groups["Cost of Sales"];
+  const cogsCategories = cogsGroup ? categoriesArray(cogsGroup.categories) : [];
+  if (Math.abs(sBakery) > 0.004) {
+    cogsCategories.push({
+      name: "Bakery (Intercompany — FNK Bakery)", total: sBakery, subcats: [],
+      isBakeryRecon: true, billed: bakeryBilled, variance: bakeryVariance
+    });
+  }
+  // Goods Receipt: real vendor deliveries (purchases table), broken down by vendor so a
+  // runaway or unusual vendor total is visible at a glance, not just buried in one number.
+  const goodsReceiptTotal = goodsReceiptRows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  if (Math.abs(goodsReceiptTotal) > 0.004) {
+    const byVendor = {};
+    goodsReceiptRows.forEach(r => {
+      const vname = r.vendor_id ? vendorName(r.vendor_id) : "No Vendor Assigned";
+      byVendor[vname] = (byVendor[vname] || 0) + (Number(r.amount) || 0);
+    });
+    cogsCategories.push({
+      name: "Goods Receipt (Vendor Purchases)", total: goodsReceiptTotal,
+      subcats: Object.keys(byVendor).sort((a, b) => byVendor[b] - byVendor[a]).map(v => ({ name: v, amount: byVendor[v] }))
+    });
+  }
+  const cogsTotal = (cogsGroup ? cogsGroup.total : 0) + sBakery + goodsReceiptTotal;
+
+  const belowGroup = groups["Below-the-line"];
+  const belowLines = belowGroup ? categoriesArray(belowGroup.categories) : [];
+  const belowTotal = belowGroup ? belowGroup.total : 0;
+
+  const handled = new Set(["Cost of Sales", "Below-the-line"]);
+  const opexGroups = [];
+  OPEX_GROUP_ORDER.forEach(name => {
+    if (groups[name]) { opexGroups.push({ name, total: groups[name].total, categories: categoriesArray(groups[name].categories) }); handled.add(name); }
+  });
+  Object.keys(groups).forEach(name => {
+    if (!handled.has(name)) opexGroups.push({ name, total: groups[name].total, categories: categoriesArray(groups[name].categories) });
+  });
+
+  const totalOpex = opexGroups.reduce((a, g) => a + g.total, 0);
+  const grossProfit = totalRevenue - cogsTotal;
+  const netOperatingIncome = grossProfit - totalOpex;
+
+  return {
+    revenueLines, totalRevenue, cogsCategories, cogsTotal, grossProfit,
+    opexGroups, totalOpex, netOperatingIncome, belowLines, belowTotal,
+    netIncome: netOperatingIncome, uncategorizedTotal, bakerySale: sBakery, bakeryBilled, bakeryVariance,
+    pandaRevenue: sPanda, pandaCommission
+  };
+}
+
+let plToggleId = 0;
+function plRow({ label, amount, pct, level, boldClass, clickable, childrenHTML }) {
+  plToggleId++;
+  const cid = `pl-c-${plToggleId}`;
+  const caret = clickable
+    ? `<span class="pl-caret" data-caret>&#9656;</span>`
+    : `<span class="pl-caret" style="visibility:hidden">&#9656;</span>`;
+  const header = `<div class="pl-row lvl-${level} ${boldClass || ""} ${clickable ? "clickable" : ""}" ${clickable ? `data-toggle="${cid}"` : ""}>
+      <span class="pl-label">${caret}${escapeHtml(label)}</span>
+      <span class="pl-amt-wrap"><span class="pl-pct">${pct == null ? "" : pct}</span><span class="pl-amt">${fmtMoney(amount)}</span></span>
+    </div>`;
+  const children = clickable ? `<div class="pl-children" id="${cid}" hidden>${childrenHTML}</div>` : "";
+  return header + children;
+}
+
+function renderIncomeStatement(model, from, to) {
+  plToggleId = 0;
+  const R = model.totalRevenue;
+  let html = "";
+
+  if (model.uncategorizedTotal) {
+    html += `<div class="pl-uncat-banner">&#9888; ${fmtMoney(model.uncategorizedTotal)} in expenses fell under a category with no income-statement group assigned &mdash; check Expense Categories.</div>`;
+  }
+
+  html += `<div class="pl-period-hdr"><strong>Grill</strong><br><span class="hint">Income Statement &middot; ${fmtDateLabel(from)} to ${fmtDateLabel(to)}</span></div>`;
+
+  html += `<div class="pl-section-title">Revenue</div>`;
+  model.revenueLines.forEach(l => {
+    html += plRow({ label: l.label, amount: l.amount, pct: pctOf(l.amount, R), level: 1 });
+    // Memo only — gross stays the revenue figure in every total above and below. This just
+    // shows what's actually kept after the commission expensed under Marketing & Delivery
+    // (code 54) for the same period, so the real margin on Food Panda sales is visible right
+    // here instead of only several sections further down.
+    if (l.label === "Food Panda" && model.pandaRevenue) {
+      const net = model.pandaRevenue - model.pandaCommission;
+      const commPct = pctOf(model.pandaCommission, model.pandaRevenue);
+      html += `<div class="pl-recon-note">Commission expensed this period: ${fmtMoney(model.pandaCommission)} (${commPct}) &middot; Net after commission: <strong>${fmtMoney(net)}</strong></div>`;
+    }
+  });
+  html += plRow({ label: "Total Revenue", amount: R, pct: pctOf(R, R), level: 0, boldClass: "pl-subtotal" });
+
+  html += `<div class="pl-section-title">Cost of Sales</div>`;
+  model.cogsCategories.forEach(c => {
+    const hasSub = c.subcats.length > 0;
+    const childHtml = hasSub ? c.subcats.map(s => plRow({ label: s.name, amount: s.amount, pct: pctOf(s.amount, R), level: 2 })).join("") : "";
+    html += plRow({ label: c.name, amount: c.total, pct: pctOf(c.total, R), level: 1, clickable: hasSub, childrenHTML: childHtml });
+    if (c.isBakeryRecon) {
+      const flagged = Math.abs(c.variance) > Math.max(500, 0.02 * Math.abs(c.total || 1));
+      html += `<div class="pl-recon-note">FNK Bakery invoiced this period: ${fmtMoney(c.billed)} &middot; Variance: <strong style="color:${flagged ? "var(--err)" : "var(--ok)"}">${fmtMoney(c.variance)}</strong>${flagged ? " &#9888; check against their invoice" : " &#10003; matches"}</div>`;
+    }
+  });
+  html += plRow({ label: "Total Cost of Sales", amount: model.cogsTotal, pct: pctOf(model.cogsTotal, R), level: 0, boldClass: "pl-subtotal" });
+  html += plRow({ label: "Gross Profit", amount: model.grossProfit, pct: pctOf(model.grossProfit, R), level: 0, boldClass: "pl-grandtotal" });
+
+  model.opexGroups.forEach(g => {
+    const isWarn = g.name.indexOf("Uncategorized") === 0;
+    html += `<div class="pl-section-title${isWarn ? " pl-warn-title" : ""}">${escapeHtml(g.name)}</div>`;
+    g.categories.forEach(c => {
+      const hasSub = c.subcats.length > 0;
+      const childHtml = hasSub ? c.subcats.map(s => plRow({ label: s.name, amount: s.amount, pct: pctOf(s.amount, R), level: 2 })).join("") : "";
+      html += plRow({ label: c.name, amount: c.total, pct: pctOf(c.total, R), level: 1, clickable: hasSub, childrenHTML: childHtml });
+    });
+    html += plRow({ label: `Total ${g.name}`, amount: g.total, pct: pctOf(g.total, R), level: 0, boldClass: "pl-subtotal" });
+  });
+
+  html += plRow({ label: "Total Operating Expenses", amount: model.totalOpex, pct: pctOf(model.totalOpex, R), level: 0, boldClass: "pl-subtotal" });
+  html += plRow({ label: "Net Operating Income", amount: model.netOperatingIncome, pct: pctOf(model.netOperatingIncome, R), level: 0, boldClass: "pl-grandtotal" });
+
+  if (model.belowLines.length) {
+    html += `<div class="pl-memo-box">
+      <div class="pl-section-title" style="margin-top:0;">Memo &mdash; Non-Operating Cash Movements <span class="hint" style="margin:2px 0 0;">(not included in Net Income &mdash; Director Draw, payable settlements, and interstore transfers aren't real revenue or expense)</span></div>
+      ${model.belowLines.map(c => plRow({ label: c.name, amount: c.total, level: 1 })).join("")}
+      ${plRow({ label: "Total Non-Operating", amount: model.belowTotal, level: 0, boldClass: "pl-subtotal" })}
+    </div>`;
+  }
+
+  html += plRow({ label: "Net Income", amount: model.netIncome, pct: pctOf(model.netIncome, R), level: 0, boldClass: "pl-grandtotal pl-net-income" });
+  return html;
+}
+
+function modelToAoa(model, from, to) {
+  const R = model.totalRevenue;
+  const aoa = [];
+  aoa.push(["Grill"]);
+  aoa.push(["Income Statement"]);
+  aoa.push([`Period: ${from} to ${to}`]);
+  aoa.push([]);
+  aoa.push(["Line", "Amount (PKR)", "% of Revenue"]);
+  aoa.push(["Revenue"]);
+  model.revenueLines.forEach(l => {
+    aoa.push([`  ${l.label}`, roundNum(l.amount), pctNum(l.amount, R)]);
+    if (l.label === "Food Panda" && model.pandaRevenue) {
+      aoa.push([`    Commission expensed this period (Marketing & Delivery)`, roundNum(model.pandaCommission), pctNum(model.pandaCommission, model.pandaRevenue)]);
+      aoa.push([`    Net after commission`, roundNum(model.pandaRevenue - model.pandaCommission)]);
+    }
+  });
+  aoa.push(["Total Revenue", roundNum(R), pctNum(R, R)]);
+  aoa.push([]);
+  aoa.push(["Cost of Sales"]);
+  model.cogsCategories.forEach(c => {
+    aoa.push([`  ${c.name}`, roundNum(c.total), pctNum(c.total, R)]);
+    c.subcats.forEach(s => aoa.push([`    ${s.name}`, roundNum(s.amount), pctNum(s.amount, R)]));
+    if (c.isBakeryRecon) {
+      aoa.push([`    FNK Bakery invoiced this period`, roundNum(c.billed)]);
+      aoa.push([`    Variance (bakery_sale vs FNK Bakery invoice)`, roundNum(c.variance)]);
+    }
+  });
+  aoa.push(["Total Cost of Sales", roundNum(model.cogsTotal), pctNum(model.cogsTotal, R)]);
+  aoa.push([]);
+  aoa.push(["Gross Profit", roundNum(model.grossProfit), pctNum(model.grossProfit, R)]);
+  aoa.push([]);
+  model.opexGroups.forEach(g => {
+    aoa.push([g.name]);
+    g.categories.forEach(c => {
+      aoa.push([`  ${c.name}`, roundNum(c.total), pctNum(c.total, R)]);
+      c.subcats.forEach(s => aoa.push([`    ${s.name}`, roundNum(s.amount), pctNum(s.amount, R)]));
+    });
+    aoa.push([`Total ${g.name}`, roundNum(g.total), pctNum(g.total, R)]);
+    aoa.push([]);
+  });
+  aoa.push(["Total Operating Expenses", roundNum(model.totalOpex), pctNum(model.totalOpex, R)]);
+  aoa.push([]);
+  aoa.push(["Net Operating Income", roundNum(model.netOperatingIncome), pctNum(model.netOperatingIncome, R)]);
+  aoa.push([]);
+  if (model.belowLines.length) {
+    aoa.push(["Memo — Non-Operating (not included above)"]);
+    model.belowLines.forEach(c => aoa.push([`  ${c.name}`, roundNum(c.total)]));
+    aoa.push(["Total Non-Operating", roundNum(model.belowTotal)]);
+    aoa.push([]);
+  }
+  aoa.push(["Net Income", roundNum(model.netIncome), pctNum(model.netIncome, R)]);
+  if (model.uncategorizedTotal) {
+    aoa.push([]);
+    aoa.push([`NOTE: PKR ${roundNum(model.uncategorizedTotal)} in expenses had no category group assigned — review Expense Categories.`]);
+  }
+  return aoa;
+}
+
+function exportIncomeStatementToExcel(model, from, to) {
+  const aoa = modelToAoa(model, from, to);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 36 }, { wch: 16 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Income Statement");
+  XLSX.writeFile(wb, `Grill_Income_Statement_${from}_to_${to}.xlsx`);
+}
+
+async function runIncomeStatement() {
+  const from = document.getElementById("is-from").value;
+  const to = document.getElementById("is-to").value;
+  const resultEl = document.getElementById("is-result");
+  const exportBtn = document.getElementById("is-export");
+  exportBtn.disabled = true;
+  if (!from || !to) { resultEl.innerHTML = '<div class="hint">Pick a period and run the report.</div>'; return; }
+  if (from > to) { resultEl.innerHTML = '<div class="empty-note">"From" date must be on or before "To" date.</div>'; return; }
+  resultEl.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const model = await computeIncomeStatementModel(from, to);
+    resultEl.innerHTML = renderIncomeStatement(model, from, to);
+    state.lastISModel = model; state.lastISFrom = from; state.lastISTo = to;
+    exportBtn.disabled = false;
+  } catch (e) {
+    resultEl.innerHTML = `<div class="empty-note">Couldn't load: ${e.message}</div>`;
+  }
+}
+document.getElementById("is-run").addEventListener("click", runIncomeStatement);
+document.getElementById("is-export").addEventListener("click", () => {
+  if (state.lastISModel) exportIncomeStatementToExcel(state.lastISModel, state.lastISFrom, state.lastISTo);
+});
+document.getElementById("is-result").addEventListener("click", (e) => {
+  const row = e.target.closest(".pl-row[data-toggle]");
+  if (!row) return;
+  const target = document.getElementById(row.dataset.toggle);
+  if (!target) return;
+  target.hidden = !target.hidden;
+  const caret = row.querySelector("[data-caret]");
+  if (caret) caret.classList.toggle("open", !target.hidden);
+});
+document.querySelectorAll(".btn-preset").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const today = todayStr();
+    const [y, m] = today.split("-").map(Number);
+    let from, to;
+    if (btn.dataset.preset === "this_month") { from = `${y}-${String(m).padStart(2, "0")}-01`; to = today; }
+    else if (btn.dataset.preset === "last_month") {
+      const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
+      const lastDay = new Date(Date.UTC(py, pm, 0)).getUTCDate();
+      from = `${py}-${String(pm).padStart(2, "0")}-01`;
+      to = `${py}-${String(pm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    } else { from = `${y}-01-01`; to = today; }
+    document.getElementById("is-from").value = from;
+    document.getElementById("is-to").value = to;
+    runIncomeStatement();
+  });
+});
+
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+</body>
+</html>

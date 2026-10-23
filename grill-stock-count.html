@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grill Stock Count</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 90px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .filter-row > * { flex: 1; min-width: 140px; }
+  .progress-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; margin-right: 6px; }
+  .table-scroll { overflow-x: auto; }
+  .base-grid { min-width: 560px; }
+  .item-block { border-bottom: 1px solid var(--border); padding: 9px 0; }
+  .item-block:last-child { border-bottom: none; }
+  .item-row { display: grid; grid-template-columns: 1fr 62px 62px 62px 66px 92px; gap: 6px; align-items: center; }
+  .item-name { font-size: 0.88rem; min-width: 0; }
+  .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
+  .item-row input { padding: 7px 8px; font-size: 0.85rem; text-align: right; }
+  .item-row input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .item-extra { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .i-comment { flex: 1; min-width: 0; padding: 6px 9px !important; font-size: 0.82rem !important; text-align: left !important; }
+  .i-comment.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  .retire-label { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--ink-soft); white-space: nowrap; text-transform: none; flex: none; }
+  .retire-label input { width: auto !important; }
+  .retire-label.flagged { color: var(--err); font-weight: 600; }
+  .expected-val, .num-val { font-size: 0.8rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .num-val.end-val { color: var(--ink); font-weight: 600; }
+  .col-header { display: grid; grid-template-columns: 1fr 62px 62px 62px 66px 92px; gap: 6px; font-size: 0.68rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .col-header > div { text-align: right; }
+  .col-header > div:first-child { text-align: left; }
+  .dept-header { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; border-radius: 6px; margin: 10px 0 4px; }
+  .dept-header:first-child { margin-top: 0; }
+  .dept-count { font-weight: 500; text-transform: none; letter-spacing: normal; opacity: 0.75; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .cadence-banner { border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-bottom: 14px; }
+  .cadence-ok { background: var(--ok-bg); color: var(--ok); }
+  .cadence-warn { background: var(--warn-bg); color: var(--warn); }
+  .cadence-err { background: var(--err-bg); color: var(--err); }
+  .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 760px; margin: 0 auto; }
+  .sticky-save button { max-width: 760px; margin: 0 auto; display: block; }
+  .variance-tag { font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-left: 4px; }
+  .variance-ok { background: var(--ok-bg); color: var(--ok); }
+  .variance-off { background: var(--err-bg); color: var(--err); }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="grill-home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
+
+
+<h1>Grill Stock Count</h1>
+<div class="sub">Beginning + Add (purchases) − Sub (issuance) = Ending — checked against physical count</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh page sirf physical count ke liye hai — system khud hisaab laga ke "End" column mein apna number dikhata hai
+    (Beginning + purchases − issuance), lekin "Count" box hamesha khali shuru hota hai. Aap ne jo maal godam/store mein
+    jaa kar gin'na hai, usi ginti ko "Count" mein likhein — system ke number ko copy na karein. Agar aapki ginti aur
+    system ke "End" mein farq ho to variance tag khud ba khud dikh jayega (koi ghalti nahi, bas farq ka nishan hai).
+    Har item ke saamne comment box hai — agar kisi item mein masla ho (ghalat label, tootaphoota maal, wagera) to wahan
+    likh dein, aur agar lagta hai koi item ab use nahi hota to "Suggest retire" per tick kar dein.
+    Jo cheez gin li ho, neeche "Save Counts" button dabana zaroori hai — ginti button dabaye bina save nahi hoti.
+  </div>
+
+  <div id="cadence-banner" hidden></div>
+
+  <div class="card">
+    <div class="step-label">Count Date</div>
+    <input type="date" id="f-date">
+    <div class="hint">One count per item per day. Counting the same item again on the same date overwrites the earlier count.</div>
+  </div>
+
+  <div class="card">
+    <div class="filter-row">
+      <input type="text" id="search-items" placeholder="Search by name or code...">
+      <select id="filter-category"><option value="">All categories</option></select>
+    </div>
+    <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="filter-moq" style="width:auto;" checked> Only items with an MOQ threshold set
+    </label>
+    <label style="display:flex; align-items:center; gap:6px; margin-top:6px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="filter-instock" style="width:auto;" checked> Only items currently carrying stock (hide zero-stock lines)
+    </label>
+    <div class="hint" style="margin-top:6px;">For a full physical audit, uncheck "Only items with an MOQ threshold set" above — that filter is for reorder tracking, not counting.</div>
+    <div id="progress-chips"></div>
+  </div>
+
+  <div class="card">
+    <div class="table-scroll">
+      <div class="base-grid">
+        <div class="col-header">
+          <div>Item</div>
+          <div>Beg</div>
+          <div>Add</div>
+          <div>Sub</div>
+          <div>End</div>
+          <div>Count</div>
+        </div>
+        <div id="item-list"></div>
+      </div>
+    </div>
+    <div class="hint" id="item-list-empty" hidden>No items match.</div>
+  </div>
+
+  <a href="item-master.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Set MOQ Thresholds (Item Master → Manage →)</a>
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<div class="sticky-save" id="sticky-save">
+  <button class="btn-primary" id="btn-save-all" type="button" disabled>Save Counts (<span id="dirty-count">0</span>)</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000008"; // Grill
+const PAGE_KEY = "stock_count";
+
+let state = {
+  userId: null, userName: null, managerId: null, userRole: null,
+  products: [], purchases: [], issues: [], snapshots: [],
+  existing: {}, // product_id -> snapshot row for the chosen date
+  dirty: {},
+  comments: {}, // product_id -> free-text comment typed this session
+  retireFlags: {} // product_id -> true if "suggest retire" checked this session
+};
+
+// Cadence rule the owner asked for: Store Person checks the physical balance every
+// 2 days; Auditor checks it biweekly (14 days). This only flags based on the
+// most recent count logged for this location across ANY item - it's a
+// reminder, not an access block (nothing here prevents counting early or late).
+const CADENCE_DAYS = { store_man: 2, auditor: 14 };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function fmtQty(n) {
+  const v = Number(n) || 0;
+  return (Math.round(v * 100) / 100).toLocaleString();
+}
+function escapeAttr(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function todayStr() {
+  // Grill's business day: before 9:00am PKT still counts as the previous
+  // calendar day, since the restaurant runs past midnight and does not
+  // really "end" until the early-morning close.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    AppSession.set({
+        managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role,
+        pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(),
+        token: row.session_token
+      });
+          setTimeout(() => afterLogin(row.app_user_id, match.name, match.id, row.role), 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  state.userRole = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  loadAll();
+}
+
+function backToNames() {
+  state.userId = null;
+  state.userRole = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+  document.getElementById("cadence-banner").hidden = true;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+document.getElementById("f-date").addEventListener("change", loadAll);
+
+async function loadAll() {
+  state.dirty = {};
+  state.comments = {};
+  state.retireFlags = {};
+  updateSaveBar();
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate,min_stock_level,reorder_qty&order=category,name`);
+  } catch (e) { state.products = []; }
+  try {
+    // limit=100000 on these three base fetches (also set in issue-entry.html and
+    // inventory-balance-sheet.html, which share this exact expectedQty()/baseFor()
+    // formula) — without it, PostgREST's default row cap could silently truncate the
+    // data as it grows, and the three screens would stop tying without any visible error.
+    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date&limit=100000`);
+  } catch (e) { state.purchases = []; }
+  try {
+    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date&limit=100000`);
+  } catch (e) { state.issues = []; }
+  try {
+    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty,notes&order=snapshot_date.desc&limit=100000`);
+  } catch (e) { state.snapshots = []; }
+
+  const cats = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
+  const sel = document.getElementById("filter-category");
+  const prevCat = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join("");
+  sel.value = prevCat;
+
+  computeExistingForDate();
+  renderItemList();
+  renderCadenceBanner();
+}
+
+function renderCadenceBanner() {
+  const el = document.getElementById("cadence-banner");
+  const requiredDays = CADENCE_DAYS[state.userRole];
+  if (!requiredDays) { el.hidden = true; return; }
+
+  const allDates = state.snapshots.map(s => s.snapshot_date).sort();
+  const lastDate = allDates.length ? allDates[allDates.length - 1] : null;
+  const today = todayStr();
+  const daysSince = lastDate
+    ? Math.round((Date.parse(today) - Date.parse(lastDate)) / 86400000)
+    : null;
+
+  const roleLabel = state.userRole === "store_man" ? "Store Person" : "Auditor";
+  const cadenceLabel = state.userRole === "store_man" ? "every 2 days" : "biweekly (every 14 days)";
+
+  el.hidden = false;
+  if (daysSince === null) {
+    el.className = "cadence-banner cadence-err";
+    el.textContent = `${roleLabel}: no physical count has ever been logged for this location. A count is required ${cadenceLabel}.`;
+  } else if (daysSince > requiredDays) {
+    el.className = "cadence-banner cadence-err";
+    el.textContent = `${roleLabel}: overdue — last physical count was ${daysSince} day${daysSince === 1 ? "" : "s"} ago (required ${cadenceLabel}).`;
+  } else if (daysSince === requiredDays) {
+    el.className = "cadence-banner cadence-warn";
+    el.textContent = `${roleLabel}: due today — last physical count was ${daysSince} day${daysSince === 1 ? "" : "s"} ago (required ${cadenceLabel}).`;
+  } else {
+    el.className = "cadence-banner cadence-ok";
+    el.textContent = `${roleLabel}: on track — last physical count was ${daysSince} day${daysSince === 1 ? "" : "s"} ago (required ${cadenceLabel}).`;
+  }
+}
+
+function computeExistingForDate() {
+  const date = document.getElementById("f-date").value || todayStr();
+  state.existing = {};
+  state.snapshots.forEach(s => {
+    if (s.snapshot_date === date) state.existing[s.product_id] = s;
+  });
+}
+
+// Pulls the free-text comment and the retire-suggestion flag back out of a saved `notes`
+// string. Comments WERE always saving correctly (confirmed in the DB) — the bug was that
+// this screen never read `notes` back (the snapshots fetch above didn't even select it, and
+// loadAll() clears state.comments/retireFlags on every load/reload), so a comment an auditor
+// had just typed and saved looked like it vanished the moment the list refreshed. Fixed
+// 2026-10-17, per the owner.
+function parseSnapshotNotes(notes) {
+  if (!notes) return { comment: "", retired: false };
+  let retired = false;
+  const commentParts = notes.split(" | ").filter(part => {
+    if (/^⚑ Suggested for retirement by /.test(part)) { retired = true; return false; }
+    if (part === "(no physical count entered — comment only)") return false;
+    return true;
+  });
+  return { comment: commentParts.join(" | "), retired };
+}
+
+// The comment/retire-flag value to show and to save: whatever the auditor typed/toggled
+// THIS session takes priority; otherwise fall back to what's already saved for this date,
+// so an untouched row keeps its prior comment/flag instead of a resave silently wiping it.
+function effectiveNote(id) {
+  const saved = state.existing[id] ? parseSnapshotNotes(state.existing[id].notes) : { comment: "", retired: false };
+  const comment = state.comments[id] != null ? state.comments[id] : saved.comment;
+  const retired = state.retireFlags[id] != null ? !!state.retireFlags[id] : saved.retired;
+  return { comment, retired };
+}
+
+// Theoretical expected qty as of `date`: last count's closing_qty (or 0 if never counted)
+// plus purchases since that count, minus issues since that count.
+function expectedQty(productId, date) {
+  const priorSnaps = state.snapshots.filter(s => s.product_id === productId && s.snapshot_date <= date);
+  const last = priorSnaps[0]; // already sorted desc
+  const windowStart = last ? last.snapshot_date : null;
+  const opening = last ? Number(last.closing_qty) || 0 : 0;
+  const purchasesQty = state.purchases
+    .filter(p => p.product_id === productId && p.purchase_date <= date && (!windowStart || p.purchase_date > windowStart))
+    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  const issuesQty = state.issues
+    .filter(i => i.product_id === productId && i.issue_date <= date && (!windowStart || i.issue_date > windowStart))
+    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  return { opening, purchasesQty, issuesQty, expected: opening + purchasesQty - issuesQty, windowStart };
+}
+
+function renderItemList() {
+  const search = document.getElementById("search-items").value.trim().toUpperCase();
+  const cat = document.getElementById("filter-category").value;
+  const onlyMoq = document.getElementById("filter-moq").checked;
+  const onlyInStock = document.getElementById("filter-instock").checked;
+  const date = document.getElementById("f-date").value || todayStr();
+  const list = document.getElementById("item-list");
+  const emptyHint = document.getElementById("item-list-empty");
+
+  const rows = state.products.filter(p => {
+    if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
+    if (cat && p.category !== cat) return false;
+    if (onlyMoq && (p.min_stock_level == null || p.reorder_qty == null)) return false;
+    // Compresses the list to what's actually on the shelf — a zero-stock item stays
+    // in the system either way, this just keeps it off the day-to-day count sheet.
+    // A count already logged for this exact date always stays visible even at zero,
+    // so entering 0 on purpose never makes a row disappear out from under you.
+    if (onlyInStock && !state.existing[p.id]) {
+      const { expected } = expectedQty(p.id, date);
+      if (Math.abs(expected) < 0.01) return false;
+    }
+    return true;
+  });
+
+  const countedToday = Object.keys(state.existing).length;
+  document.getElementById("progress-chips").innerHTML =
+    `<span class="progress-chip">${countedToday} counted on ${date}</span>` +
+    `<span class="progress-chip">${rows.length} in this view</span>`;
+
+  list.innerHTML = "";
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  const catCounts = {};
+  rows.forEach(p => { const c = p.category || "Uncategorized"; catCounts[c] = (catCounts[c] || 0) + 1; });
+
+  let lastCat = null;
+  rows.forEach(p => {
+    const c = p.category || "Uncategorized";
+    if (c !== lastCat) {
+      const header = document.createElement("div");
+      header.className = "dept-header";
+      header.innerHTML = `${c} <span class="dept-count">(${catCounts[c]})</span>`;
+      list.appendChild(header);
+      lastCat = c;
+    }
+    const exist = state.existing[p.id];
+    const dirtyVal = state.dirty[p.id];
+    const { opening, purchasesQty, issuesQty, expected } = expectedQty(p.id, date);
+    // Count starts blank even when a snapshot already exists for this date (e.g. the
+    // system's own hard-coded baseline) — the auditor types their own physical count
+    // rather than seeing, and risking rubber-stamping, a pre-filled system number.
+    // Only what the auditor actually typed this session (dirty) carries over.
+    const countedVal = dirtyVal != null ? dirtyVal : "";
+
+    let varianceTag = "";
+    if (countedVal !== "" && countedVal != null) {
+      const diff = Number(countedVal) - expected;
+      varianceTag = Math.abs(diff) < 0.01
+        ? `<span class="variance-tag variance-ok">match</span>`
+        : `<span class="variance-tag variance-off">${diff > 0 ? "+" : ""}${fmtQty(diff)}</span>`;
+    }
+
+    const { comment: commentVal, retired: retireVal } = effectiveNote(p.id);
+
+    const block = document.createElement("div");
+    block.className = "item-block";
+    block.innerHTML = `
+      <div class="item-row">
+        <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
+        <div class="num-val">${fmtQty(opening)}</div>
+        <div class="num-val">+${fmtQty(purchasesQty)}</div>
+        <div class="num-val">-${fmtQty(issuesQty)}</div>
+        <div class="num-val end-val">${fmtQty(expected)}</div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+          <input type="number" class="i-count" step="any" value="${countedVal}" placeholder="—">
+          ${varianceTag}
+        </div>
+      </div>
+      <div class="item-extra">
+        <input type="text" class="i-comment" value="${escapeAttr(commentVal)}" placeholder="Comment (optional) — e.g. damaged, wrong shelf, out of stock...">
+        <label class="retire-label${retireVal ? " flagged" : ""}">
+          <input type="checkbox" class="i-retire" ${retireVal ? "checked" : ""}> Suggest retire
+        </label>
+      </div>
+    `;
+    const countInput = block.querySelector(".i-count");
+    if (dirtyVal != null) countInput.classList.add("dirty");
+    countInput.addEventListener("input", () => {
+      const v = parseFloat(countInput.value);
+      state.dirty[p.id] = isNaN(v) ? null : v;
+      if (isNaN(v)) delete state.dirty[p.id];
+      countInput.classList.add("dirty");
+      updateSaveBar();
+      renderItemList();
+    });
+
+    const commentInput = block.querySelector(".i-comment");
+    if (commentVal) commentInput.classList.add("dirty");
+    commentInput.addEventListener("input", () => {
+      const v = commentInput.value;
+      if (v.trim() === "") delete state.comments[p.id]; else state.comments[p.id] = v;
+      commentInput.classList.toggle("dirty", !!v.trim());
+      updateSaveBar();
+    });
+
+    const retireInput = block.querySelector(".i-retire");
+    retireInput.addEventListener("change", () => {
+      // Always record an explicit true/false (never delete the key) so unchecking a
+      // previously-saved retire flag is itself a real, savable change instead of silently
+      // reverting to whatever was last saved.
+      state.retireFlags[p.id] = retireInput.checked;
+      retireInput.closest(".retire-label").classList.toggle("flagged", retireInput.checked);
+      updateSaveBar();
+    });
+
+    list.appendChild(block);
+  });
+  // append variance tags after the fact via a second pass (kept simple: re-render covers it)
+}
+
+// A row is worth saving if the auditor touched any of: the count, a comment,
+// or the retire flag. A comment/retire-flag-only row (no count typed) still
+// gets saved so the note isn't lost — it just keeps the system's own expected
+// qty as closing_qty rather than asserting a physical count that was never taken.
+function dirtyIds() {
+  return [...new Set([
+    ...Object.keys(state.dirty),
+    ...Object.keys(state.comments),
+    ...Object.keys(state.retireFlags)
+  ])];
+}
+
+function updateSaveBar() {
+  // Stays on screen always (just disabled at 0) so it's never mistaken for
+  // missing — fully hiding it looked, to an auditor who hadn't typed
+  // anything yet, like there was no way to save at all.
+  const count = dirtyIds().length;
+  document.getElementById("dirty-count").textContent = count;
+  document.getElementById("btn-save-all").disabled = count === 0;
+}
+
+async function saveAllCounts() {
+  const date = document.getElementById("f-date").value || todayStr();
+  const ids = dirtyIds();
+  if (!ids.length) return;
+  const btn = document.getElementById("btn-save-all");
+  btn.disabled = true;
+  let done = 0, failed = 0;
+  for (const id of ids) {
+    const p = state.products.find(x => x.id === id);
+    const rate = p ? (Number(p.current_rate) || 0) : 0;
+    const { opening, purchasesQty, issuesQty, expected } = expectedQty(id, date);
+    const hasCount = state.dirty[id] != null;
+    const counted = hasCount ? state.dirty[id] : expected;
+    const variance_qty = hasCount ? (counted - expected) : null;
+    const denom = opening + purchasesQty;
+    const variance_pct = hasCount && denom > 0 ? Math.round((variance_qty / denom) * 10000) / 100 : null;
+
+    const { comment: commentTextRaw, retired: retireFlagged } = effectiveNote(id);
+    const commentText = commentTextRaw.trim();
+    const noteParts = [];
+    if (!hasCount && commentText) noteParts.push("(no physical count entered — comment only)");
+    if (commentText) noteParts.push(commentText);
+    if (retireFlagged) noteParts.push(`⚑ Suggested for retirement by ${state.userName || "auditor"} on ${date} — no activity`);
+    const notes = noteParts.length ? noteParts.join(" | ") : undefined;
+
+    const payload = {
+      location_id: LOCATION_ID, product_id: id, snapshot_date: date,
+      opening_qty: opening, opening_amount: Math.round(opening * rate * 100) / 100,
+      purchases_qty: purchasesQty, purchases_amount: Math.round(purchasesQty * rate * 100) / 100,
+      issues_qty: issuesQty,
+      closing_qty: counted, closing_amount: Math.round(counted * rate * 100) / 100,
+      variance_qty, variance_pct,
+      entered_by_user_id: state.userId,
+      entered_by_manager_id: state.managerId,
+      ...(notes ? { notes } : {})
+    };
+    try {
+      const exist = state.existing[id];
+      if (exist) {
+        await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&product_id=eq.${id}&snapshot_date=eq.${date}`, {
+          method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+        });
+      } else {
+        await sb("inventory_snapshots", {
+          method: "POST", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+        });
+      }
+      done++;
+    } catch (e) { failed++; }
+    btn.textContent = `Saving ${done + failed}/${ids.length}…`;
+  }
+  // Restore the dirty-count span inside the button — a plain textContent
+  // reset here destroys it, and the next updateSaveBar() call throws trying
+  // to find it, leaving the button stuck looking broken/missing.
+  btn.innerHTML = `Save Counts (<span id="dirty-count">0</span>)`;
+  btn.disabled = true;
+  state.dirty = {};
+  state.comments = {};
+  state.retireFlags = {};
+  updateSaveBar();
+  await loadAll();
+  if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
+}
+document.getElementById("btn-save-all").addEventListener("click", saveAllCounts);
+
+document.getElementById("search-items").addEventListener("input", renderItemList);
+document.getElementById("filter-category").addEventListener("change", renderItemList);
+document.getElementById("filter-moq").addEventListener("change", renderItemList);
+document.getElementById("filter-instock").addEventListener("change", renderItemList);
+
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+</body>
+</html>

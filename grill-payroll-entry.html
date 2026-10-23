@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grill Payroll</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 48px; max-width: 680px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .field { margin-bottom: 14px; }
+  select, input, textarea { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row2 > div { flex: 1; min-width: 120px; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 8px; }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .name-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .name-pill { border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 0.9rem; cursor: pointer; }
+  .name-pill.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .readout { background: var(--field-bg); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .summary-tile { background: var(--field-bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .summary-tile .lbl { font-size: 0.72rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; }
+  .summary-tile .val { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .emp-row { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .emp-row .emp-top { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; gap: 8px; }
+  .emp-row .emp-title { font-weight: 600; }
+  .emp-row .emp-sub { font-size: 0.8rem; color: var(--ink-soft); }
+  .emp-detail { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+  .dept-header { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); margin: 14px 0 6px; }
+  .pill-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill-ok { background: var(--ok-bg); color: var(--ok); }
+  .pill-warn { background: var(--warn-bg); color: var(--warn); }
+  .pill-err { background: var(--err-bg); color: var(--err); }
+  .advance-note { font-size: 0.8rem; background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+
+  .sheet-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table.sheet { border-collapse: collapse; width: 100%; min-width: 980px; font-size: 0.86rem; }
+  table.sheet th, table.sheet td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  table.sheet th:first-child, table.sheet td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+  table.sheet thead th { background: var(--field-bg); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink-soft); font-weight: 700; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
+  table.sheet thead th:first-child { z-index: 2; }
+  table.sheet tbody tr:hover td { background: var(--field-bg); }
+  table.sheet .dept-row td { background: var(--border); color: var(--ink); font-weight: 700; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.03em; text-align: left; position: static; }
+  table.sheet .dept-subtotal-row td { background: var(--field-bg); color: var(--ink-soft); font-weight: 700; font-size: 0.78rem; text-align: right; position: static; border-bottom: 2px solid var(--border); white-space: nowrap; }
+  table.sheet .dept-subtotal-row td:first-child { text-align: left; position: static; }
+  table.sheet .grand-total-row td { background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 0.82rem; text-align: right; position: static; white-space: nowrap; }
+  table.sheet .grand-total-row td:first-child { text-align: left; position: static; }
+  table.sheet .auto-days { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .save-all-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--field-bg); border: 1px solid var(--border); }
+  .save-all-bar.has-changes { background: var(--warn-bg); border-color: var(--warn); }
+  .save-all-bar.has-changes #save-all-count { color: var(--warn); font-weight: 600; }
+  table.sheet .cell-input { width: 84px; text-align: right; padding: 5px 6px; font-size: 0.85rem; border-radius: 6px; }
+  table.sheet .emp-name { font-weight: 600; }
+  table.sheet .emp-sub2 { font-size: 0.72rem; color: var(--ink-soft); font-weight: 400; }
+  table.sheet .col-final { font-weight: 700; font-variant-numeric: tabular-nums; }
+  table.sheet .col-minus { color: var(--err); }
+  table.sheet .col-plus { color: var(--ok); }
+  table.sheet .row-dirty td { background: var(--warn-bg); }
+  table.sheet .btn-row-save { padding: 5px 9px; font-size: 0.72rem; border-radius: 6px; }
+  .settle-strip { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 6px; }
+  .settle-strip input { width: 100px; }
+  .settle-strip input[type="date"] { width: 128px; }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="grill-home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
+
+
+<h1>Grill Payroll</h1>
+<div class="sub">Monthly salary entry — advances paid as expenses deduct automatically</div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who are you?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh screen mahana salary (payroll) darj karne ke liye hai. Upar Pay Period (month) select karen, phir neeche table mein har employee ki row milegi — Override Days, Bonus, Phone, Loan waghera ke box mein number likhen, Advance aur KM pehle se khud bhar jate hain (attendance aur expense se). Jo row edit ho jaye wo amber (halka orange) ho jayegi — usay save karne ke liye row ka apna "Save" button dabayen, ya sab edited rows ek sath save karne ke liye neeche "Save All Changes" dabayen. Jab asal mein paisay employee ko de den, to us ki row kholen (naam par click karen) aur "Paid" amount aur date darj kar ke "Save Settlement" dabayen.
+  </div>
+
+  <div class="card">
+    <div class="step-label">Pay Period</div>
+    <input type="month" id="f-period">
+  </div>
+
+  <div class="card">
+    <div class="step-label">This Month So Far</div>
+    <div class="summary-grid">
+      <div class="summary-tile"><div class="lbl">Current Employees</div><div class="val" id="sum-count-active">0</div></div>
+      <div class="summary-tile"><div class="lbl">Retired (this period)</div><div class="val" id="sum-count-retired">0</div></div>
+      <div class="summary-tile"><div class="lbl">New Hires (this period)</div><div class="val" id="sum-count-new">0</div></div>
+      <div class="summary-tile"><div class="lbl">Net Payroll</div><div class="val" id="sum-net">PKR 0</div></div>
+      <div class="summary-tile"><div class="lbl">Advances Paid</div><div class="val" id="sum-paid">PKR 0</div></div>
+      <div class="summary-tile" title="Salary accrued this period, minus advances already paid and loan deductions, minus anything already finally settled. This is what's still payable at month-end settlement."><div class="lbl">Outstanding</div><div class="val" id="sum-outstanding">PKR 0</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Employees</div>
+    <input type="text" id="search-emp" placeholder="Search by name...">
+    <div class="hint" style="margin-top:8px;">Click any row to expand it and record the final settlement once it's actually paid. Edited cells turn amber until saved — use the row's own Save, or Save All Changes below once you're done editing.</div>
+    <div class="save-all-bar">
+      <span class="hint" id="save-all-count" style="margin:0;">No unsaved changes.</span>
+      <button type="button" class="btn-primary" id="btn-save-all" style="width:auto;" disabled>Save All Changes</button>
+    </div>
+    <div class="sheet-wrap" style="margin-top:12px;">
+      <table class="sheet" id="sheet-table">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Base Salary</th>
+            <th>Auto Days<br><span style="text-transform:none; font-weight:400;">(attendance)</span></th>
+            <th>Override Days</th>
+            <th>Accrued Salary</th>
+            <th>Advance (−)</th>
+            <th>KM (+)</th>
+            <th>Bonus (+)</th>
+            <th>Phone (+)</th>
+            <th>Loan (−)</th>
+            <th>Final Payable</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="sheet-body"></tbody>
+      </table>
+    </div>
+    <div class="hint" id="emp-list-empty" hidden>No active employees found.</div>
+  </div>
+
+  <a href="employee-master.html" class="btn-ghost" style="display:block; text-align:center; text-decoration:none;">Manage Employee List</a>
+  <button class="btn-ghost" id="btn-back" type="button">Change Person</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000008"; // Grill
+// Advances are expenses with category "Payroll" / subcategory "Employee Charge" (set via
+// Expense Entry's advance flow, which is what also stamps employee_id — see loadEntriesAndAdvances).
+const PAGE_KEY = "payroll";
+
+let state = { userId: null, userName: null, managerId: null, employees: [], entries: {}, advances: {} };
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+function fmtMoney(n) { return "PKR " + Math.round(Number(n) || 0).toLocaleString(); }
+
+function currentMonthStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function periodBounds(monthStr) {
+  // monthStr like "2026-09"
+  const [y, m] = monthStr.split("-").map(Number);
+  const start = `${monthStr}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end, periodMonth: start, daysInMonth: lastDay };
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    AppSession.set({ managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role, pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(), token: row.session_token });
+          selectUser(row.app_user_id, match.name, null, match.id);
+    nameInput.value = "";
+    pinInput.value = "";
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  selectUser(userId, name, null, managerId);
+}
+
+function selectUser(id, name, pillEl, managerId) {
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  if (pillEl) pillEl.classList.add("selected");
+  state.userId = id;
+  state.userName = name;
+  state.managerId = managerId || null;
+  setTimeout(() => {
+    document.getElementById("step-name").hidden = true;
+    document.getElementById("panel-main").hidden = false;
+    document.getElementById("f-period").value = currentMonthStr();
+    loadAll();
+  }, 150);
+}
+
+function backToNames() {
+  state.userId = null;
+  document.querySelectorAll(".name-pill").forEach(p => p.classList.remove("selected"));
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+document.getElementById("f-period").addEventListener("change", loadAll);
+
+async function loadAll() {
+  await loadKmRate();
+  await loadEmployees();
+  await loadEntriesAndAdvances();
+  renderEmpList();
+}
+
+async function loadKmRate() {
+  try {
+    const rows = await sb(`payroll_settings?key=eq.km_rate_pkr&select=value`);
+    state.kmRatePkr = rows.length ? Number(rows[0].value) : 0;
+  } catch (e) { state.kmRatePkr = 0; }
+}
+
+async function loadEmployees() {
+  // Fetches both active and retired employees -- retired ones are filtered down to just
+  // this period in loadEntriesAndAdvances() below, once attendance for the period is known.
+  // Someone who worked part of a month and then retired still earned pay for the days they
+  // worked, and that final settlement needs to show up on payroll for that month. Previously
+  // this only pulled active employees, so a retired employee's last days worked never
+  // appeared here at all -- added 2026-10-16.
+  try {
+    state.allEmployees = await sb(`employees?location_id=eq.${LOCATION_ID}&select=id,name,department,designation,employment_type,monthly_salary,active,retired_at,hire_date&order=department,name`);
+  } catch (e) { state.allEmployees = []; }
+}
+
+async function loadEntriesAndAdvances() {
+  const monthStr = document.getElementById("f-period").value || currentMonthStr();
+  const { start, end, periodMonth } = periodBounds(monthStr);
+  state.periodMonth = periodMonth;
+  state.periodStart = start;
+  state.periodEnd = end;
+
+  // Existing payroll entries for this period
+  state.entries = {};
+  try {
+    const rows = await sb(`payroll_entries?location_id=eq.${LOCATION_ID}&period_month=eq.${periodMonth}&select=*`);
+    rows.forEach(r => { state.entries[r.employee_id] = r; });
+  } catch (e) { /* none yet */ }
+
+  // Advances paid as expenses this period, per employee. Filtered on employee_id being set
+  // rather than on category/subcategory text — employee_id only ever gets set by Expense
+  // Entry's "Payroll" / "Employee Charge" advance flow, so it's the reliable signal, and it
+  // survives a category or subcategory rename. (Previously this filtered on
+  // category=eq.Payroll/Employee Charge, a single concatenated string that never matched the
+  // actual stored values — category="Payroll", subcategory="Employee Charge" are two separate
+  // columns — so this query silently returned zero rows and no advance ever showed up here.
+  // Fixed 2026-10-13.)
+  state.advances = {};
+  try {
+    const rows = await sb(`expenses?location_id=eq.${LOCATION_ID}&expense_date=gte.${start}&expense_date=lte.${end}&employee_id=not.is.null&select=employee_id,amount,expense_date`);
+    rows.forEach(r => {
+      if (!state.advances[r.employee_id]) state.advances[r.employee_id] = { total: 0, count: 0 };
+      state.advances[r.employee_id].total += Number(r.amount) || 0;
+      state.advances[r.employee_id].count += 1;
+    });
+  } catch (e) { /* none yet */ }
+
+  // Daily attendance marked this period, per employee
+  state.attendance = {};
+  try {
+    const rows = await sb(`attendance_entries?location_id=eq.${LOCATION_ID}&attendance_date=gte.${start}&attendance_date=lte.${end}&select=employee_id,status`);
+    rows.forEach(r => {
+      if (!state.attendance[r.employee_id]) state.attendance[r.employee_id] = { Present: 0, "Half Day": 0, Absent: 0, "Weekly Off": 0, Leave: 0, Off: 0 };
+      if (state.attendance[r.employee_id][r.status] != null) state.attendance[r.employee_id][r.status]++;
+    });
+  } catch (e) { /* none yet */ }
+
+  // Delivery KM logged this period, per rider — multiplied by the flat rate for the suggested KM amount.
+  state.km = {};
+  try {
+    const rate = Number(state.kmRatePkr) || 0;
+    const rows = await sb(`delivery_km_log?location_id=eq.${LOCATION_ID}&log_date=gte.${start}&log_date=lte.${end}&select=employee_id,km_driven,orders_delivered,flagged`);
+    rows.forEach(r => {
+      if (!state.km[r.employee_id]) state.km[r.employee_id] = { totalKm: 0, orders: 0, flaggedCount: 0 };
+      state.km[r.employee_id].totalKm += Number(r.km_driven) || 0;
+      state.km[r.employee_id].orders += Number(r.orders_delivered) || 0;
+      if (r.flagged) state.km[r.employee_id].flaggedCount += 1;
+    });
+    Object.values(state.km).forEach(k => { k.amount = Math.round(k.totalKm * rate); });
+  } catch (e) { /* none yet */ }
+
+  // Show every active employee, plus any retired employee who actually has activity in this
+  // specific period (attendance marked, or a payroll entry already saved) -- so a retired
+  // employee's final settlement shows up for the month they left, and only that month, not
+  // forever afterward.
+  state.employees = (state.allEmployees || []).filter(e =>
+    e.active || state.attendance[e.id] || state.entries[e.id]
+  );
+
+  renderSummary();
+}
+
+function daysWorkedFromAttendance(att) {
+  if (!att) return null;
+  return att.Present + 0.5 * att["Half Day"];
+}
+
+// Same figures buildSheetRow() computes per row (saved values where they exist, otherwise
+// the live default from attendance/advances/KM) -- pulled out so the summary tiles can total
+// across EVERY employee currently shown, not just rows that have already been saved. Net
+// Payroll previously only summed saved payroll_entries.net_salary, which is why it always read
+// PKR 0 until every single row had been saved once. Fixed 2026-10-16.
+function computeEmployeeFigures(e) {
+  const existing = state.entries[e.id];
+  const advance = state.advances[e.id] || { total: 0, count: 0 };
+  const attendance = state.attendance[e.id] || null;
+  const perDayRate = (Number(e.monthly_salary) || 0) / 26;
+  const attendanceDays = daysWorkedFromAttendance(attendance);
+  const daysWorked = existing ? Number(existing.days_worked) : (attendanceDays !== null ? attendanceDays : 26);
+  const salaryEarned = existing ? Number(existing.salary_earned) : Math.round(perDayRate * daysWorked * 100) / 100;
+  const kmInfo = state.km[e.id] || { totalKm: 0, orders: 0, amount: 0, flaggedCount: 0 };
+  const kmAmount = existing && existing.km_amount != null ? Number(existing.km_amount) : kmInfo.amount;
+  const bonus = existing ? Number(existing.bonus) || 0 : 0;
+  const phoneLoad = existing ? Number(existing.phone_load) || 0 : 0;
+  const loanDeduction = existing ? Number(existing.loan_deduction) || 0 : 0;
+  const advanceDeduction = existing && existing.advance_deduction != null ? Number(existing.advance_deduction) : advance.total;
+  const paidAmount = existing && existing.paid_amount != null ? Number(existing.paid_amount) : 0;
+  const net = salaryEarned + kmAmount + bonus + phoneLoad - advanceDeduction - loanDeduction;
+  return {
+    net, paidAmount,
+    baseSalary: Number(e.monthly_salary) || 0,
+    salaryEarned, advanceDeduction, kmAmount, bonus, phoneLoad, loanDeduction
+  };
+}
+
+function renderSummary() {
+  const activeCount = state.employees.filter(e => e.active).length;
+  const retiredCount = state.employees.filter(e => !e.active).length;
+  const newHireCount = state.employees.filter(e => e.hire_date && e.hire_date >= state.periodStart && e.hire_date <= state.periodEnd).length;
+  document.getElementById("sum-count-active").textContent = activeCount;
+  document.getElementById("sum-count-retired").textContent = retiredCount;
+  document.getElementById("sum-count-new").textContent = newHireCount;
+
+  // Outstanding (fixed 2026-10-16): it used to be Net Payroll minus Final Settlement Paid --
+  // but Net Payroll already has this period's advances subtracted out of it internally, so
+  // Outstanding just echoed Net Payroll every month until settlement happens (next month, per
+  // the owner), which read as broken since it never visibly reacted to the Advances Paid tile
+  // sitting right next to it. Per the owner: Outstanding = Salary Accrued (gross: salary + KM +
+  // bonus + phone, before any deduction) minus Advances Paid minus Loan Deductions minus
+  // anything already finally settled -- i.e. "what's still payable." This also uses the live
+  // Advances Paid total (state.advances, pulled straight from this period's expense entries)
+  // rather than whatever advance_deduction was stored on a payroll_entries row the last time
+  // it was saved, which could be stale if more advances went out since.
+  let totalNet = 0, totalGrossAccrued = 0, totalLoanDeduction = 0, totalFinalPaid = 0, totalAdvancesPaid = 0;
+  state.employees.forEach(e => {
+    const f = computeEmployeeFigures(e);
+    totalNet += f.net; // matches the per-row Final Payable total and the Grand Total row below
+    totalGrossAccrued += f.salaryEarned + f.kmAmount + f.bonus + f.phoneLoad;
+    totalLoanDeduction += f.loanDeduction;
+    totalFinalPaid += f.paidAmount;
+  });
+  Object.values(state.advances).forEach(a => { totalAdvancesPaid += a.total; });
+  const totalOutstanding = totalGrossAccrued - totalAdvancesPaid - totalLoanDeduction - totalFinalPaid;
+
+  document.getElementById("sum-net").textContent = fmtMoney(totalNet);
+  document.getElementById("sum-paid").textContent = fmtMoney(totalAdvancesPaid);
+  document.getElementById("sum-outstanding").textContent = fmtMoney(totalOutstanding);
+}
+
+function renderEmpList() {
+  const search = document.getElementById("search-emp").value.trim().toUpperCase();
+  const body = document.getElementById("sheet-body");
+  const emptyHint = document.getElementById("emp-list-empty");
+  const allRows = state.employees.filter(e => !search || e.name.toUpperCase().includes(search));
+  body.innerHTML = "";
+  if (!allRows.length) { emptyHint.hidden = false; updateSaveAllBar(); return; }
+  emptyHint.hidden = true;
+
+  // Retired employees get their own trailing group, separate from their old department --
+  // this is a one-time final settlement for the days they worked this period, not an
+  // ongoing department roster entry. Added 2026-10-16.
+  const activeRows = allRows.filter(e => e.active);
+  const retiredRows = allRows.filter(e => !e.active);
+
+  // Group by a case-normalized department key -- the underlying data has both "Delivery"
+  // and "DELIVERY" for the same department, which used to render as two separate headers
+  // even though the CSS uppercases both for display. Normalize so they merge into one
+  // group regardless of source casing, and sort groups by that normalized key so same-named
+  // departments always stay adjacent. Fixed 2026-10-16.
+  const deptKey = (e) => (e.department || "Unassigned").trim().toUpperCase();
+  const groupsMap = new Map();
+  activeRows.forEach(e => {
+    const key = deptKey(e);
+    if (!groupsMap.has(key)) groupsMap.set(key, []);
+    groupsMap.get(key).push(e);
+  });
+  const sortedKeys = Array.from(groupsMap.keys()).sort();
+
+  sortedKeys.forEach(key => {
+    const rows = groupsMap.get(key);
+    const deptRow = document.createElement("tr");
+    deptRow.className = "dept-row";
+    deptRow.innerHTML = `<td colspan="13">${key}</td>`;
+    body.appendChild(deptRow);
+    rows.forEach(e => body.appendChild(buildSheetRow(e)));
+    body.appendChild(buildSubtotalRow(rows));
+  });
+
+  if (retiredRows.length) {
+    const deptRow = document.createElement("tr");
+    deptRow.className = "dept-row";
+    deptRow.innerHTML = `<td colspan="13">Retired — final settlement for this period only</td>`;
+    body.appendChild(deptRow);
+    retiredRows.forEach(e => body.appendChild(buildSheetRow(e)));
+    body.appendChild(buildSubtotalRow(retiredRows));
+  }
+
+  body.appendChild(buildGrandTotalRow(allRows));
+  updateSaveAllBar();
+}
+
+// Sums every numeric column across a set of rows (a department's rows, the retired group, or
+// the whole sheet for the grand total). Returns the same field names computeEmployeeFigures
+// uses per-employee, so one function builds both the per-department subtotal row and the
+// grand-total row below. Added 2026-10-16.
+function sumColumns(rows) {
+  const totals = { baseSalary: 0, salaryEarned: 0, advanceDeduction: 0, kmAmount: 0, bonus: 0, phoneLoad: 0, loanDeduction: 0, net: 0 };
+  rows.forEach(e => {
+    const f = computeEmployeeFigures(e);
+    totals.baseSalary += f.baseSalary;
+    totals.salaryEarned += f.salaryEarned;
+    totals.advanceDeduction += f.advanceDeduction;
+    totals.kmAmount += f.kmAmount;
+    totals.bonus += f.bonus;
+    totals.phoneLoad += f.phoneLoad;
+    totals.loanDeduction += f.loanDeduction;
+    totals.net += f.net;
+  });
+  return totals;
+}
+
+function totalsRowHtml(label, rows, extraClass) {
+  const t = sumColumns(rows);
+  return `
+    <td>${label}</td>
+    <td>${fmtMoney(t.baseSalary)}</td>
+    <td>—</td>
+    <td>—</td>
+    <td>${fmtMoney(t.salaryEarned)}</td>
+    <td class="col-minus">${fmtMoney(t.advanceDeduction)}</td>
+    <td class="col-plus">${fmtMoney(t.kmAmount)}</td>
+    <td class="col-plus">${fmtMoney(t.bonus)}</td>
+    <td class="col-plus">${fmtMoney(t.phoneLoad)}</td>
+    <td class="col-minus">${fmtMoney(t.loanDeduction)}</td>
+    <td class="col-final">${fmtMoney(t.net)}</td>
+    <td></td>
+    <td></td>
+  `;
+}
+
+function buildSubtotalRow(rows) {
+  const tr = document.createElement("tr");
+  tr.className = "dept-subtotal-row";
+  tr.innerHTML = totalsRowHtml(`${rows.length} employee${rows.length === 1 ? "" : "s"} — subtotal`, rows);
+  return tr;
+}
+
+function buildGrandTotalRow(rows) {
+  const tr = document.createElement("tr");
+  tr.className = "grand-total-row";
+  tr.innerHTML = totalsRowHtml(`Grand Total — ${rows.length} employee${rows.length === 1 ? "" : "s"}`, rows);
+  return tr;
+}
+
+function buildSheetRow(e) {
+  const existing = state.entries[e.id];
+  const advance = state.advances[e.id] || { total: 0, count: 0 };
+  const attendance = state.attendance[e.id] || null;
+  const perDayRate = (Number(e.monthly_salary) || 0) / 26;
+  const attendanceDays = daysWorkedFromAttendance(attendance);
+  const daysWorked = existing ? Number(existing.days_worked) : (attendanceDays !== null ? attendanceDays : 26);
+  const salaryEarned = existing ? Number(existing.salary_earned) : Math.round(perDayRate * daysWorked * 100) / 100;
+  const kmInfo = state.km[e.id] || { totalKm: 0, orders: 0, amount: 0, flaggedCount: 0 };
+  const km = existing ? Number(existing.km_driven) || 0 : kmInfo.totalKm;
+  // KM amount: prefer what's already saved on the entry; otherwise default to this period's logged KM × the flat rate.
+  const kmAmount = existing && existing.km_amount != null ? Number(existing.km_amount) : kmInfo.amount;
+  const bonus = existing ? Number(existing.bonus) || 0 : 0;
+  const phoneLoad = existing ? Number(existing.phone_load) || 0 : 0;
+  const loanDeduction = existing ? Number(existing.loan_deduction) || 0 : 0;
+  // Advance deduction: prefer what's already saved on the entry; otherwise default to this period's auto-pulled total.
+  const advanceDeduction = existing && existing.advance_deduction != null ? Number(existing.advance_deduction) : advance.total;
+  const paidAmount = existing ? existing.paid_amount : null;
+  const paidDate = existing ? existing.paid_date : null;
+  const isPaid = existing && existing.paid_amount != null && Number(existing.paid_amount) > 0;
+  const attTip = attendance
+    ? `${attendance.Present} present, ${attendance["Half Day"]} half day(s), ${attendance.Absent} absent, ${attendance["Weekly Off"] || 0} weekly off, ${(attendance.Leave || 0) + (attendance.Off || 0)} legacy leave/off`
+    : "no daily attendance marked this period — defaulted to a full month";
+  const advTip = advance.count > 0 ? `${advance.count} advance expense(s) this period totaling ${fmtMoney(advance.total)}` : "no advance expenses logged this period";
+  const kmTip = kmInfo.totalKm > 0
+    ? `${Math.round(kmInfo.totalKm * 10) / 10} km logged this period across ${kmInfo.orders} order(s) @ PKR ${state.kmRatePkr}/km${kmInfo.flaggedCount ? " — " + kmInfo.flaggedCount + " day(s) flagged for review" : ""}`
+    : "no delivery KM logged this period";
+
+  const tr = document.createElement("tr");
+  tr.dataset.empId = e.id;
+  tr.dataset.km = km;
+  tr.innerHTML = `
+    <td class="emp-name">${e.name}${!e.active ? ' <span class="pill-badge pill-err" title="Retired — this is their final settlement for the days they worked this period">Retired</span>' : ""}<div class="emp-sub2">${e.designation || "—"}</div></td>
+    <td>${fmtMoney(e.monthly_salary)}</td>
+    <td class="auto-days" title="${attTip}">${attendanceDays !== null ? attendanceDays : "26 (no attendance)"}</td>
+    <td><input type="number" class="cell-input p-days" step="any" value="${daysWorked}" title="Override — defaults to the Auto Days figure; change this only when the attendance-based number needs correcting."></td>
+    <td><input type="number" class="cell-input p-salary" step="any" value="${salaryEarned}"></td>
+    <td class="col-minus"><input type="number" class="cell-input p-advance" step="any" value="${advanceDeduction}" title="${advTip}"></td>
+    <td class="col-plus"><input type="number" class="cell-input p-km-amount" step="any" value="${kmAmount}" title="${kmTip}">${kmInfo.flaggedCount ? ` <span class="pill-badge pill-warn" style="padding:2px 6px;">⚠</span>` : ""}</td>
+    <td class="col-plus"><input type="number" class="cell-input p-bonus" step="any" value="${bonus}"></td>
+    <td class="col-plus"><input type="number" class="cell-input p-phone" step="any" value="${phoneLoad}"></td>
+    <td class="col-minus"><input type="number" class="cell-input p-loan" step="any" value="${loanDeduction}"></td>
+    <td class="col-final p-net-readout">PKR 0</td>
+    <td>${existing ? `<span class="pill-badge ${isPaid ? "pill-ok" : "pill-warn"}">${isPaid ? "Paid" : "Pending"}</span>` : `<span class="pill-badge pill-warn">New</span>`}</td>
+    <td><button type="button" class="btn-row-save" style="background:var(--accent); color:var(--accent-ink); border:none;">Save</button></td>
+  `;
+
+  const g = (cls) => parseFloat(tr.querySelector("." + cls).value) || 0;
+  const recalc = () => {
+    const net = g("p-salary") + g("p-km-amount") + g("p-bonus") + g("p-phone") - g("p-advance") - g("p-loan");
+    tr.querySelector(".p-net-readout").textContent = fmtMoney(net);
+  };
+  const markDirty = () => { tr.classList.add("row-dirty"); updateSaveAllBar(); };
+  tr.querySelector(".p-days").addEventListener("input", () => {
+    const d = g("p-days");
+    tr.querySelector(".p-salary").value = Math.round(perDayRate * d * 100) / 100;
+    markDirty();
+    recalc();
+  });
+  ["p-salary", "p-km-amount", "p-bonus", "p-phone", "p-advance", "p-loan"].forEach(cls => {
+    tr.querySelector("." + cls).addEventListener("input", () => { markDirty(); recalc(); });
+  });
+  recalc();
+
+  // Click the name to expand a settlement strip below this row (paid amount/date — recorded separately from accrual).
+  tr.querySelector(".emp-name").style.cursor = "pointer";
+  tr.querySelector(".emp-name").addEventListener("click", () => toggleSettleRow(tr, e, paidAmount, paidDate));
+
+  tr.querySelector(".btn-row-save").addEventListener("click", () => savePayrollEntry(e, tr, existing));
+
+  return tr;
+}
+
+function toggleSettleRow(tr, e, paidAmount, paidDate) {
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains("settle-row")) { next.remove(); return; }
+  document.querySelectorAll(".settle-row").forEach(r => r.remove());
+  const settleTr = document.createElement("tr");
+  settleTr.className = "settle-row";
+  settleTr.innerHTML = `<td colspan="13" style="text-align:left; background:var(--field-bg);">
+    <div class="hint">Salary earned is owed the moment you save the row above — a Payroll Payable until paid. Record the final settlement below once it's actually paid, usually around the 7th of the following month.</div>
+    <div class="settle-strip">
+      <label class="hint" style="margin:0;">Paid</label>
+      <input type="number" class="p-paid" step="any" placeholder="0" value="${paidAmount != null ? paidAmount : ""}">
+      <label class="hint" style="margin:0;">On</label>
+      <input type="date" class="p-paid-date" value="${paidDate || ""}">
+      <button type="button" class="btn-row-save settle-save" style="background:var(--accent); color:var(--accent-ink); border:none;">Save Settlement</button>
+    </div>
+  </td>`;
+  tr.after(settleTr);
+  settleTr.querySelector(".settle-save").addEventListener("click", () => saveSettlement(e, tr, settleTr));
+}
+
+// Builds the row's payload and writes it (PATCH if an entry already exists for this
+// employee/period, otherwise POST) -- no reload/rerender here, so it's safe to call this
+// for several rows in a row (see saveAllDirty below) without rows disappearing mid-loop.
+async function persistPayrollRow(e, tr, existing) {
+  const g = (cls) => parseFloat(tr.querySelector("." + cls).value) || 0;
+  const payload = {
+    employee_id: e.id,
+    location_id: LOCATION_ID,
+    period_month: state.periodMonth,
+    days_worked: g("p-days"),
+    salary_earned: g("p-salary"),
+    km_driven: parseFloat(tr.dataset.km) || 0,
+    km_amount: g("p-km-amount"),
+    bonus: g("p-bonus"),
+    phone_load: g("p-phone"),
+    advance_deduction: g("p-advance"),
+    loan_deduction: g("p-loan"),
+    entered_by_user_id: state.userId
+  };
+  if (existing) {
+    await sb(`payroll_entries?id=eq.${existing.id}`, { method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload) });
+  } else {
+    await sb("payroll_entries", { method: "POST", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload) });
+  }
+}
+
+async function savePayrollEntry(e, tr, existing) {
+  const btn = tr.querySelector(".btn-row-save");
+  btn.disabled = true;
+  try {
+    await persistPayrollRow(e, tr, existing);
+    await loadEntriesAndAdvances();
+    renderEmpList();
+  } catch (err) {
+    alert("Couldn't save: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Top-of-page "Save All Changes" -- saves every row currently marked dirty (amber) in one
+// click, instead of having to hit Save on each row individually. Added 2026-10-16.
+function updateSaveAllBar() {
+  const bar = document.querySelector(".save-all-bar");
+  const btn = document.getElementById("btn-save-all");
+  const countEl = document.getElementById("save-all-count");
+  const dirtyCount = document.querySelectorAll("#sheet-body tr.row-dirty").length;
+  if (dirtyCount > 0) {
+    bar.classList.add("has-changes");
+    btn.disabled = false;
+    countEl.textContent = `${dirtyCount} row${dirtyCount === 1 ? "" : "s"} with unsaved changes.`;
+  } else {
+    bar.classList.remove("has-changes");
+    btn.disabled = true;
+    countEl.textContent = "No unsaved changes.";
+  }
+}
+
+async function saveAllDirty() {
+  const dirtyRows = Array.from(document.querySelectorAll("#sheet-body tr.row-dirty"));
+  if (!dirtyRows.length) return;
+  const empById = new Map(state.employees.map(e => [e.id, e]));
+  const btn = document.getElementById("btn-save-all");
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  let failed = 0;
+  for (const tr of dirtyRows) {
+    const emp = empById.get(tr.dataset.empId);
+    if (!emp) continue;
+    btn.textContent = `Saving ${dirtyRows.indexOf(tr) + 1} of ${dirtyRows.length}…`;
+    try {
+      await persistPayrollRow(emp, tr, state.entries[emp.id]);
+    } catch (err) {
+      failed++;
+    }
+  }
+  btn.textContent = originalLabel;
+  await loadEntriesAndAdvances();
+  renderEmpList();
+  if (failed) alert(`${failed} of ${dirtyRows.length} row(s) couldn't be saved — please retry those individually.`);
+}
+document.getElementById("btn-save-all").addEventListener("click", saveAllDirty);
+
+async function saveSettlement(e, tr, settleTr) {
+  const existing = state.entries[e.id];
+  if (!existing) { alert("Save the row above first, then record the settlement."); return; }
+  const btn = settleTr.querySelector(".settle-save");
+  btn.disabled = true;
+  try {
+    await sb(`payroll_entries?id=eq.${existing.id}`, {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        paid_amount: parseFloat(settleTr.querySelector(".p-paid").value) || null,
+        paid_date: settleTr.querySelector(".p-paid-date").value || null,
+        entered_by_user_id: state.userId
+      })
+    });
+    await loadEntriesAndAdvances();
+    renderEmpList();
+  } catch (err) {
+    alert("Couldn't save: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("search-emp").addEventListener("input", renderEmpList);
+
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
+}
+</script>
+</body>
+</html>

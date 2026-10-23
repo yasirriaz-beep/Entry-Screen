@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grill Issue Entry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 90px; max-width: 900px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input { width: 100%; min-width: 0; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink); border-radius: 9px; padding: 11px 12px; font-size: 0.95rem; font-family: inherit; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 11px 16px; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); }
+  [hidden] { display: none !important; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+  .filter-row > * { flex: 1; min-width: 140px; }
+  .progress-chip { background: var(--field-bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; display: inline-block; margin-top: 8px; margin-right: 6px; }
+  .table-scroll { overflow-x: auto; }
+  .base-grid { min-width: 784px; }
+  .item-row { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px 84px 84px; gap: 6px; align-items: center; border-bottom: 1px solid var(--border); padding: 9px 0; }
+  .item-row:last-child { border-bottom: none; }
+  .item-name { font-size: 0.88rem; min-width: 0; }
+  .item-name .unit { color: var(--ink-soft); font-size: 0.76rem; }
+  .item-row input { padding: 7px 8px; font-size: 0.85rem; text-align: right; }
+  .item-row input.dirty { border-color: var(--accent); background: var(--warn-bg); }
+  /* Firm par-level reorder suggestion (vs. the rough average placeholder otherwise shown) */
+  .item-row input.par-sugg::placeholder { color: var(--ok); font-weight: 700; opacity: 1; }
+  .item-row input.par-sugg:not(.dirty) { border-color: var(--ok); }
+  .expected-val, .num-val { font-size: 0.8rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .num-val.end-val { color: var(--ink); font-weight: 600; }
+  .col-header { display: grid; grid-template-columns: 1fr 70px 84px 84px 84px 84px 84px 84px; gap: 6px; font-size: 0.65rem; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.02em; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .col-header > div { text-align: right; }
+  .col-header > div:first-child { text-align: left; }
+  .dept-header { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); background: var(--field-bg); padding: 8px; border-radius: 6px; margin: 10px 0 4px; }
+  .dept-header:first-child { margin-top: 0; }
+  .dept-count { font-weight: 500; text-transform: none; letter-spacing: normal; opacity: 0.75; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .cadence-banner, .banner { border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-bottom: 14px; }
+  .banner-err { background: var(--err-bg); color: var(--err); }
+  .sticky-save { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 900px; margin: 0 auto; }
+  .sticky-save button { max-width: 900px; margin: 0 auto; display: block; }
+  .po-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; background: var(--field-bg); }
+  .po-card .po-title { font-weight: 600; }
+  .po-card .po-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 2px; }
+
+  .login-field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .login-field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-field + .login-field { margin-top: 10px; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+  .btn-login { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-login:disabled { opacity: 0.6; cursor: default; }
+</style>
+</head>
+<body>
+<a class="btn-ghost" href="grill-home.html" style="display:inline-block; margin:0 0 14px; background:rgba(127,127,127,0.12); border:1px solid rgba(127,127,127,0.3); border-radius:999px; padding:7px 14px; font-size:0.8rem; font-weight:600; text-decoration:none; color:inherit;">← Entry Screen</a>
+
+
+<h1>Grill Issue Entry</h1>
+<div class="sub">Store room se Kitchen / BOH / FOH / Delivery ko roz ka issuance</div>
+
+<div id="task-banner-wrap"></div>
+
+<div id="step-name" class="card">
+  <div class="step-label">Who's issuing this? / Aap kaun hain?</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="login-field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="login-field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-login" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Har item ki "Ending Balance" column mein dekhein — yeh system ke mutabiq is waqt store mein maujooda stock hai.
+    Jo maal jahan bhej rahe hain uski quantity usi column mein likhein: Kitchen ke liye "Kitchen Issue", BOH ke liye "BOH Issue",
+    FOH ke liye "FOH Issue", Bar ke liye "Bar Issue", Delivery ke liye "Delivery Issue", aur Bev (beverages) ke liye "Beverages Issue".
+    Agar "Beverages Issue" column nazar na aaye to table ko side se (left-right) scroll kar ke dekhein. Ek item aik se zyada jagah bhi ja sakta hai —
+    bas har column mein uski apni quantity daal dein. Jo item issue nahi ho raha, uska box khali chhor dein.
+    Sab likhne ke baad neeche "Save Issues" button dabayen. Agar dobara isi din kuch aur issue karna ho to wapas aa kar naya amount likh dein,
+    yeh purana entry ke upar nahi likhega balke ek nayi entry ban jayegi (neeche "Issued Today" mein sab dikh jayega).
+    <br><br>
+    <b>Halka grey number (box ke andar)</b>
+    Kabhi kabhi khali box mein ek halka grey number nazar aayega — yeh system ka apna andaza hai ke aaj kitna issue lagna chahiye
+    (purane din ke data aur is waqt floor par maujooda stock se calculate hota hai). Yeh sirf ek hint hai, khud se bharta nahi aur save bhi
+    nahi hota — aapko apni marzi se asal quantity type karni hai. Abhi data sirf chand dinon ka hai, is liye yeh andaza thoda kam theek ho sakta hai;
+    jitna zyada din ka data ikatha hoga, utna behtar hota jayega.
+  </div>
+
+  <div class="card">
+    <div class="filter-row">
+      <div>
+        <label>Date</label>
+        <input type="date" id="f-date">
+      </div>
+      <div>
+        <label>Search</label>
+        <input type="text" id="search-items" placeholder="Name or code...">
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="filter-category"><option value="">All categories</option></select>
+      </div>
+    </div>
+    <label style="display:flex; align-items:center; gap:6px; margin-top:10px; text-transform:none; font-size:0.85rem;">
+      <input type="checkbox" id="filter-instock" style="width:auto;" checked> Only items currently carrying stock (hide zero-stock lines)
+    </label>
+    <div id="progress-chips"></div>
+  </div>
+
+  <div class="card">
+    <div class="table-scroll">
+      <div class="base-grid">
+        <div class="col-header">
+          <div>Item</div>
+          <div>Ending Balance</div>
+          <div>Kitchen Issue</div>
+          <div>BOH Issue</div>
+          <div>FOH Issue</div>
+          <div>Bar Issue</div>
+          <div>Delivery Issue</div>
+          <div>Beverages Issue</div>
+        </div>
+        <div id="item-list"></div>
+      </div>
+    </div>
+    <div class="hint" id="item-list-empty" hidden>No items match.</div>
+  </div>
+
+  <button class="btn-ghost" id="btn-back" type="button" style="width:100%;">Change Person</button>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="step-label">Issued Today</div>
+    <div id="today-list"></div>
+    <div class="hint" id="today-empty" hidden>Nothing issued yet today.</div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">Print Report / Print karke Kitchen ko dein</div>
+    <div class="filter-row" style="margin-bottom:10px;">
+      <div>
+        <label>Floor</label>
+        <select id="print-dest">
+          <option value="">All floors</option>
+          <option value="KITCHEN">Kitchen only</option>
+          <option value="BOH">BOH only</option>
+          <option value="FOH">FOH only</option>
+          <option value="BAR">Bakery and Bar only</option>
+          <option value="DEL">Delivery only</option>
+          <option value="BEV">Beverages only</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" class="btn-ghost" id="btn-print-report" style="width:100%;">🖨️ Print Issue Report</button>
+    <div class="hint">Printable summary of everything issued on the selected date above, grouped by floor — print it and hand the Kitchen copy to the kitchen. / Upar wali date ke liye jo bhi issue hua uski printable summary, floor ke hisab se — print karke Kitchen copy kitchen ko de dein.</div>
+  </div>
+</div>
+
+<div class="sticky-save" id="sticky-save">
+  <button class="btn-primary" id="btn-save-all" type="button" disabled>Save Issues (<span id="dirty-count">0</span>)</button>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+const LOCATION_ID = "10000000-0000-0000-0000-000000000008"; // Grill
+const PAGE_KEY = "issue_entry";
+
+// Matches Floor Inventory's FLOORS exactly (Kitchen/BOH/FOH/Bakery and Bar/Delivery) —
+// "BAR" now covers Bakery and Bar as a combined section (cakes/bakery items
+// were tagged floor_category='BAR' alongside the original bar-consumable
+// items). Bar was dropped from here at first since it had zero historical
+// issues at Grill, but that left Floor Inventory's Bar tab with no way to ever
+// receive stock through this page. Keeping the two in lockstep.
+const DESTS = [
+  { key: "KITCHEN", label: "Kitchen Issue", cls: "i-kitchen" },
+  { key: "BOH", label: "BOH Issue", cls: "i-boh" },
+  { key: "FOH", label: "FOH Issue", cls: "i-foh" },
+  { key: "BAR", label: "Bakery and Bar Issue", cls: "i-bar" },
+  { key: "DEL", label: "Delivery Issue", cls: "i-del" },
+  { key: "BEV", label: "Beverages Issue", cls: "i-bev" }
+];
+
+let state = {
+  userId: null, userName: null, managerId: null, userRole: null,
+  products: [], purchases: [], issues: [], snapshots: [],
+  floorPeriods: [], // open floor_stock_periods rows, used for the demand-suggestion hint
+  parLevels: {}, // "productId|floor" -> par_qty, set on Floor Inventory (floor_par_levels)
+  suggestions: {}, // product_id -> { KITCHEN: qty, BOH: qty, ... } suggested replenishment —
+                    // exact (par minus what's on the floor) where a par level is set,
+                    // otherwise a rough average-based estimate
+  suggestionIsPar: {}, // product_id -> { KITCHEN: true, ... } which suggestions above are
+                        // the firm par-based figure, vs. the rough average
+  historyDays: {}, // floor -> distinct days of daily_issues history observed (for future UI use)
+  existing: {}, // product_id -> today's existing daily_issues rows, by destination
+  dirty: {} // product_id -> { KITCHEN: qty, BOH: qty, ... }
+};
+
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      "apikey": ANON_KEY,
+      "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(),
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${text}`);
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return null;
+}
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "apikey": ANON_KEY, "Authorization": `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+function fmtQty(n) {
+  const v = Number(n) || 0;
+  return (Math.round(v * 100) / 100).toLocaleString();
+}
+function todayStr() {
+  // Grill's business day: before 9:00am PKT still counts as the previous
+  // calendar day, since the restaurant runs past midnight and does not
+  // really "end" until the early-morning close.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false
+  }).formatToParts(new Date());
+  const get = (t) => parts.find((p) => p.type === t).value;
+  let y = +get("year"), mo = +get("month"), d = +get("day"), hr = +get("hour");
+  if (hr === 24) hr = 0;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (hr < 9) dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_managers_for_page_with_code_v2", { p_page_key: PAGE_KEY });
+    const match = managers.find(m => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    AppSession.set({
+        managerId: match.id, userId: row.app_user_id, userName: match.name, role: row.role,
+        pages: [PAGE_KEY], viewOnlyPages: match.view_only ? [PAGE_KEY] : [], loginAt: new Date().toISOString(),
+        token: row.session_token
+      });
+          setTimeout(() => afterLogin(row.app_user_id, match.name, match.id, row.role), 150);
+    nameInput.value = "";
+    pinInput.value = "";
+    AppSession.applyAccessLock(AppSession.get(), PAGE_KEY);
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function afterLogin(userId, name, managerId, role) {
+  state.userId = userId;
+  state.userName = name;
+  state.managerId = managerId;
+  state.userRole = role;
+  document.getElementById("step-name").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("f-date").value = todayStr();
+  loadAll();
+}
+
+function backToNames() {
+  state.userId = null;
+  state.userRole = null;
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-name").hidden = false;
+}
+document.getElementById("btn-back").addEventListener("click", backToNames);
+document.getElementById("f-date").addEventListener("change", loadAll);
+
+async function loadAll() {
+  state.dirty = {};
+  updateSaveBar();
+  try {
+    state.products = await sb(`products?active=eq.true&select=id,code,name,category,unit,current_rate&order=category,name`);
+  } catch (e) { state.products = []; }
+  try {
+    // limit=100000 on these three base fetches (also set in inventory-balance-sheet.html
+    // and stock-count.html, which share this exact Ending Balance formula) — without it,
+    // PostgREST's default row cap could silently truncate the data as it grows, and the
+    // three screens would stop tying without any visible error.
+    state.purchases = await sb(`purchases?location_id=eq.${LOCATION_ID}&select=product_id,qty,purchase_date&limit=100000`);
+  } catch (e) { state.purchases = []; }
+  try {
+    // issued_to + created_at included (not just the issue_date the store-level
+    // expectedQty() below needs) so the same fetch also feeds the per-floor
+    // suggested-demand estimate further down — one bulk request either way.
+    state.issues = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&select=product_id,qty,issue_date,issued_to,created_at&limit=100000`);
+  } catch (e) { state.issues = []; }
+  try {
+    state.snapshots = await sb(`inventory_snapshots?location_id=eq.${LOCATION_ID}&select=product_id,snapshot_date,closing_qty&order=snapshot_date.desc&limit=100000`);
+  } catch (e) { state.snapshots = []; }
+  try {
+    // Open floor_stock_periods — same table Floor Inventory itself tracks
+    // balances in — used only to estimate current floor stock for the
+    // suggested-demand hint below, one bulk fetch for every floor/item.
+    state.floorPeriods = await sb(`floor_stock_periods?location_id=eq.${LOCATION_ID}&period_end_at=is.null&select=product_id,floor,beginning_qty,period_start_at`);
+  } catch (e) { state.floorPeriods = []; }
+  try {
+    // Par levels set on Floor Inventory (the desired floor stock, e.g. from a paper par
+    // sheet) — where one exists, it overrides the rough average estimate below with the
+    // exact reorder-to-par figure. Added 2026-10-18.
+    const parRows = await sb(`floor_par_levels?location_id=eq.${LOCATION_ID}&select=product_id,floor,par_qty`);
+    state.parLevels = {};
+    (parRows || []).forEach(r => { state.parLevels[`${r.product_id}|${r.floor}`] = Number(r.par_qty) || 0; });
+  } catch (e) { state.parLevels = {}; }
+
+  const cats = [...new Set(state.products.map(p => p.category).filter(Boolean))].sort();
+  const sel = document.getElementById("filter-category");
+  const prevCat = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join("");
+  sel.value = prevCat;
+
+  computeExistingForDate();
+  computeSuggestions();
+  renderItemList();
+  loadTodayList();
+}
+
+// Suggested demand — "replenish to par". Two sources, in priority order:
+//   1. A par level set on Floor Inventory (floor_par_levels) — the exact desired floor
+//      stock (e.g. from a paper par sheet). Reorder = that par minus whatever's on the
+//      floor right now. Firm, not an estimate — used whenever it's set, even for an item
+//      with zero issuance history yet (a brand-new par item). Added 2026-10-18.
+//   2. Otherwise, the old rough average: one typical day's usage for that floor (trailing
+//      average over however many days we actually have data for), minus what's on the
+//      floor. Quietly gets more reliable as more days of real issuance accumulate.
+// Either way this is purely advisory: shown as a faint placeholder inside each blank box,
+// never written into state.dirty, so nothing is ever auto-filled or auto-saved — the
+// store man decides what to actually type and confirms the real count.
+function computeSuggestions() {
+  state.suggestions = {}; // product_id -> { KITCHEN: qty, BOH: qty, ... }
+  state.suggestionIsPar = {}; // product_id -> { KITCHEN: true, ... }
+  state.historyDays = {}; // floor -> distinct days observed, for the disclaimer
+
+  const floorDays = {};
+  DESTS.forEach(d => { floorDays[d.key] = new Set(); });
+  state.issues.forEach(i => { if (floorDays[i.issued_to]) floorDays[i.issued_to].add(i.issue_date); });
+  DESTS.forEach(d => { state.historyDays[d.key] = floorDays[d.key].size; });
+
+  const totalsByKey = {}; // "productId|floor" -> total qty issued
+  state.issues.forEach(i => {
+    if (!floorDays[i.issued_to]) return;
+    const key = `${i.product_id}|${i.issued_to}`;
+    totalsByKey[key] = (totalsByKey[key] || 0) + (Number(i.qty) || 0);
+  });
+
+  const periodByKey = {}; // "productId|floor" -> latest open period
+  state.floorPeriods.forEach(p => { periodByKey[`${p.product_id}|${p.floor}`] = p; });
+
+  function onFloorNow(productId, floorKey) {
+    const period = periodByKey[`${productId}|${floorKey}`];
+    if (!period) return 0;
+    let onFloor = Number(period.beginning_qty) || 0;
+    onFloor += state.issues
+      .filter(i => i.product_id === productId && i.issued_to === floorKey && i.created_at >= period.period_start_at)
+      .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+    return onFloor;
+  }
+
+  const setSuggestion = (productId, floorKey, qty, isPar) => {
+    if (qty < 1) return;
+    state.suggestions[productId] = state.suggestions[productId] || {};
+    state.suggestions[productId][floorKey] = qty;
+    if (isPar) {
+      state.suggestionIsPar[productId] = state.suggestionIsPar[productId] || {};
+      state.suggestionIsPar[productId][floorKey] = true;
+    }
+  };
+
+  state.products.forEach(p => {
+    DESTS.forEach(d => {
+      const key = `${p.id}|${d.key}`;
+      const parQty = state.parLevels[key];
+      if (parQty != null) {
+        const suggested = Math.round((parQty - onFloorNow(p.id, d.key)) * 100) / 100;
+        setSuggestion(p.id, d.key, suggested, true);
+        return; // firm par figure wins — don't fall through to the average
+      }
+      const days = floorDays[d.key].size;
+      if (!days) return;
+      const avgDaily = (totalsByKey[key] || 0) / days;
+      if (avgDaily < 0.01) return;
+      const suggested = Math.round((avgDaily - onFloorNow(p.id, d.key)) * 100) / 100;
+      setSuggestion(p.id, d.key, suggested, false);
+    });
+  });
+}
+
+function computeExistingForDate() {
+  const date = document.getElementById("f-date").value || todayStr();
+  // Keyed by product_id -> { KITCHEN: totalQtyAlreadyLoggedToday, ... } — used only
+  // to decide which zero-stock items stay visible, never to pre-fill the inputs.
+  state.existing = {};
+  state.issues.forEach(i => {
+    if (i.issue_date !== date) return;
+    state.existing[i.product_id] = state.existing[i.product_id] || {};
+  });
+}
+
+// Same base computation as Stock Count's expectedQty() / the Inventory Balance
+// Sheet's baseFor() — last snapshot on or before this date, plus purchases/issues
+// strictly after it. This IS the "Ending Balance" store man should look at.
+function expectedQty(productId, date) {
+  const priorSnaps = state.snapshots.filter(s => s.product_id === productId && s.snapshot_date <= date);
+  const last = priorSnaps[0]; // snapshots loaded desc
+  const windowStart = last ? last.snapshot_date : null;
+  const opening = last ? Number(last.closing_qty) || 0 : 0;
+  const purchasesQty = state.purchases
+    .filter(p => p.product_id === productId && p.purchase_date <= date && (!windowStart || p.purchase_date > windowStart))
+    .reduce((s, p) => s + (Number(p.qty) || 0), 0);
+  const issuesQty = state.issues
+    .filter(i => i.product_id === productId && i.issue_date <= date && (!windowStart || i.issue_date > windowStart))
+    .reduce((s, i) => s + (Number(i.qty) || 0), 0);
+  return { opening, purchasesQty, issuesQty, expected: opening + purchasesQty - issuesQty, windowStart };
+}
+
+function renderItemList() {
+  const search = document.getElementById("search-items").value.trim().toUpperCase();
+  const cat = document.getElementById("filter-category").value;
+  const onlyInStock = document.getElementById("filter-instock").checked;
+  const date = document.getElementById("f-date").value || todayStr();
+  const list = document.getElementById("item-list");
+  const emptyHint = document.getElementById("item-list-empty");
+
+  const rows = state.products.filter(p => {
+    if (search && !p.name.toUpperCase().includes(search) && !(p.code || "").toUpperCase().includes(search)) return false;
+    if (cat && p.category !== cat) return false;
+    if (onlyInStock && !state.existing[p.id]) {
+      const { expected } = expectedQty(p.id, date);
+      if (Math.abs(expected) < 0.01) return false;
+    }
+    return true;
+  });
+
+  document.getElementById("progress-chips").innerHTML =
+    `<span class="progress-chip">${rows.length} in this view</span>`;
+
+  list.innerHTML = "";
+  if (!rows.length) { emptyHint.hidden = false; return; }
+  emptyHint.hidden = true;
+
+  const catCounts = {};
+  rows.forEach(p => { const c = p.category || "Uncategorized"; catCounts[c] = (catCounts[c] || 0) + 1; });
+
+  let lastCat = null;
+  rows.forEach(p => {
+    const c = p.category || "Uncategorized";
+    if (c !== lastCat) {
+      const header = document.createElement("div");
+      header.className = "dept-header";
+      header.innerHTML = `${c} <span class="dept-count">(${catCounts[c]})</span>`;
+      list.appendChild(header);
+      lastCat = c;
+    }
+
+    // opening/purchasesQty/issuesQty are still computed (expectedQty returns them
+    // together with expected) but no longer displayed — the owner asked to show only
+    // the Ending Balance here, since Beg/Add/Sub aren't relevant to the store man.
+    const { expected } = expectedQty(p.id, date);
+    const dirtyRow = state.dirty[p.id] || {};
+
+    const row = document.createElement("div");
+    row.className = "item-row";
+    const suggRow = (state.suggestions && state.suggestions[p.id]) || {};
+    const parRow = (state.suggestionIsPar && state.suggestionIsPar[p.id]) || {};
+    const destCells = DESTS.map(d => {
+      const v = dirtyRow[d.key] != null ? dirtyRow[d.key] : "";
+      const sugg = suggRow[d.key];
+      const ph = sugg != null ? fmtQty(sugg) : "—";
+      // A par-based suggestion is a firm target (par minus what's on the floor), not a
+      // rough average — marked with .par-sugg so it reads differently at a glance.
+      const parCls = parRow[d.key] ? " par-sugg" : "";
+      const title = parRow[d.key] ? `Par level reorder — fill to the Kitchen par qty` : "";
+      return `<input type="number" class="${d.cls}${parCls}" step="any" value="${v}" placeholder="${ph}" title="${title}">`;
+    }).join("");
+    row.innerHTML = `
+      <div class="item-name">${p.name} <span class="unit">${p.unit || ""}</span></div>
+      <div class="num-val end-val">${fmtQty(expected)}</div>
+      ${destCells}
+    `;
+    DESTS.forEach(d => {
+      const input = row.querySelector(`.${d.cls}`);
+      if (dirtyRow[d.key] != null) input.classList.add("dirty");
+      input.addEventListener("input", () => {
+        const v = parseFloat(input.value);
+        state.dirty[p.id] = state.dirty[p.id] || {};
+        if (isNaN(v) || v === 0) delete state.dirty[p.id][d.key]; else state.dirty[p.id][d.key] = v;
+        if (!Object.keys(state.dirty[p.id]).length) delete state.dirty[p.id];
+        input.classList.toggle("dirty", !isNaN(v) && v !== 0);
+        updateSaveBar();
+      });
+    });
+    list.appendChild(row);
+  });
+}
+
+function updateSaveBar() {
+  // The Save bar always stays on screen (just disabled at 0) so it's never
+  // mistaken for missing — a fully hidden bar looked, to a store man who
+  // hadn't typed anything yet, like there was no way to save at all.
+  const count = Object.values(state.dirty).reduce((s, row) => s + Object.keys(row).length, 0);
+  document.getElementById("dirty-count").textContent = count;
+  document.getElementById("btn-save-all").disabled = count === 0;
+}
+
+async function saveAllCounts() {
+  const date = document.getElementById("f-date").value || todayStr();
+  const ids = Object.keys(state.dirty);
+  if (!ids.length) return;
+  const btn = document.getElementById("btn-save-all");
+  btn.disabled = true;
+  let done = 0, failed = 0, total = 0;
+  const entries = [];
+  ids.forEach(id => { Object.keys(state.dirty[id]).forEach(destKey => entries.push({ id, destKey })); });
+  total = entries.length;
+  for (const { id, destKey } of entries) {
+    const qty = state.dirty[id][destKey];
+    const p = state.products.find(x => x.id === id);
+    const rate = p ? (Number(p.current_rate) || 0) : 0;
+    try {
+      // Always a fresh row — issues happen more than once a day in practice, and
+      // "Issued Today" below shows the running total so nothing gets double-entered
+      // silently.
+      await sb("daily_issues", {
+        method: "POST", headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify({
+          location_id: LOCATION_ID, product_id: id, issue_date: date, issued_to: destKey,
+          qty: qty, rate: rate, amount: Math.round(qty * rate * 100) / 100,
+          entered_by_user_id: state.userId, entered_by_manager_id: state.managerId
+        })
+      });
+      done++;
+    } catch (e) { failed++; }
+    btn.textContent = `Saving ${done + failed}/${total}…`;
+  }
+  // Restore the dirty-count span inside the button — a plain textContent
+  // reset here destroys it, and the next updateSaveBar() call throws trying
+  // to find it, leaving the button stuck looking broken/missing.
+  btn.innerHTML = `Save Issues (<span id="dirty-count">0</span>)`;
+  btn.disabled = true;
+  state.dirty = {};
+  updateSaveBar();
+  await loadAll();
+  if (failed) alert(`${done} saved, ${failed} failed — try those again.`);
+}
+document.getElementById("btn-save-all").addEventListener("click", saveAllCounts);
+
+document.getElementById("search-items").addEventListener("input", renderItemList);
+document.getElementById("filter-category").addEventListener("change", renderItemList);
+document.getElementById("filter-instock").addEventListener("change", renderItemList);
+
+async function loadTodayList() {
+  const list = document.getElementById("today-list");
+  const emptyHint = document.getElementById("today-empty");
+  try {
+    const rows = await sb(`daily_issues?location_id=eq.${LOCATION_ID}&issue_date=eq.${todayStr()}&select=id,qty,issued_to,amount,created_at,products(name,unit)&order=created_at.desc`);
+    list.innerHTML = "";
+    if (!rows.length) { emptyHint.hidden = false; return; }
+    emptyHint.hidden = true;
+    rows.forEach(r => {
+      const row = document.createElement("div");
+      row.className = "po-card";
+      row.innerHTML = `
+        <div class="po-title">${r.products?.name || "Item"}</div>
+        <div class="po-sub">${fmtQty(r.qty)} ${r.products?.unit || ""} → ${r.issued_to} · PKR ${Math.round(r.amount || 0).toLocaleString()} · ${new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>`;
+      list.appendChild(row);
+    });
+  } catch (e) { emptyHint.hidden = false; }
+}
+
+const DEST_LABELS = { KITCHEN: "Kitchen", BOH: "BOH", FOH: "FOH", BAR: "Bakery and Bar", DEL: "Delivery", BEV: "Beverages" };
+
+async function printIssueReport() {
+  const date = document.getElementById("f-date").value || todayStr();
+  const destFilter = document.getElementById("print-dest").value; // "" = all floors
+  const btn = document.getElementById("btn-print-report");
+  btn.disabled = true;
+  btn.textContent = "Loading…";
+  let rows = [];
+  try {
+    // Scoped to everything THIS store man logged on the selected date — not the whole
+    // location's issues for that date, in case more than one person enters on Issue
+    // Entry the same day. entered_by_manager_id is set on every row in saveAllCounts().
+    let path = `daily_issues?location_id=eq.${LOCATION_ID}&issue_date=eq.${date}&entered_by_manager_id=eq.${state.managerId}&select=qty,issued_to,amount,rate,products(name,code,unit,category)&order=issued_to.asc`;
+    if (destFilter) path += `&issued_to=eq.${destFilter}`;
+    rows = await sb(path);
+  } catch (e) { rows = []; }
+  btn.disabled = false;
+  btn.textContent = "🖨️ Print Issue Report";
+
+  if (!rows.length) { alert("Nothing issued on this date for that floor yet."); return; }
+
+  // Group by destination, then by category within each destination.
+  const byDest = {};
+  rows.forEach(r => {
+    byDest[r.issued_to] = byDest[r.issued_to] || [];
+    byDest[r.issued_to].push(r);
+  });
+  const destOrder = DESTS.map(d => d.key).filter(k => byDest[k]);
+
+  const dateLabel = new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const genAt = new Date().toLocaleString();
+
+  let sections = "";
+  destOrder.forEach(destKey => {
+    const items = byDest[destKey].slice().sort((a, b) => {
+      const ca = (a.products?.category || "").localeCompare(b.products?.category || "");
+      if (ca) return ca;
+      return (a.products?.name || "").localeCompare(b.products?.name || "");
+    });
+    let totalAmt = 0;
+    const lines = items.map((r, i) => {
+      totalAmt += Number(r.amount) || 0;
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${r.products?.name || "Item"}${r.products?.code ? ` <span class="code">(${r.products.code})</span>` : ""}</td>
+        <td class="num">${fmtQty(r.qty)}</td>
+        <td>${r.products?.unit || ""}</td>
+      </tr>`;
+    }).join("");
+    sections += `
+      <div class="dest-section">
+        <h2>${DEST_LABELS[destKey] || destKey} <span class="count">(${items.length} items)</span></h2>
+        <table>
+          <thead><tr><th>#</th><th>Item</th><th class="num">Qty</th><th>Unit</th></tr></thead>
+          <tbody>${lines}</tbody>
+        </table>
+      </div>`;
+  });
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Issue Report ${date}</title>
+<style>
+  body { font-family: 'Libre Franklin', Arial, sans-serif; color: #2a2420; margin: 24px; }
+  h1 { font-size: 1.3rem; margin: 0 0 2px; }
+  .sub { color: #6f655a; font-size: 0.85rem; margin-bottom: 18px; }
+  .dest-section { margin-bottom: 22px; page-break-inside: avoid; }
+  .dest-section h2 { font-size: 1.05rem; border-bottom: 2px solid #2a2420; padding-bottom: 4px; margin-bottom: 8px; }
+  .dest-section h2 .count { font-weight: 400; font-size: 0.8rem; color: #6f655a; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid #ddd; }
+  th.num, td.num { text-align: right; }
+  .code { color: #6f655a; font-size: 0.78rem; }
+  .sign-row { display: flex; justify-content: space-between; margin-top: 40px; font-size: 0.85rem; }
+  .sign-row div { width: 45%; border-top: 1px solid #2a2420; padding-top: 4px; }
+  .foot { margin-top: 24px; font-size: 0.72rem; color: #6f655a; }
+  @media print { body { margin: 10mm; } }
+</style></head>
+<body>
+  <h1>Grill Issue Report — ${DEST_LABELS[destFilter] || "All Floors"}</h1>
+  <div class="sub">${dateLabel} · Issued by: ${state.userName || ""}</div>
+  ${sections}
+  <div class="sign-row">
+    <div>Store Man Signature</div>
+    <div>Received By (Kitchen/Floor) Signature</div>
+  </div>
+  <div class="foot">Generated ${genAt} · Grill Issue Entry</div>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) { alert("Please allow pop-ups to print the report."); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.onload = () => { w.focus(); w.print(); };
+}
+document.getElementById("btn-print-report").addEventListener("click", printIssueReport);
+
+// Store Man's own pending-tasks banner — same checklist the Owner Dashboard surfaces,
+// scoped to this location, since there's no per-person login here.
+async function loadTaskBanner(){
+  const wrap = document.getElementById("task-banner-wrap");
+  try {
+    const rows = await sb(`audit_alerts?location_id=eq.${LOCATION_ID}&status=eq.open&alert_type=eq.task_issuance_missing&select=title&order=title.asc`);
+    if (!rows.length) { wrap.innerHTML = ""; return; }
+    wrap.innerHTML = `<div class="banner banner-err"><strong>Pending for Store Man:</strong> ${rows.map(r => r.title.replace("No issuance logged - ", "")).join(", ")} — nothing logged on this screen for that date.</div>`;
+  } catch (e) { wrap.innerHTML = ""; }
+}
+
+const existing = AppSession.get();
+if (existing && AppSession.hasAccess(existing, PAGE_KEY)) {
+  afterLogin(existing.userId, existing.userName, existing.managerId, existing.role);
+  AppSession.applyAccessLock(existing, PAGE_KEY);
+}
+loadTaskBanner();
+</script>
+</body>
+</html>

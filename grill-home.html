@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grill</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --border: #e4ddd1; --ink: #2a2420; --ink-soft: #6f655a;
+    --accent: #9c3b2e; --accent-ink: #ffffff; --field-bg: #fcfaf6;
+    --ok: #3d7a4f; --ok-bg: #eaf4ec; --warn: #a3650a; --warn-bg: #fdf1dd; --err: #b3261e; --err-bg: #fbeae8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+      --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+      --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1c1815; --surface: #262220; --border: #3a342f; --ink: #f1ece4; --ink-soft: #ad9f90;
+    --accent: #e0775f; --accent-ink: #1c1815; --field-bg: #201c19;
+    --ok: #7cc492; --ok-bg: #1f2c21; --warn: #e4a94a; --warn-bg: #2e2514; --err: #e4867d; --err-bg: #301f1d;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Libre Franklin', system-ui, sans-serif; padding: 20px 16px 60px; max-width: 760px; margin: 0 auto; }
+  h1 { font-family: 'Zilla Slab', Georgia, serif; font-size: 1.5rem; margin: 4px 0 2px; }
+  .sub { color: var(--ink-soft); font-size: 0.85rem; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .step-label { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 10px; }
+  .field { width: 100%; border: 1px solid var(--border); background: var(--field-bg); color: var(--ink); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: inherit; }
+  .field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .field + .field { margin-top: 10px; }
+  .hint { font-size: 0.78rem; color: var(--ink-soft); margin-top: 4px; }
+  [hidden] { display: none !important; }
+  button { font-family: inherit; font-weight: 600; font-size: 0.95rem; border: none; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--ink); width: 100%; margin-top: 4px; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 14px; }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .login-error { font-size: 0.82rem; color: var(--err); margin-top: 10px; }
+
+  .who-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .who-bar .name { font-weight: 600; }
+  .who-bar .role { color: var(--ink-soft); font-size: 0.8rem; text-transform: capitalize; }
+  .btn-switch { background: transparent; border: 1px solid var(--border); color: var(--ink-soft); padding: 7px 12px; font-size: 0.78rem; border-radius: 8px; }
+
+  .tab-row { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+  .tab-btn { flex: none; background: var(--field-bg); border: 1px solid var(--border); color: var(--ink-soft); border-radius: 999px; padding: 8px 14px; font-size: 0.82rem; cursor: pointer; white-space: nowrap; }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  .page-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .page-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--field-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; text-decoration: none; color: var(--ink); }
+  .page-link:hover { border-color: var(--accent); }
+  .page-link .arrow { color: var(--ink-soft); }
+  .view-only-badge { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--warn, #a3650a); background: var(--warn-bg, #fdf1dd); border-radius: 999px; padding: 2px 7px; margin-left: 6px; }
+  .empty-hint { color: var(--ink-soft); font-size: 0.88rem; padding: 10px 2px; }
+  .urdu-box { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px; }
+  .urdu-box b { display: block; margin-bottom: 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+</style>
+</head>
+<body>
+
+<h1>Grill</h1>
+<div class="sub">Sign in to see the pages you have access to</div>
+
+<div id="step-login" class="card">
+  <div class="step-label">Login</div>
+  <form id="login-form" autocomplete="on">
+    <input type="text" id="login-name" class="field" placeholder="Code" autocomplete="username" required maxlength="2" style="text-transform:uppercase" autocapitalize="characters" pattern="[A-Za-z]{2}">
+    <input type="password" id="login-pin" class="field" placeholder="PIN" autocomplete="current-password" inputmode="numeric" required>
+    <div class="login-error" id="login-error" hidden>Incorrect code or PIN.</div>
+    <button type="submit" class="btn-primary" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="panel-main" hidden>
+  <div class="who-bar">
+    <div>
+      <div class="name" id="who-name"></div>
+      <div class="role" id="who-role"></div>
+    </div>
+    <button class="btn-switch" id="btn-switch" type="button">Switch person</button>
+  </div>
+
+  <div class="urdu-box">
+    <b>Tareeqa (Instructions in Roman Urdu)</b>
+    Yeh aap ki apni pages ki list hai — jo kaam aap ko diya gaya hai (Manage Access mein), wahi yahan tabs mein dikhega. Upar tabs par click karein (jaise "Daily Operations" ya "Stock Control") phir neeche jo page chahiye us par tap karein taake wo khul jaye. Agar kisi page ke saath "view only" likha hai to aap usay sirf dekh sakte hain, us mein tabdeeli save nahi ho gi. Agar koi page bilkul nazar nahi aa raha to Director se Manage Access mein apni access set karne ko kahein. "Switch person" button se aap doosre banda/bandi ke liye login kar saktay hain.
+  </div>
+  <div id="tab-row" class="tab-row"></div>
+  <div id="page-grid" class="page-grid"></div>
+  <div class="hint" id="director-hint" hidden>As a Director you can open every page. Everyone else only sees what's been granted to them in Manage Access.</div>
+</div>
+
+<script src="session.js"></script>
+<script>
+const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
+const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
+
+// One section per page_key. This is the same grant matrix documented in
+// reference/ACCESS_CONTROL_AND_PIN_SYSTEM.md - update both places together.
+// Grill is a production/vendor segment, not a retail branch -- so this list is
+// deliberately a subset of C-5's: no daily checklist, sales entry, POS upload,
+// delivery or diesel tracking (no retail front here), and no fast-track demand
+// (that's how a BRANCH orders FROM Grill, not something Grill itself uses).
+// "Sell to branch" (Grill's own revenue side) isn't built yet -- see
+// reference/GRILL_SETUP.md -- so Reports' Income Statement tab will show real
+// costs/payroll but no revenue until that's in place.
+const SECTIONS = [
+  { name: "Daily Operations", pages: [
+    { key: "expense_entry", label: "Expense Entry", url: "grill-expense-entry.html" },
+    { key: "attendance", label: "Attendance", url: "grill-attendance-entry.html" },
+  ]},
+  { name: "Stock Control", pages: [
+    { key: "stock_count", label: "Stock Count", url: "grill-stock-count.html" },
+    { key: "inventory_balance_sheet", label: "Inventory Balance Sheet", url: "grill-inventory-balance-sheet.html" },
+    { key: "goods_receipt", label: "Goods Receipt", url: "grill-goods-receipt.html" },
+    { key: "purchase_order", label: "Purchase Orders", url: "grill-purchase-order.html" },
+    { key: "issue_entry", label: "Issue Entry", url: "grill-issue-entry.html" },
+  ]},
+  { name: "People & Payroll", pages: [
+    { key: "payroll", label: "Payroll", url: "grill-payroll-entry.html" },
+    { key: "employee_master", label: "Employee Master", url: "grill-employee-master.html" },
+  ]},
+  { name: "Setup & Reference", pages: [
+    { key: "item_master", label: "Item Master", url: "item-master.html" },
+    { key: "manage_access", label: "Manage Access", url: "manage-access.html" },
+  ]},
+  { name: "Reports", pages: [
+    { key: "reports", label: "Reports", url: "grill-reports.html" },
+  ]},
+];
+
+let session = null;
+let activeSection = null;
+
+async function sbRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, ...AppSession.authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch (e) { /* use raw text */ }
+    throw new Error(msg);
+  }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("application/json") ? res.json() : null;
+}
+
+// No roster is shown on screen - the person types their own name and PIN,
+// and we resolve the name against list_all_managers() ourselves. A name
+// that doesn't match and a name that matches but has the wrong PIN both
+// show the same generic error, so this page never reveals who has an
+// account here.
+async function doLogin(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById("login-name");
+  const pinInput = document.getElementById("login-pin");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const typedCode = nameInput.value.trim().toUpperCase();
+  const pin = pinInput.value;
+  if (!typedCode || !pin) return;
+
+  errEl.hidden = true;
+  submitBtn.disabled = true;
+  try {
+    const managers = await sbRpc("list_all_managers_with_code", {});
+    const match = managers.find((m) => m.login_code === typedCode);
+    if (!match) throw new Error("no match");
+
+    const rows = await sbRpc("verify_manager_pin", { p_manager_id: match.id, p_pin: pin });
+    const row = rows && rows[0];
+    if (!row) throw new Error("no match");
+
+    const pageRows = await sbRpc("list_pages_for_manager_v2", { p_manager_id: match.id });
+    session = {
+      managerId: match.id,
+      userId: row.app_user_id,
+      userName: match.name,
+      role: row.role,
+      pages: (pageRows || []).map((r) => r.page_key),
+      viewOnlyPages: (pageRows || []).filter((r) => r.view_only).map((r) => r.page_key),
+      loginAt: new Date().toISOString(),
+      token: row.session_token,
+    };
+    AppSession.set(session);
+    nameInput.value = "";
+    pinInput.value = "";
+    showMain();
+  } catch (err) {
+    errEl.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+document.getElementById("login-form").addEventListener("submit", doLogin);
+
+function showMain() {
+  document.getElementById("step-login").hidden = true;
+  document.getElementById("panel-main").hidden = false;
+  document.getElementById("who-name").textContent = session.userName;
+  document.getElementById("who-role").textContent = session.role.replace("_", " ");
+  document.getElementById("director-hint").hidden = session.role !== "director";
+
+  const visibleSections = SECTIONS
+    .map((s) => ({ name: s.name, pages: s.pages.filter((p) => AppSession.hasAccess(session, p.key)) }))
+    .filter((s) => s.pages.length);
+
+  if (!visibleSections.length) {
+    document.getElementById("tab-row").innerHTML = "";
+    document.getElementById("page-grid").innerHTML =
+      '<div class="empty-hint">No pages have been granted to you yet. Ask a Director to set this up in Manage Access.</div>';
+    return;
+  }
+
+  activeSection = visibleSections[0].name;
+  renderTabs(visibleSections);
+  renderPages(visibleSections);
+}
+
+function renderTabs(visibleSections) {
+  const row = document.getElementById("tab-row");
+  row.innerHTML = "";
+  visibleSections.forEach((s) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tab-btn" + (s.name === activeSection ? " active" : "");
+    btn.textContent = s.name;
+    btn.onclick = () => {
+      activeSection = s.name;
+      renderTabs(visibleSections);
+      renderPages(visibleSections);
+    };
+    row.appendChild(btn);
+  });
+}
+
+function renderPages(visibleSections) {
+  const grid = document.getElementById("page-grid");
+  grid.innerHTML = "";
+  const section = visibleSections.find((s) => s.name === activeSection);
+  (section ? section.pages : []).forEach((p) => {
+    const a = document.createElement("a");
+    a.className = "page-link";
+    a.href = p.url;
+    const viewOnly = AppSession.isViewOnly(session, p.key);
+    a.innerHTML = `<span>${p.label}${viewOnly ? ' <span class="view-only-badge">view only</span>' : ""}</span><span class="arrow">&rarr;</span>`;
+    grid.appendChild(a);
+  });
+}
+
+document.getElementById("btn-switch").addEventListener("click", () => {
+  AppSession.clear();
+  session = null;
+  document.getElementById("panel-main").hidden = true;
+  document.getElementById("step-login").hidden = false;
+  document.getElementById("login-name").value = "";
+  document.getElementById("login-pin").value = "";
+  document.getElementById("login-error").hidden = true;
+  document.getElementById("login-name").focus();
+});
+
+// Already logged in this visit? Skip straight to their pages.
+const existing = AppSession.get();
+if (existing) {
+  session = existing;
+  showMain();
+}
+</script>
+
+</body>
+</html>
