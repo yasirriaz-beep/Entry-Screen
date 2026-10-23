@@ -218,6 +218,11 @@
 const SUPABASE_URL = "https://wuezcjvmftbkkwfawhtu.supabase.co";
 const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 const LOCATION_ID = "10000000-0000-0000-0000-000000000008"; // Grill
+// Grill's own operational item list (raw materials, spices, sauces, oil/milk/cream,
+// cleaning, packing, crockery, office supplies) sourced from the Grill Excel's
+// INVENTORY sheet — NOT the full shared catalog every other mirrored page sees.
+const GRILL_ITEM_CODES = ["GRL-038", "GRL-039", "FD-003", "FD-004", "FD-005", "FD-137", "FD-136", "FD-139", "FD-141", "FD-142", "FD-129", "FD-124", "FD-130", "FD-131", "FD-120", "FD-092", "FD-098", "1.8.08", "1.8.11", "FD-133", "FD-111", "FD-097", "FD-081", "CL-001", "CL-002", "CL-006", "CL-032", "CL-033", "CL-027", "CL-036", "CL-038", "3.4.12", "CL-026", "CL-040", "3.4.11", "CL-011", "PT-001", "CL-039", "CL-035", "CL-008", "CL-016", "CL-017", "CL-019", "5.07", "EQ-009", "EQ-002", "UN-014", "ST-032", "5.11", "FG-002", "PT-003", "FD-108", "1.8.21", "GRL-001", "GRL-002", "GRL-003", "GRL-004", "GRL-005", "GRL-006", "GRL-007", "GRL-008", "GRL-009", "GRL-010", "GRL-011", "GRL-012", "GRL-013", "GRL-014", "GRL-015", "GRL-016", "GRL-017", "GRL-018", "GRL-019", "GRL-020", "GRL-021", "GRL-022", "GRL-023", "GRL-024", "GRL-025", "GRL-026", "GRL-027", "GRL-028", "GRL-029", "GRL-030", "GRL-031", "GRL-032", "GRL-033", "GRL-034", "GRL-035", "GRL-036", "GRL-037"];
+const GRILL_ITEM_CODES_IN = GRILL_ITEM_CODES.map(encodeURIComponent).join(",");
 const PAGE_KEY = "purchase_order";
 
 let state = {
@@ -356,7 +361,7 @@ function backToNames() {
 
 async function loadProducts() {
   try {
-    state.products = await sb(`products?active=eq.true&select=id,code,name,unit,current_rate&order=name`);
+    state.products = await sb(`products?active=eq.true&code=in.(${GRILL_ITEM_CODES_IN})&select=id,code,name,unit,current_rate&order=name`);
   } catch (e) { state.products = []; }
 }
 

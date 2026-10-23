@@ -22,6 +22,62 @@ up in Supabase before tonight:
 - **AR CHIKES** (the chicken supplier) did *not* exist as a vendor yet,
   despite being referenced in earlier engagement notes — added tonight.
 
+## October 23 follow-up — Grill's actual item list, pulled from the Excel
+
+You flagged, correctly, that the Grill pages were showing C-5's full shared
+catalog instead of Grill's own items: "you have copied the same inventory
+from c-5. it has different items. get it from the excel file." That's
+because `products` has no per-location scoping at all — every mirrored
+page's Stock Count / Purchase Orders / Goods Receipt / Issue Entry /
+Inventory Balance Sheet was pulling the entire ~800-row shared catalog, not
+a Grill-specific subset.
+
+**What was wrong, specifically:** the original build only wired up the 9
+finished-product codes that branches *buy from* Grill (Malai Boti, Steak
+Fillet, etc.) — it never built Grill's own day-to-day operating item list
+(the raw materials, spices, sauces, cleaning supplies, packing material,
+crockery and office supplies Grill's own staff purchase, count and issue).
+Your Excel's `INVENTORY` sheet has that full list — 90 items across 8
+categories.
+
+**The fix:**
+1. Read the Excel's `INVENTORY` sheet in full (not just the 9 fast-track
+   codes) — 90 real stockable items (one Excel row, "RENT," was dropped as a
+   misfiled expense line, not a real inventory item).
+2. Matched each item against the existing shared catalog by name (allowing
+   for typos/spelling differences between your Excel and the catalog, e.g.
+   "MURGI MASALA" ↔ "MURGHI MASALA", "ACHAR GOAST" ↔ "ACHAR GOSHT MASLA") —
+   53 of the 90 already existed under the catalog's normal code scheme and
+   were reused as-is, no duplicates created.
+3. Added **37 new products** for items that genuinely didn't exist yet
+   (MALAI BLEND, BEHARI BLEND, HOT SAUCE, FRESH CREAM 1-LTR, DUSTER, TONG,
+   FRIES MACHINE, etc.) — all under a fresh `GRL-xxx` code prefix, chosen
+   specifically so they can never collide with the catalog's own numbering
+   or with your Excel's own "BB" code scheme (which reuses strings like
+   "1.1.01" and "1.3.14" for completely unrelated items already in the main
+   catalog).
+4. Updated all 5 Grill pages that load products
+   (`grill-inventory-balance-sheet.html`, `grill-stock-count.html`,
+   `grill-purchase-order.html`, `grill-goods-receipt.html`,
+   `grill-issue-entry.html`) to filter to exactly this 90-code list instead
+   of pulling every active product in the system.
+
+**A real bug this surfaced, and fixed:** the THAI and CHEST raw-chicken
+products added in the first pass last night were accidentally given codes
+`FD-200` / `FD-201` — which, it turns out, already belonged to two
+unrelated, active products: **FUSILLI 400 GM** and **FRENCH LOAF**. Nothing
+in the database stops two products from sharing a code (there's no unique
+constraint on `products.code`), so this collision wasn't caught until this
+pass's checks. Renamed THAI → `GRL-038` and CHEST → `GRL-039`; FUSILLI and
+FRENCH LOAF were untouched. Separately — not Grill's doing, just flagged
+while checking — the shared catalog already has three other pairs of
+duplicate codes elsewhere (`MK-020`, `2.3.05`, `Bar224`), pre-existing and
+unrelated to this work; worth a cleanup pass sometime, not urgent.
+
+The full 90-code list each Grill page now filters to lives in a
+`GRILL_ITEM_CODES` constant right next to that page's `LOCATION_ID` —
+same mirroring convention as everything else in this app.
+
 ## What was added tonight
 
 **Location.** A new `locations` row: code `GRL`, name "Grill", city
@@ -36,10 +92,13 @@ fast-track — it's Grill's own upstream supplier, not something a branch
 orders from).
 
 **Raw material items.** Added two products Grill actually needs that weren't
-in the catalog: **Thai** and **Chest** (raw chicken cuts, code FD-200 /
-FD-201, unit KG, preferred vendor AR CHIKES). Starting rates (740 / 735) are
-rough averages from the September purchase log in your Excel — these will
-drift with the market, so treat them as a starting point, not gospel.
+in the catalog: **Thai** and **Chest** (raw chicken cuts, code `GRL-038` /
+`GRL-039` as of the Oct 23 follow-up below — originally assigned `FD-200` /
+`FD-201`, which turned out to collide with two unrelated existing products;
+see that section — unit KG, preferred vendor AR CHIKES). Starting rates
+(740 / 735) are rough averages from the September purchase log in your
+Excel — these will drift with the market, so treat them as a starting
+point, not gospel.
 
 **Payroll roster.** Added Grill's three employees to the `employees` table,
 scoped to the new Grill location, with the figures from the Pay Roll sheet:
@@ -143,6 +202,15 @@ page is designed, since it may be the same underlying mechanism.
 1. Set Ahmad Sb's PIN (Manage Access, login code **AS**).
 2. Confirm the `shift_manager` role reuse is fine, or say if you want a
    proper Production Manager role instead.
+3. Spot-check the 37 new `GRL-xxx` items' starting rates (Item Master) —
+   they're taken straight from your Excel's `INVENTORY` sheet rate column,
+   not independently verified against a current purchase.
+4. None of the new items have a `preferred_vendor_id` set (unlike THAI/
+   CHEST, which point at AR CHIKES) — your Excel names several Grill-specific
+   vendors (FNK SPICE, ARIB SPICE, AHMAD FOOD, NESTLE, SHERI CHEMICAL, GMSA
+   LPG, etc.) that don't exist in the system yet. Didn't create them
+   unilaterally since that's its own small decision (merge into an existing
+   similarly-named vendor vs. add new) — say if you want them added.
 3. Confirm the THAI/CHEST starting rates (740 / 735) are reasonable, or give
    current ones.
 4. Say when you want the sell-to-branch page designed — that's the next
