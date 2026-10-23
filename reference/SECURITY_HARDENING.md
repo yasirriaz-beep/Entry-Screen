@@ -239,6 +239,28 @@ unconditionally authorized on every one of these seven tables regardless
 of which location or date a row belongs to, since the director branch of
 each `WITH CHECK` has no location or date clause left to fail.
 
+## October 23/24, same night — "same shift" walked back to "same day"
+
+The `shift = current_shift()` match added above was wrong and broke a real
+shift close within hours of shipping it. `current_shift()` tracks the
+wall clock (9am–6pm Asia/Karachi = morning, else evening) — but closing a
+shift's paperwork routinely happens well outside that shift's own clock
+window, since the evening shift runs until 3am and people often catch up
+on Save/Close after it ends. Reproduced exactly: today's (business-date
+Oct 23) C-5 morning shift — still Draft, entered earlier that evening by
+S.Manager — got a silent-feeling RLS rejection on Close Shift at 1:05am,
+because `current_shift()` had already flipped to `evening` while the row
+being closed was `shift = 'morning'`.
+
+Dropped the `shift = current_shift()` clause from `anon_update_expenses`
+and `anon_update_daily_sales`, keeping just the `expense_date` /
+`sale_date = current_business_date()` check that was already there. A
+shift manager still can't touch a different business day's entries (the
+part of "same shift" that actually matters — no backdating); they're no
+longer blocked from closing out today's own shifts late. Director access
+is unchanged either way. The `current_shift()` function itself is left in
+place (unused for now) in case a better-scoped use for it comes up later.
+
 ## For anyone touching this later
 
 - A client calling `verify_manager_pin` gets back `session_token` now —
