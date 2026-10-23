@@ -153,11 +153,20 @@ const ANON_KEY = "sb_publishable_lAVVtSaPN6BhAs7xD3qg5w_Ndf-rhgJ";
 // can't be broken by a future rename the way a name-lookup can.
 const LOCATION_ID = "10000000-0000-0000-0000-000000000005";
 
-const headers = {
+const baseHeaders = {
   "apikey": ANON_KEY,
   "Authorization": "Bearer " + ANON_KEY,
   "Content-Type": "application/json",
 };
+// baseHeaders alone never carries the logged-in person's identity (session.js's
+// AppSession.authHeaders() only has something to add once doLogin() has run) — RLS writes
+// that depend on current_session_app_user_id() (see SECURITY_HARDENING.md) silently fail
+// without it. This page predates the sb()/sbRpc() helper other pages use to add this
+// automatically on every call, so every fetch() here must call headers() fresh (not reuse a
+// stale captured object) rather than reading the old static `headers` constant directly.
+function headers() {
+  return { ...baseHeaders, ...AppSession.authHeaders() };
+}
 const PAGE_KEY = "sales_entry";
 // The till always starts — and is expected to end — at this standard float. It is NOT carried
 // forward from whatever the previous shift's physical count happened to be (that led to small
@@ -198,7 +207,7 @@ async function loadEmployees(){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/employees?location_id=eq.${locationId}&active=eq.true&select=id,name&order=name.asc`,
-      { headers }
+      { headers: headers() }
     );
     if (!res.ok) throw new Error(String(res.status));
     employeesList = await res.json();
@@ -215,7 +224,7 @@ async function loadEmployees(){
 
 async function sbRpc(fn, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: "POST", headers, body: JSON.stringify(body || {})
+    method: "POST", headers: headers(), body: JSON.stringify(body || {})
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -1007,7 +1016,7 @@ async function loadTaskBanner(){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/audit_alerts?location_id=eq.${locationId}&status=eq.open&alert_type=eq.task_shift_close_missing&select=title&order=title.asc`,
-      { headers }
+      { headers: headers() }
     );
     if (!res.ok) throw new Error(String(res.status));
     const rows = await res.json();
@@ -1059,7 +1068,7 @@ async function fetchTillCashExpenses(saleDate, shift){
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/expenses?location_id=eq.${locationId}&expense_date=eq.${saleDate}&shift=eq.${shift}&payment_method=eq.cash&paid_from_safe=neq.safe2&select=amount`,
-      { headers }
+      { headers: headers() }
     );
     if (!res.ok) throw new Error(String(res.status));
     const rows = await res.json();
@@ -1079,7 +1088,7 @@ async function loadShiftEntry(shift){
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.${shift}` +
       `&select=id,dine_in_covers,dine_in_amount,takeaway_covers,takeaway_amount,delivery_covers,delivery_amount,third_party_covers,third_party_amount,food_panda_covers,food_panda_amount,bakery_sale,card_amount,jazzcash_amount,jazzcash_collected_amount,total_sale,total_covers,opening_cash_till,closing_cash_till,custodian_cash_amount,status,closed_at,variance_reason,custodian_denomination_detail,custodian_handover_photo_path`,
-      { headers }
+      { headers: headers() }
     );
     if (res.ok) {
       const rows = await res.json();
@@ -1157,7 +1166,7 @@ async function loadShiftEntry(shift){
     try {
       const res = await fetch(
         `${SUPABASE_URL}/rest/v1/daily_sales?location_id=eq.${locationId}&sale_date=eq.${saleDate}&shift=eq.morning&select=jazzcash_amount,closing_cash_till`,
-        { headers }
+        { headers: headers() }
       );
       if (res.ok) {
         const rows = await res.json();
@@ -1306,7 +1315,7 @@ async function saveShift(shift, close){
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/daily_sales?on_conflict=location_id,sale_date,shift`, {
       method: "POST",
-      headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
+      headers: { ...headers(), "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {

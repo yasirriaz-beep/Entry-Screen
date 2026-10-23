@@ -261,6 +261,66 @@ longer blocked from closing out today's own shifts late. Director access
 is unchanged either way. The `current_shift()` function itself is left in
 place (unused for now) in case a better-scoped use for it comes up later.
 
+## October 24 — the real bug underneath all three "fixes" above: sales-entry.html never sent the session header at all
+
+After the same-day fix above, Close Shift *still* failed — this time with
+`"...row-level security policy (USING expression)..."`, which doesn't
+match any policy content that had just been checked line by line. That
+phrasing was the tell: USING failing (not WITH CHECK) on a correctly-shaped
+policy almost always means `current_session_app_user_id()` resolved to
+`NULL` — i.e. the request carried no `x-fnk-session` header at all, not
+that the role/location/date check was wrong.
+
+**Root cause:** this page predates the `sb()`/`sbRpc()` helper every other
+page uses (which spreads `AppSession.authHeaders()` into every call
+automatically). It instead had its own `const headers = {...}` object,
+built **once**, at page load, before login — so it could never carry a
+session token no matter how many times `AppSession.set()` ran afterward.
+Two of the page's nine `fetch()` calls (the photo-upload ones) had been
+patched by hand to add `...AppSession.authHeaders()` inline; the other
+seven — including the actual Save/Close Shift request — were not. This is
+exactly the gap `session.js`'s own comment warns about ("pages that still
+build their fetch headers without authHeaders() are not covered"), and it
+directly contradicts this file's own "All 35 pages were patched... no
+partial rollout to track" line above — that claim was wrong for this page.
+Checked every other page for the same static-`headers`-object pattern
+(`grep` for `const headers =` / `let headers =` across all `.html` files);
+none of the others have it — `settlements.html`'s one hit is an unrelated
+CSV-column variable, not HTTP headers.
+
+**Why this went undetected as long as it did:** the page's Save/Close
+request is an upsert (`POST .../daily_sales?on_conflict=location_id,
+sale_date,shift`). The *first* save for any shift is a plain `INSERT`,
+handled by `anon_insert_daily_sales_v2` — which, separately, doesn't tie
+itself to the caller's session identity at all (it only validates that
+whatever `entered_by_user_id` is in the payload belongs to some real,
+active, correctly-located user — see the still-open note below). So a
+shift saved once, with every field already final, has always gone through
+fine. It's only the *second* write to the same shift — a follow-up Save,
+or Close after an earlier Save — that ever hit the `UPDATE` arm and needed
+`current_session_app_user_id()` to resolve to anything, which it never
+could on this page. In other words: this specific failure mode predates
+every policy change made tonight; tonight's RLS fixes were all correct on
+their own terms, they just couldn't matter while the page never proved who
+was asking.
+
+**Fix:** `const headers = {...}` → `const baseHeaders = {...}` plus a
+`function headers() { return { ...baseHeaders, ...AppSession.authHeaders() }; }`
+called fresh at each of the page's 7 affected call sites (`{ headers }` →
+`{ headers: headers() }`, etc.), matching what `sb()` does elsewhere. This
+one needed an actual deploy (it's a frontend file, unlike every RLS fix
+above) — pushed to `main`, Netlify auto-deploys from it.
+
+**Still open, not fixed tonight:** `anon_insert_daily_sales_v2` (and
+similarly-shaped `v2` insert policies on other tables) validates the
+payload's claimed `entered_by_user_id` against role/location/active, but
+not against the caller's actual session identity — so, in principle,
+anyone holding the public anon key could insert a `daily_sales` row
+attributing it to any real shift manager or director at that location,
+without being logged in as them. Worth tightening the same way the update
+policies were tonight, but it's an insert-side gap, not what broke
+tonight's save, so left alone for now.
+
 ## For anyone touching this later
 
 - A client calling `verify_manager_pin` gets back `session_token` now —
@@ -275,6 +335,14 @@ place (unused for now) in case a better-scoped use for it comes up later.
   (and `active`), the same shape without the `= entered_by_user_id` part.
   This exact copy-paste mistake is what broke expense/purchase edits on
   Oct 23 (see above) — don't repeat it on a future table.
+- A write policy requiring `current_session_app_user_id()` is only as good
+  as the page actually sending `x-fnk-session`. "`AppSession.authHeaders()`
+  appears somewhere in this file" is not proof every write on that page
+  sends it — check every individual `fetch()`/`sb()` call site, especially
+  on any page old enough to predate the `sb()`/`sbRpc()` helper (it may
+  have its own hand-rolled, possibly shared/static, headers object). This
+  is what let `sales-entry.html` slip through on Oct 24 despite already
+  being marked "patched."
 - `DROP FUNCTION` and plain `DELETE` occasionally time out against this
   project through the Supabase MCP tool even though they succeed almost
   instantly server-side (confirmed via `pg_stat_activity` — nothing was
