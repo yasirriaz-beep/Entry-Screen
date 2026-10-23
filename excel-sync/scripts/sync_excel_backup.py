@@ -41,17 +41,21 @@ import openpyxl
 TEMPLATE = os.path.join(os.path.dirname(__file__), "..", "template", "FNK_Gulberg_Master_Workbook.xlsx")
 OUT_PATH = os.path.join(os.path.dirname(__file__), "..", "out", "FNK_Gulberg_Master_Workbook_LIVE.xlsx")
 
-SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
-SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-}
-
-
 def fetch(view, order):
-    url = f"{SUPABASE_URL}/rest/v1/{view}?select=*&order={order}"
-    r = requests.get(url, headers=HEADERS, timeout=30)
+    # Read lazily (not at module import time): upload_to_drive.py imports
+    # upload_to_drive() from this module for the unrelated source-code backup
+    # job, which has no Supabase credentials and never calls fetch()/main().
+    # Reading these at import time (the old behaviour) made that job crash
+    # with KeyError('SUPABASE_URL') on every run even though it never touches
+    # Supabase - see the Oct 2026 GitHub Actions nightly-backup incident.
+    supabase_url = os.environ["SUPABASE_URL"].rstrip("/")
+    supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+    }
+    url = f"{supabase_url}/rest/v1/{view}?select=*&order={order}"
+    r = requests.get(url, headers=headers, timeout=30)
     r.raise_for_status()
     return r.json()
 
