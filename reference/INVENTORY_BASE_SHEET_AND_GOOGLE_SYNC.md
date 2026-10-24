@@ -204,3 +204,65 @@ Same Google Cloud service account as the inventory-sheet sync can be reused
 No `GDRIVE_FILE_ID` secret is needed — the first run creates the file
 ("FNK_Gulberg_Master_Workbook_LIVE.xlsx") and every run after that finds and
 overwrites the same one by name, so the Drive link stays stable.
+
+## October 24 — flour "BAG" and fries "PKT" unit-of-measure correction
+
+The owner flagged a real mismatch: the store had been treating **1 flour
+BAG = 50 kg**, but the kitchen has always actually used **10 kg bags**. He
+also wanted the fries line items switched from packet-counting to
+kilograms outright, since **1 fries PKT = 2.5 kg**.
+
+Investigated before touching anything:
+
+- `products.unit` is just a free-text label (varchar, no CHECK constraint,
+  37 distinct values in use) — there is no central "conversion factor"
+  column anywhere in the schema for BAG→KG or PKT→KG (the existing
+  `floor_count_unit`/`floor_count_factor` pair on `products` is a
+  *different* mechanism entirely — it converts a floor-count unit like PCS
+  back into the ledger unit like PKT, e.g. "52 wings PCS = 1 PKT"; it is
+  unrelated to kg conversion and wasn't touched).
+- A `grep` across every `.html` page for `unit === 'PKT'`/`'BAG'`-style
+  branching found nothing — `unit` is purely a display string, never used
+  in client-side logic, so switching it is safe.
+- Checked actual recorded quantities for the flour items (`FD-041`
+  MARINATED FRIED FLOUR, `FD-077` PIZZA FLOUR, `1.4.05` AL TAYYAB BREADING
+  FLOUR, all unit=BAG/BEG): daily issue quantities are small integers
+  (1-4/day) consistent with someone physically counting bags out of the
+  store, **not** a kg figure back-computed from an assumed 50 kg/bag. So
+  the recorded bag *counts* were never wrong — only the mental "a bag =
+  50 kg" conversion was. **No historical quantity data needed rescaling
+  for flour.** Fixed only a pre-existing data-entry typo, "BEG" → "BAG"
+  (found on `1.4.05`'s product record and on one historical `purchases`
+  row for `FD-077`), purely cosmetic, zero $ impact.
+  - `1.4.07` VITAL FRIED FLOUR 50 KG was deliberately left alone — it's
+    inactive, and its name already states its own real bag size (50 kg),
+    so it reads as a genuinely different product line, not part of this
+    mix-up.
+  - Flagged, not changed: `FD-077` PIZZA FLOUR's `min_stock_level`/
+    `reorder_qty` (10 / 50 bags). If those thresholds were ever set with a
+    kg target in mind (e.g. "keep ~500 kg on hand"), they now mean far
+    less physical flour (10 bags × 10 kg = 100 kg) than originally
+    intended and are worth revisiting. Left as-is since there's no way to
+    tell from the data whether the number was a bag-count decision or a
+    kg-target decision.
+- For fries, this **was** a real unit-of-record change, so every
+  historical row was rescaled by the conversion factor (×2.5 for
+  quantities, ÷2.5 for rates — money amounts are the product of the two,
+  so every `amount`/`closing_amount`/etc. column was deliberately left
+  untouched and still ties out exactly) across `products`, `purchases`
+  (incl. `original_qty`/`original_rate`), `purchase_orders`,
+  `daily_issues`, `inventory_snapshots`, `floor_par_levels`,
+  `inventory_balance_adjustments`, and the `excel_inventory_staging`
+  reference table. Covered: `FD-043` GOLDEN BROWN FRIES, `1.4.02` MAC
+  FRIES, `FD-045` OPA FRIES, `FD-138` ZESTY FRIES BLEND. `product_floor_overrides`
+  was left untouched — it only overrides a display label, no quantity.
+  - One $0.25 cosmetic rounding artifact: a single `purchases` row for
+    OPA FRIES had rate 950.02/PKT; divided by 2.5 that's 380.008, but the
+    `rate` column only stores 2 decimal places, so it rounded to 380.01.
+    The row's `amount` (what actually drives financial totals) was never
+    touched and is still exactly correct (47501.00) — only the
+    *reconstructed* qty×rate for that one row is 25 paisa off from it.
+  - Verified post-migration: per-product sums of rescaled `daily_issues`
+    quantities match (old total)×2.5 exactly, and every `amount` column
+    checked still equals (new qty)×(new rate) to the cent (except the one
+    row above).
