@@ -14,7 +14,9 @@ recalculate on their own, in Excel, from the rows this script writes.
 Env vars required:
   SUPABASE_URL                 e.g. https://wuezcjvmftbkkwfawhtu.supabase.co
   SUPABASE_SERVICE_ROLE_KEY    service-role key (bypasses RLS; read-only views only)
-  GOOGLE_SERVICE_ACCOUNT_JSON  base64-encoded service-account key JSON
+  GOOGLE_OAUTH_CLIENT_ID       OAuth 2.0 client ID (see upload_to_drive() below)
+  GOOGLE_OAUTH_CLIENT_SECRET   its client secret
+  GOOGLE_OAUTH_REFRESH_TOKEN   refresh token for the Google account owning the backups
   GDRIVE_TARGET_FILE_NAME      (optional) defaults to the workbook's own name
   NOTIFY_EMAIL                 (optional) share the Drive file with this address
 
@@ -28,8 +30,6 @@ Inventory / Payables / Directors / Payroll SUMIFS formulas (their Item Name
 will just show blank). A "Sync Notes" banner is written into each synced
 sheet to make this visible rather than silently missing.
 """
-import base64
-import json
 import os
 import re
 import sys
@@ -205,8 +205,19 @@ def main():
 
 def upload_to_drive(local_path, mimetype=None):
     """Create-or-overwrite the Drive copy, keeping the same file id (and
-    therefore the same shareable link) across every run. Needs:
-      GOOGLE_SERVICE_ACCOUNT_JSON  base64 of the service-account key JSON
+    therefore the same shareable link) across every run.
+
+    Google no longer gives service accounts any Drive storage quota on a
+    plain (non-Workspace) Gmail account, so a service-account key alone
+    cannot create a new file there - every run failed with "Service
+    Accounts do not have storage quota" (see
+    reference/INVENTORY_BASE_SHEET_AND_GOOGLE_SYNC.md, Oct 2026 entry).
+    Instead this authenticates as the actual Google account via OAuth,
+    using a long-lived refresh token obtained once through the OAuth
+    Playground (same doc has the one-time setup steps). Needs:
+      GOOGLE_OAUTH_CLIENT_ID       OAuth 2.0 client ID (Web application type)
+      GOOGLE_OAUTH_CLIENT_SECRET   its client secret
+      GOOGLE_OAUTH_REFRESH_TOKEN   refresh token for the target Google account
       GDRIVE_FILE_ID                (optional) reuse a specific existing file
       NOTIFY_EMAIL                  (optional) share with this address as writer
 
@@ -214,13 +225,17 @@ def upload_to_drive(local_path, mimetype=None):
     with the Excel-workbook backup job; the source-code backup job passes
     "application/zip" explicitly so Drive doesn't mislabel the file.
     """
-    from google.oauth2 import service_account
+    from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
 
-    key_json = json.loads(base64.b64decode(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]))
-    creds = service_account.Credentials.from_service_account_info(
-        key_json, scopes=["https://www.googleapis.com/auth/drive"]
+    creds = Credentials(
+        None,
+        refresh_token=os.environ["GOOGLE_OAUTH_REFRESH_TOKEN"],
+        client_id=os.environ["GOOGLE_OAUTH_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_OAUTH_CLIENT_SECRET"],
+        token_uri="https://oauth2.googleapis.com/token",
+        scopes=["https://www.googleapis.com/auth/drive.file"],
     )
     drive = build("drive", "v3", credentials=creds)
 

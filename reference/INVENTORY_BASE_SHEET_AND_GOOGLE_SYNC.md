@@ -289,3 +289,68 @@ Investigated before touching anything:
     quantities match (old total)×2.5 exactly, and every `amount` column
     checked still equals (new qty)×(new rate) to the cent (except the one
     row above).
+
+## October 24 — nightly backup secrets, and switching Drive upload from a service account to OAuth
+
+Both `sync-excel-backup.yml` and `sync-source-backup.yml` were re-triggered
+manually (via `workflow_dispatch`) after their required GitHub Actions
+secrets were filled in, to confirm the two nightly jobs actually work
+end-to-end. Three problems surfaced in sequence, each only visible once
+the previous one was fixed:
+
+1. **`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` missing** — fixed in an
+   earlier session (see the `fetch()` docstring note above); confirmed
+   working this run (Excel-sync pulled live data and recalculated 14,221+
+   formulas with LibreOffice without error).
+2. **`GOOGLE_SERVICE_ACCOUNT_JSON` had bad base64 padding** — the value
+   pasted into the GitHub secret was missing characters (almost certainly
+   lost during a manual select-and-copy in a terminal that had wrapped the
+   output onto multiple lines). Both jobs failed identically at
+   `base64.b64decode(...)` with `binascii.Error: Incorrect padding`.
+   Fixed by re-encoding straight to the clipboard instead of selecting by
+   hand (`[Convert]::ToBase64String(...) | Set-Clipboard` on Windows,
+   `base64 -i key.json | tr -d '\n' | pbcopy` on Mac,
+   `base64 -w0 key.json | xclip -selection clipboard` on Linux) and
+   re-pasting. Since the raw service-account JSON had briefly been pasted
+   into chat while debugging this, the key was also rotated (old key
+   deleted in Google Cloud Console, a fresh one generated) rather than
+   kept — standard practice for any credential that touched a chat
+   transcript, and separately Google's own automated key-exposure scanner
+   had already flagged the old key.
+3. **Service accounts have no Drive storage quota on a plain (non-Workspace)
+   Gmail account** — once the base64 issue was fixed, both jobs failed at
+   the upload step itself with `googleapiclient.errors.HttpError: 403 ...
+   "Service Accounts do not have storage quota. Leverage shared drives...
+   or use OAuth delegation instead."` This is a real Google policy change
+   (service accounts can no longer own/create files in a regular Gmail
+   account's Drive at all — only Shared Drives, which require a paid
+   Google Workspace plan, work with a service account's own identity).
+   FNK's Drive account is a personal Gmail, not Workspace, so the fix was
+   to stop using the service-account key for the Drive upload entirely and
+   authenticate as the real Google account instead, via OAuth with a
+   long-lived refresh token. `upload_to_drive()` in
+   `excel-sync/scripts/sync_excel_backup.py` now builds
+   `google.oauth2.credentials.Credentials` from three new secrets
+   (`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`,
+   `GOOGLE_OAUTH_REFRESH_TOKEN`) instead of
+   `service_account.Credentials.from_service_account_info(...)`; both
+   workflow YAMLs were updated to pass those three secrets instead of
+   `GOOGLE_SERVICE_ACCOUNT_JSON`. Scope used is
+   `https://www.googleapis.com/auth/drive.file` (least privilege — the
+   app can only see/manage files it creates itself, not the whole Drive).
+   The service account (`ss-backup@ss-backup-512615.iam.gserviceaccount.com`)
+   and its Drive-API-enabled project are no longer used for anything and
+   can be left alone or deleted later.
+   - One-time setup to get the refresh token: create an OAuth 2.0 Client
+     ID of type **Web application** in the same Google Cloud project
+     (APIs & Services → Credentials), with
+     `https://developers.google.com/oauthplayground` added as an
+     authorized redirect URI; configure the OAuth consent screen
+     (External, Testing mode, with the target Gmail address added as a
+     test user) if not already done. Then use
+     https://developers.google.com/oauthplayground — gear icon → "Use
+     your own OAuth credentials" → paste the client ID/secret → select
+     the Drive API v3 `.../auth/drive.file` scope → Authorize APIs → sign
+     in as the target Gmail account → Exchange authorization code for
+     tokens → copy the resulting refresh token into the
+     `GOOGLE_OAUTH_REFRESH_TOKEN` secret.
