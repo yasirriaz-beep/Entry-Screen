@@ -234,6 +234,29 @@ Investigated before touching anything:
   for flour.** Fixed only a pre-existing data-entry typo, "BEG" → "BAG"
   (found on `1.4.05`'s product record and on one historical `purchases`
   row for `FD-077`), purely cosmetic, zero $ impact.
+  - **Follow-up, same day — this alone wasn't the actual fix the owner
+    needed.** He came back saying "flour didn't work" after this first
+    pass, because nothing above actually changes anything visible in the
+    app — it was pure data-consistency/documentation. The real lever was
+    sitting right there in `products`: `floor_count_unit` /
+    `floor_count_factor`, the same mechanism already used for ~25 other
+    items (e.g. WINGS/DRUMMETTE at "52 PCS = 1 PKT", COLA bottles at
+    "6/12 BOTTLE = 1 PET") to let `floor-inventory.html`'s Kitchen tab
+    show Beginning/Addition/Ending Count/Usage in a finer physical
+    counting unit than the ledger unit, converting both ways
+    automatically (see that file's count-unit comment block, ~line 671).
+    It was `NULL` for all three BAG flour items, so Kitchen's floor count
+    was just showing raw bag counts with no kg option at all. Set
+    `floor_count_unit = 'KG'`, `floor_count_factor = 10` on `FD-077`
+    PIZZA FLOUR, `FD-041` MARINATED FRIED FLOUR, and `1.4.05` AL TAYYAB
+    BREADING FLOUR. Now on the Kitchen tab those three show Beginning /
+    Addition / Ending Count / Usage in **KG**, converted at the correct
+    10 kg = 1 bag — finally the actual, visible fix. By existing design
+    (not touched here), **Par Qty and Reorder for Store stay in BAG** on
+    that same screen — those feed Issue Entry's ledger-unit suggestions
+    directly and were deliberately left in packets/bags for every other
+    count-unit item too, so this isn't a units mismatch, just the
+    established pattern.
   - `1.4.07` VITAL FRIED FLOUR 50 KG was deliberately left alone — it's
     inactive, and its name already states its own real bag size (50 kg),
     so it reads as a genuinely different product line, not part of this
